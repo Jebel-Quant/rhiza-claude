@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(git log *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(ls *)",
+      "Bash(make *)",
+      "Bash(uv *)",
+      "Bash(echo *)",
+      "Bash(which *)",
+      "Bash(head *)"
+    ]
+  },
+  "model": "opus[1m]",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true
+}
