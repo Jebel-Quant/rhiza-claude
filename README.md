@@ -1,4 +1,8 @@
-# claude-config
+# rhiza-config
+
+[![CodeFactor](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-config/badge)](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-config)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Jebel-Quant/rhiza-config/badge)](https://scorecard.dev/viewer/?uri=github.com/Jebel-Quant/rhiza-config)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Jebel-Quant/rhiza-config)
 
 Version-controlled [Claude Code](https://claude.com/claude-code) configuration
 for `~/.claude`.
@@ -46,7 +50,7 @@ data — noisy, large, and sometimes sensitive.
 ## Setup on a new machine
 
 ```bash
-git clone git@github.com:tschm/claude-config.git ~/.claude
+git clone git@github.com:Jebel-Quant/rhiza-config.git ~/.claude
 ```
 
 > Clone into an **empty** `~/.claude`, or clone elsewhere and copy the tracked
