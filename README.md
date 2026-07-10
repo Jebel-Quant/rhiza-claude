@@ -13,7 +13,7 @@ tracking).
 | Path | Purpose |
 | --- | --- |
 | `settings.json` | Shared Claude Code settings — model, permissions allowlist, TUI preferences. |
-| `commands/` | Custom global slash commands (`/global_rhiza_boost`, `/global_rhiza_quality`). |
+| `commands/` | Custom global slash commands (`/global_rhiza_boost`, `/global_rhiza_quality`, `/global_rhiza_revisit`, `/global_rhiza_stats`). |
 | `scripts/` | Helper scripts invoked by commands (e.g. `rhiza_resolve.py`). |
 | `.gitignore` | The allowlist that keeps everything else out. |
 
@@ -24,6 +24,12 @@ tracking).
   gates, and open a PR with a quality scorecard.
 - **`/global_rhiza_quality`** — run the rhiza code-quality gate (lint, types,
   docs, deps, security, tests, complexity, architecture) and score the repo.
+- **`/global_rhiza_revisit`** — create or revisit the current repo's `README.md`
+  (with the full standard badge set), `CLAUDE.md`, and `mkdocs.yml`, preserving
+  hand-written prose while refreshing badges and correcting drift.
+- **`/global_rhiza_stats`** — read-only statistics dashboard for the current repo:
+  lines of code/tests and their ratio, stars, open issues, PRs, branches, commits,
+  releases, coverage, complexity, dependencies, and rhiza template status.
 
 ### Scripts
 
