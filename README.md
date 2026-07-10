@@ -1,9 +1,6 @@
 # rhiza-config
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![CodeFactor](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-config/badge)](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-config)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Jebel-Quant/rhiza-config/badge)](https://scorecard.dev/viewer/?uri=github.com/Jebel-Quant/rhiza-config)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Jebel-Quant/rhiza-config)
 
 Version-controlled [Claude Code](https://claude.com/claude-code) configuration
 for `~/.claude`.
