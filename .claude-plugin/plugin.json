@@ -1,7 +1,7 @@
 {
   "name": "rhiza",
   "displayName": "Rhiza",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Global slash commands for rhiza-managed repos: boost (template sync + quality-scorecard PR), quality gate, README/CLAUDE.md/mkdocs revisit, and a read-only stats dashboard.",
   "author": {
     "name": "Jebel-Quant",
