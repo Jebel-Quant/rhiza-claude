@@ -61,8 +61,8 @@ If the choice **differs** from the current profile, also reconcile platform-spec
 - Sanity check: `grep -rl '^<<<<<<< ' . --exclude-dir=.git` should return nothing, and `find . -name '*.rej' -not -path './.git/*'` should be empty. If markers remain, list those files and resolve them manually (keep the upstream/theirs side).
 
 ## 8. Quality assessment (delegate to `quality`)
-Run the quality gates and produce the scorecard by **invoking the `quality` command** (via the Skill tool) — 
-do **not** re-specify the gates, scoring rubric, or scoping rule here. `quality` already 
+Run the quality gates and produce the scorecard by **invoking the `quality` command** (via the Skill tool) —
+do **not** re-specify the gates, scoring rubric, or scoping rule here. `quality` already
 encapsulates the correct gate set (`src/`-aware coverage downstream vs. the mother repo's `make rhiza-test`), the locally-owned-vs-Rhiza-owned scoping rule, and the platform, adapting to whichever repo it runs in. Delegating is what keeps this command from drifting as the template evolves — the single reason for this step's existence.
 
 Invoke it in **assessment-only, boost mode** — pass these constraints when you invoke it:

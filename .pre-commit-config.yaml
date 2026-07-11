@@ -1,0 +1,61 @@
+# Language-agnostic hooks for this Markdown/JSON plugin marketplace.
+# Adapted from the rhiza core bundle — Python/uv hooks intentionally dropped.
+#
+# Pin node so pre-commit provisions a compatible runtime for markdownlint
+# instead of using an odd-numbered system node (EBADENGINE).
+default_language_version:
+  node: "24.12.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-json          # validates the two plugin manifests
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.49.0
+    hooks:
+      - id: markdownlint
+        # Command .md files are prompts, not docs; CHANGELOG is generated.
+        exclude: '^(commands/|CHANGELOG\.md|\.github/)'
+        args: ["--disable", "MD013", "MD041"]
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.37.4
+    hooks:
+      - id: check-github-workflows
+        args: ["--verbose"]
+      - id: check-dependabot
+        args: ["--verbose"]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: manifest-version-parity
+        name: plugin.json and marketplace.json versions must match
+        entry: python3 scripts/check_version_parity.py
+        language: system
+        pass_filenames: false
+        files: '^\.claude-plugin/(plugin|marketplace)\.json$'

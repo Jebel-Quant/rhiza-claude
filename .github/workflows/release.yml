@@ -1,0 +1,75 @@
+name: Release
+
+# Publish a GitHub release when a version tag is pushed.
+# Prepare the tag with `make release VERSION=vX.Y.Z`, then push it.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# A release must never be interrupted mid-publish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create/publish the GitHub release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify manifest versions match the tag
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          VER="${TAG#v}"
+          PLUGIN=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+          MKT=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['plugins'][0]['version'])")
+          if [ "$PLUGIN" != "$VER" ] || [ "$MKT" != "$VER" ]; then
+            echo "::error::Version mismatch — tag=$VER plugin.json=$PLUGIN marketplace.json=$MKT. Run 'make release VERSION=$TAG' and retag."
+            exit 1
+          fi
+          echo "Versions match: $VER"
+
+      - name: Refuse to overwrite a published release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" != "true" ]; then
+              echo "::error::Release $TAG already exists and is not a draft."
+              exit 1
+            fi
+            echo "::warning::Draft release $TAG exists — it will be updated."
+          fi
+
+      - name: Generate release notes
+        id: cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip all
+
+      - name: Publish GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body: ${{ steps.cliff.outputs.content }}
+          allowUpdates: true
+          makeLatest: true

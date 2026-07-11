@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Keep the pinned GitHub Actions in .github/workflows/ up to date.
+  # (Dependabot has no ecosystem for pre-commit hooks — use
+  #  `uvx pre-commit autoupdate` for .pre-commit-config.yaml.)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies

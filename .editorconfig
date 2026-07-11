@@ -1,0 +1,23 @@
+root = true
+
+# Default settings for all files
+[*]
+end_of_line = lf
+trim_trailing_whitespace = true
+insert_final_newline = true
+charset = utf-8
+
+# YAML, JSON, and other config files
+[*.{yml,yaml,json}]
+indent_style = space
+indent_size = 2
+
+# Shell scripts
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Makefiles require tabs
+[{Makefile,*.mk,*.make}]
+indent_style = tab
+indent_size = 4
