@@ -4,7 +4,7 @@ argument-hint: "[version e.g. v0.19.9]  (optional; defaults to latest release)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(make*), Bash(python3*), Bash(cat*), Bash(grep*), Read, Edit, Write, AskUserQuestion, Skill
 ---
 
-You are running `/global_rhiza_boost` in the **current working directory's repo**. Goal: bump this one repo to a rhiza release, apply the template sync, resolve any conflicts by taking the upstream side, run the project's quality gates, and open a PR that includes a quality scorecard. Mirror the per-repo flow of `update_rhiza_versions.py` but resolve the version dynamically.
+You are running `/boost` in the **current working directory's repo**. Goal: bump this one repo to a rhiza release, apply the template sync, resolve any conflicts by taking the upstream side, run the project's quality gates, and open a PR that includes a quality scorecard. Mirror the per-repo flow of `update_rhiza_versions.py` but resolve the version dynamically.
 
 Argument (optional): `$ARGUMENTS` — an explicit template version tag like `v0.19.9`. If empty, use the latest release.
 
@@ -55,28 +55,30 @@ If the choice **differs** from the current profile, also reconcile platform-spec
 - Run `make sync`. A non-zero exit is expected when there are conflicts — do not treat it as fatal; capture the output and continue.
 
 ## 7. Resolve conflicts (take upstream)
-- Run `python3 ~/.claude/scripts/rhiza_resolve.py` from the repo root. It replaces conflict markers with the upstream side and applies any `.rej` files, staging what it fixes.
-- Sanity check: `grep -rl '^<<<<<<< ' . --exclude-dir=.git` should return nothing. If it still finds markers, list those files and resolve them manually (keep the upstream/theirs side).
+- Resolve rhiza-sync fallout by taking the **upstream (theirs) side** everywhere:
+  - For every file containing conflict markers, replace each `<<<<<<< … ======= … >>>>>>>` block with only its *theirs* (upstream) section, then `git add` the file.
+  - For every `*.rej` file left behind, apply its hunks to the matching target (take the `+`/upstream side of each hunk), `git add` the target, and delete the `.rej`. Delete any orphan `.rej` whose target no longer exists.
+- Sanity check: `grep -rl '^<<<<<<< ' . --exclude-dir=.git` should return nothing, and `find . -name '*.rej' -not -path './.git/*'` should be empty. If markers remain, list those files and resolve them manually (keep the upstream/theirs side).
 
-## 8. Quality assessment (delegate to `global_rhiza_quality`)
-Run the quality gates and produce the scorecard by **invoking the `global_rhiza_quality` command** (via the Skill tool) — 
-do **not** re-specify the gates, scoring rubric, or scoping rule here. `global_rhiza_quality` already 
+## 8. Quality assessment (delegate to `quality`)
+Run the quality gates and produce the scorecard by **invoking the `quality` command** (via the Skill tool) — 
+do **not** re-specify the gates, scoring rubric, or scoping rule here. `quality` already 
 encapsulates the correct gate set (`src/`-aware coverage downstream vs. the mother repo's `make rhiza-test`), the locally-owned-vs-Rhiza-owned scoping rule, and the platform, adapting to whichever repo it runs in. Delegating is what keeps this command from drifting as the template evolves — the single reason for this step's existence.
 
 Invoke it in **assessment-only, boost mode** — pass these constraints when you invoke it:
 - Run **all** gates (cheapest first, bare `make <target>` per the command-execution policy) even after an early failure, then produce (a) the per-gate PASS/FAIL summary, (b) the 1–10 scorecard, and (c) the actionable findings list — then **stop**.
-- Apply **no** code fixes beyond what `make fmt` auto-formats, and file **no** issues. `global_rhiza_boost` owns issue filing in step 11 (with dedup), and a template-bump PR must not carry surprise code edits. `global_rhiza_quality` is assessment-only by default; if it surfaces an issue-filing menu (as it may in the mother repo), decline it.
+- Apply **no** code fixes beyond what `make fmt` auto-formats, and file **no** issues. `boost` owns issue filing in step 11 (with dedup), and a template-bump PR must not carry surprise code edits. `quality` is assessment-only by default; if it surfaces an issue-filing menu (as it may in the mother repo), decline it.
 
 `make fmt` may auto-format files during the gate run; that's expected — those fixes get folded into the sync commit in step 9.
 
-From `global_rhiza_quality`'s output, capture for the later steps:
+From `quality`'s output, capture for the later steps:
 - the **per-gate PASS/FAIL table** → PR body (step 10);
 - the **rendered scorecard** (1–10 subcategories + overall + highest-leverage improvement) → PR body (step 10);
-- the **findings list**, one per subcategory scoring below 10. Step 11 files these as issues, so ensure each finding carries: a self-contained **title** (e.g. `Raise test coverage on src/foo.py from 84% to 100%`), the **subcategory** and **current→target** score, the specific **file(s)/lines or config**, a crisp **`done when…`** acceptance criterion, and a one-line **evidence** snippet from the gate output. If `global_rhiza_quality` omits the evidence line, augment each finding with it from the captured gate output. Order by leverage (biggest score gain for least effort first).
+- the **findings list**, one per subcategory scoring below 10. Step 11 files these as issues, so ensure each finding carries: a self-contained **title** (e.g. `Raise test coverage on src/foo.py from 84% to 100%`), the **subcategory** and **current→target** score, the specific **file(s)/lines or config**, a crisp **`done when…`** acceptance criterion, and a one-line **evidence** snippet from the gate output. If `quality` omits the evidence line, augment each finding with it from the captured gate output. Order by leverage (biggest score gain for least effort first).
 
 Persist both artifacts for the next steps: write the scorecard to `$SCRATCHPAD/rhiza_boost_pr_body.md` and the findings to `$SCRATCHPAD/rhiza_boost_findings.md` if a scratchpad path is available, else hold them in context.
 
-> **Note (rhiza ≥ v1.0.0):** if `global_rhiza_quality` runs both `make validate` and `make test` and the full `pytest` session appears inside the `make validate` output, the suite ran twice. That is now an upstream `rhiza_quality`/template concern — flag it, don't patch it here.
+> **Note (rhiza ≥ v1.0.0):** if `quality` runs both `make validate` and `make test` and the full `pytest` session appears inside the `make validate` output, the suite ran twice. That is now an upstream `rhiza_quality`/template concern — flag it, don't patch it here.
 
 ## 9. Commit + push sync
 - `git add --all` to stage all sync output (new/modified template files) **and** any `make fmt` auto-fixes from step 8.
@@ -109,7 +111,7 @@ Persist both artifacts for the next steps: write the scorecard to `$SCRATCHPAD/r
 - If the PR already exists, update its body (`gh pr edit <BRANCH> --body-file <PR_BODY_FILE>`) and report the existing URL instead of erroring.
 
 ## 11. File issues for below-10 findings (after confirmation, with dedup)
-The findings from step 8 also live in the PR scorecard, but `global_rhiza_boost` owns filing them as tracked issues — `global_rhiza_quality` deliberately skipped its own issue-filing menu because it was invoked in boost mode. Do this here:
+The findings from step 8 also live in the PR scorecard, but `boost` owns filing them as tracked issues — `quality` deliberately skipped its own issue-filing menu because it was invoked in boost mode. Do this here:
 
 - **Dedup first.** List the repo's existing open issues so you don't file duplicates:
   - GitHub → `gh issue list --state open --limit 200 --json number,title --jq '.[] | "#\(.number) \(.title)"'`

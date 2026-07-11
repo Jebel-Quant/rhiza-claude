@@ -139,11 +139,11 @@ self-contained: title from the finding, and a body carrying the subcategory, the
 current→target score, the specific file(s)/lines or config to change, and the
 "done when…" acceptance criterion. Report back the created issue URLs.
 
-> **Note — invoked from `global_rhiza_boost`:** when this command is run as the
-> step-8 assessment of `global_rhiza_boost`, it operates in assessment-only
+> **Note — invoked from `boost`:** when this command is run as the
+> step-8 assessment of `boost`, it operates in assessment-only
 > mode — run all gates, produce the PASS/FAIL summary, the 1–10 scorecard, and
 > the actionable findings list, then **stop**. Skip the issue-filing menu;
-> `global_rhiza_boost` owns issue filing (with dedup) in its own step 11.
+> `boost` owns issue filing (with dedup) in its own step 11.
 
 If everything passes, say so plainly — but still produce the 1–10 subcategory
 marks. Do not fix anything unless I ask — this command only assesses.

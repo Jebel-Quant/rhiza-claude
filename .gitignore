@@ -1,17 +1,5 @@
-# Allowlist approach: ignore everything by default, then un-ignore
-# the handful of files/dirs you author. This keeps runtime state,
-# caches, transcripts, and secrets out of version control.
-
-# Ignore everything
-/*
-
-# --- Track only authored config ---
-!.gitignore
-!LICENSE
-!README.md
-!settings.json
-!commands/
-!scripts/
-
-# settings.local.json is per-machine personal overrides — keep it local.
+# Per-machine Claude Code overrides — never committed
 settings.local.json
+
+# OS / editor cruft
+.DS_Store

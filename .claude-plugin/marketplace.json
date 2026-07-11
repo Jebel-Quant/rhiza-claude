@@ -1,0 +1,16 @@
+{
+  "name": "rhiza-config",
+  "owner": {
+    "name": "Jebel-Quant",
+    "email": "thomas.schmelzer@gmail.com"
+  },
+  "description": "Rhiza template-sync and code-quality workflow commands for Claude Code.",
+  "plugins": [
+    {
+      "name": "rhiza",
+      "source": ".",
+      "description": "Global slash commands for rhiza-managed repos: boost (template sync + quality-scorecard PR), quality gate, README/CLAUDE.md/mkdocs revisit, and a read-only stats dashboard.",
+      "version": "0.1.0"
+    }
+  ]
+}

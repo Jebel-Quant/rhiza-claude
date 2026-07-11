@@ -4,11 +4,11 @@ argument-hint: "[path or topic to scope the stats to]  (optional; defaults to th
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(make*), Bash(find*), Bash(wc*), Bash(grep*), Bash(sort*), Bash(uniq*), Bash(head*), Bash(cat*), Bash(sed*), Bash(awk*), Bash(du*), Bash(uv*), Bash(uvx*), Bash(pip*), Bash(python3*), Read, Glob, Grep
 ---
 
-You are running `/global_rhiza_stats` in the **current working directory's repo**.
+You are running `/stats` in the **current working directory's repo**.
 Goal: gather and present a concise **statistics dashboard** for this repo. This is
 purely descriptive — it **counts and measures, it does not score, fix, or file
-anything**. (That's the division of labour: `/global_rhiza_quality` judges and
-scores; `/global_rhiza_stats` just reports the numbers.) Adapt to whatever repo it
+anything**. (That's the division of labour: `/quality` judges and
+scores; `/stats` just reports the numbers.) Adapt to whatever repo it
 runs in by reading its tree, `pyproject.toml`, git history, and `.rhiza/` config at
 runtime — don't hardcode paths or assume Python.
 
@@ -103,4 +103,4 @@ Then a one-line summary, e.g. `<name> — <LOC> LOC / <T> test LOC (ratio <R>),
 <S>★, <I> open issues, <B> branches, <C> commits, rhiza <ref>`. Follow with the
 detailed sections. Mark any metric that couldn't be gathered as `n/a` with the reason.
 Do **not** editorialize into scores or recommendations — that's
-`/global_rhiza_quality`'s job; point the user there if they want an assessment.
+`/quality`'s job; point the user there if they want an assessment.

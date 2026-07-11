@@ -4,7 +4,7 @@ argument-hint: "[readme | claude | mkdocs | all]  (optional; defaults to all)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(grep*), Bash(find*), Bash(cat*), Bash(sed*), Bash(head*), Bash(python3*), Bash(uvx*), Read, Edit, Write, AskUserQuestion
 ---
 
-You are running `/global_rhiza_revisit` in the **current working directory's repo**.
+You are running `/revisit` in the **current working directory's repo**.
 Goal: create the three top-of-repo documentation/config files — `README.md` (with
 the full standard rhiza badge set), `CLAUDE.md`, and `mkdocs.yml` — or, if they
 already exist, **revisit** them: refresh the badges, fill gaps, and correct drift
@@ -79,7 +79,7 @@ are generated, not hand-authored), but keep the `# Title` and everything below.
 
 `CLAUDE.md` is guidance for future Claude Code sessions in this repo — the
 build/test commands, the architecture, and (for rhiza repos) the crucial
-**locally-owned vs. Rhiza-owned** split that `global_rhiza_quality` scoring
+**locally-owned vs. Rhiza-owned** split that `quality` scoring
 depends on.
 
 - **If it doesn't exist**, scaffold with:
