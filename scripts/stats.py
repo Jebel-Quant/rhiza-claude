@@ -583,6 +583,25 @@ def section_git(ctx: dict) -> tuple[Section, dict]:
 # --------------------------------------------------------------------------- #
 # 7. rhiza template status
 # --------------------------------------------------------------------------- #
+def _rhiza_status_json(root: Path) -> dict | None:
+    """Authoritative lock state from `rhiza status --json`, or None if unavailable.
+
+    Prefers the rhiza CLI's own reading of .rhiza/template.lock (accurate sha,
+    synced_at, strategy, and the exact template/include lists) over regex-parsing
+    the lock here, so this section can't drift from the tool. Returns None when the
+    `rhiza` CLI is absent, errors, or emits anything but a JSON object — callers
+    then fall back to reading the lock file directly.
+    """
+    raw = out(["rhiza", "status", str(root), "--json"])
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def section_rhiza(root: Path) -> tuple[Section, dict]:
     s = Section("Rhiza template status")
     rc: dict = {}
@@ -591,10 +610,25 @@ def section_rhiza(root: Path) -> tuple[Section, dict]:
         s.row("Rhiza", na("not a rhiza-managed repo (.rhiza/template.yml missing)"))
         return s, rc
     text = tmpl.read_text(errors="ignore")
-    ref_m = re.search(r"^\s*(?:template-branch|ref)\s*:\s*[\"']?([^\"'\n]+)", text, re.M)
-    ref = ref_m.group(1).strip() if ref_m else na("unparsed")
+
+    # Prefer the rhiza CLI's own lock reading; fall back to regex-parsing the files.
+    status = _rhiza_status_json(root)
+
+    if status and status.get("ref"):
+        ref = str(status["ref"])
+    else:
+        ref_m = re.search(r"^\s*(?:template-branch|ref)\s*:\s*[\"']?([^\"'\n]+)", text, re.M)
+        ref = ref_m.group(1).strip() if ref_m else na("unparsed")
     rc["ref"] = ref
     s.row("Template content version", ref)
+
+    if status:
+        if status.get("sha"):
+            s.row("Synced commit", str(status["sha"])[:12])
+        if status.get("synced_at"):
+            s.row("Synced at", str(status["synced_at"]))
+        if status.get("strategy"):
+            s.row("Sync strategy", str(status["strategy"]))
 
     ver_file = root / ".rhiza" / ".rhiza-version"
     if ver_file.exists():
@@ -632,10 +666,16 @@ def section_rhiza(root: Path) -> tuple[Section, dict]:
     else:
         s.row("Active profiles", na("no profiles: key (template lists bundles directly)"))
 
-    lock = root / ".rhiza" / "template.lock"
-    if lock.exists():
-        synced = len(re.findall(r"^\s*-\s+", lock.read_text(errors="ignore"), re.M))
-        s.row("Files synced from template", f"~{synced} (rough count from template.lock)")
+    if status:
+        selection = (status.get("templates") or []) + (status.get("include") or [])
+        if selection:
+            s.row("Synced from template", ", ".join(str(x) for x in selection))
+        s.row("Files synced from template", str(len(status.get("files") or [])))
+    else:
+        lock = root / ".rhiza" / "template.lock"
+        if lock.exists():
+            synced_n = len(re.findall(r"^\s*-\s+", lock.read_text(errors="ignore"), re.M))
+            s.row("Files synced from template", f"~{synced_n} (rough count from template.lock)")
     return s, rc
 
 
