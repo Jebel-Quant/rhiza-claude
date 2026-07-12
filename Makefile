@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help lint validate stats clean changelog release
+.PHONY: help lint test validate stats clean changelog release
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -8,6 +8,9 @@ help:  ## Show this help
 
 lint:  ## Run all pre-commit hooks against every file
 	uvx pre-commit run --all-files
+
+test:  ## Run the script test suite
+	uvx pytest tests/ $(ARGS)
 
 validate:  ## Validate the plugin manifests (JSON + version parity)
 	@python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json')); print('JSON OK')"
