@@ -1,0 +1,34 @@
+INHERIT: docs/mkdocs-base.yml
+
+site_name: rhiza-config
+site_description: The rhiza Claude Code plugin — slash commands for working in rhiza-managed repos.
+site_author: Jebel Quant
+site_url: https://jebel-quant.github.io/rhiza-config/
+repo_url: https://github.com/jebel-quant/rhiza-config
+repo_name: jebel-quant/rhiza-config
+copyright: Copyright &copy; 2026 Jebel Quant
+
+nav:
+  - Home: index.md
+  - Commands:
+      - init: commands/init.md
+      - boost: commands/boost.md
+      - quality: commands/quality.md
+      - revisit: commands/revisit.md
+      - stats: commands/stats.md
+      - repos: commands/repos.md
+  - Repo utilities:
+      - status: commands/status.md
+      - tree: commands/tree.md
+      - validate: commands/validate.md
+      - uninstall: commands/uninstall.md
+  - Development: development.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jebel-quant/rhiza-config
+
+theme:
+  icon:
+    logo: material/leaf

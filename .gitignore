@@ -9,3 +9,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+
+# MkDocs book build + generated dashboard
+_book/
+.cache/
+docs/stats.html

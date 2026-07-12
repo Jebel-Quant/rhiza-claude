@@ -6,6 +6,9 @@ A [Claude Code](https://claude.com/claude-code) plugin marketplace providing the
 **`rhiza`** plugin — slash commands for working in rhiza-managed repos (template
 sync, code-quality scoring, README/doc upkeep, and repo stats).
 
+📖 **Documentation:** <https://jebel-quant.github.io/rhiza-config/> — a dedicated
+page for every command. Build it locally with `make book`.
+
 ## Install
 
 ```

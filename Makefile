@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test validate stats clean changelog release
+.PHONY: help install lint test validate stats book book-serve clean changelog release
 
 MARKETPLACE := Jebel-Quant/rhiza-config
 PLUGIN := rhiza@rhiza-config
@@ -26,8 +26,14 @@ validate:  ## Validate the plugin manifests (JSON + version parity)
 stats:  ## Print the repo statistics dashboard + write docs/stats.html
 	python3 scripts/stats.py $(ARGS)
 
-clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, docs/stats.html)
-	rm -rf .ruff_cache
+book:  ## Build the documentation site into _book/
+	uvx --with mkdocs-material mkdocs build --strict
+
+book-serve:  ## Serve the docs locally with live reload
+	uvx --with mkdocs-material mkdocs serve
+
+clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, docs/stats.html, _book)
+	rm -rf .ruff_cache _book
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 	rm -f docs/stats.html
 
