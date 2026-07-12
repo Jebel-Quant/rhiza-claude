@@ -20,8 +20,8 @@ make install
 ```
 
 The commands then appear namespaced under the plugin: `/rhiza:boost`,
-`/rhiza:quality`, `/rhiza:revisit`, `/rhiza:stats`. Type `/rhiza` to have Claude
-Code autocomplete them.
+`/rhiza:quality`, `/rhiza:revisit`, `/rhiza:stats`, `/rhiza:repos`. Type
+`/rhiza` to have Claude Code autocomplete them.
 
 ## Commands
 
@@ -37,6 +37,10 @@ Code autocomplete them.
   lines of code/tests and their ratio, stars, open issues, PRs, branches,
   commits, releases, coverage, complexity, dependencies, and rhiza template
   status.
+- **`/rhiza:repos`** — list the GitHub repositories tagged with a rhiza topic
+  (default `rhiza`) as a JSON document — name, description, URL, topics,
+  language, stars, and timestamps. Set `GITHUB_TOKEN` to raise the API rate
+  limit.
 
 ## Layout
 
