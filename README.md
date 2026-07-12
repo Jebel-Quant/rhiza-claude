@@ -1,6 +1,7 @@
 # rhiza-claude
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Jebel-Quant/rhiza-claude/badge)](https://scorecard.dev/viewer/?uri=github.com/Jebel-Quant/rhiza-claude)
 
 A [Claude Code](https://claude.com/claude-code) plugin marketplace providing the
 **`rhiza`** plugin — slash commands for working in rhiza-managed repos (template
