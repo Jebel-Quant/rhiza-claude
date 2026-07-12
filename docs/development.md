@@ -59,3 +59,7 @@ template's own gates pass — the sign-off for changes to the `init` scaffolder.
   and the test suite under the 100% coverage gate.
 - **Book** (`.github/workflows/book.yml`) builds the site on every push and
   deploys it to GitHub Pages from the default branch.
+- **CodeQL** (`.github/workflows/codeql.yml`) scans the Python scripts and the
+  workflows for security issues.
+- **Scorecard** (`.github/workflows/scorecard.yml`) runs the OpenSSF Scorecard
+  supply-chain analysis and publishes the score (README badge).
