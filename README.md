@@ -13,6 +13,12 @@ sync, code-quality scoring, README/doc upkeep, and repo stats).
 /plugin install rhiza@rhiza-config
 ```
 
+Or, from a shell, `make install` runs the equivalent `claude` CLI commands:
+
+```bash
+make install
+```
+
 The commands then appear namespaced under the plugin: `/rhiza:boost`,
 `/rhiza:quality`, `/rhiza:revisit`, `/rhiza:stats`. Type `/rhiza` to have Claude
 Code autocomplete them.
