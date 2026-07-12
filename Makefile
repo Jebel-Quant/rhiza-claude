@@ -16,8 +16,8 @@ install:  ## Install the rhiza plugin via the Claude Code CLI
 lint:  ## Run all pre-commit hooks against every file
 	uvx pre-commit run --all-files
 
-test:  ## Run the script test suite
-	uvx pytest tests/ $(ARGS)
+test:  ## Run the script test suite with an 80% coverage gate
+	uvx --with pytest-cov pytest tests/ --cov=scripts --cov-report=term-missing --cov-fail-under=80 $(ARGS)
 
 validate:  ## Validate the plugin manifests (JSON + version parity)
 	@python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json')); print('JSON OK')"

@@ -19,7 +19,7 @@ stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 ```bash
 make help        # list targets
 make lint        # run pre-commit against every file
-make test        # run the script test suite
+make test        # run the script test suite (80% coverage gate)
 make validate    # validate the plugin manifests (JSON + version parity)
 make stats       # print the stats dashboard + write docs/stats.html
 make book        # build the documentation site into _book/
@@ -43,7 +43,7 @@ adds the site metadata and navigation.
 ## Tests
 
 ```bash
-make test                          # fast, offline
+make test                          # fast, offline; enforces ≥80% coverage of scripts/
 RHIZA_E2E=1 uvx pytest tests/test_init_e2e.py   # opt-in end-to-end (needs network + uv)
 ```
 

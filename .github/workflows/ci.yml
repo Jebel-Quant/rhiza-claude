@@ -43,5 +43,5 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
-      - name: Run tests
-        run: uvx pytest tests/ -q
+      - name: Run tests with coverage gate
+        run: uvx --with pytest-cov pytest tests/ --cov=scripts --cov-report=term-missing --cov-fail-under=80
