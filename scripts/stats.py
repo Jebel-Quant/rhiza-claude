@@ -35,9 +35,10 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 try:  # py3.11+
-    import tomllib  # type: ignore
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover - older interpreters
     try:
         import tomli as tomllib  # type: ignore
@@ -50,7 +51,7 @@ SLOW = False
 # --------------------------------------------------------------------------- #
 # shell helpers
 # --------------------------------------------------------------------------- #
-def run(cmd: list[str], timeout: int = 60) -> subprocess.CompletedProcess | None:
+def run(cmd: list[str], timeout: int = 60) -> subprocess.CompletedProcess[str] | None:
     """Run a command, returning the CompletedProcess or None if the binary is absent."""
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -109,7 +110,7 @@ class Section:
     def __init__(self, title: str) -> None:
         self.title = title
         self.rows: list[tuple[str, object]] = []
-        self.tables: list[dict] = []
+        self.tables: list[dict[str, Any]] = []
 
     def row(self, label: str, value: object) -> None:
         self.rows.append((label, value))
@@ -121,7 +122,7 @@ class Section:
 # --------------------------------------------------------------------------- #
 # TOML / config readers
 # --------------------------------------------------------------------------- #
-def read_toml(path: Path) -> dict | None:
+def read_toml(path: Path) -> dict[str, Any] | None:
     if tomllib is None or not path.exists():
         return None
     try:
@@ -167,9 +168,9 @@ def default_branch() -> str:
     return "main"
 
 
-def section_identity(root: Path, scope: str | None) -> tuple[Section, dict]:
+def section_identity(root: Path, scope: str | None) -> tuple[Section, dict[str, Any]]:
     s = Section("Repo identity")
-    ctx: dict = {}
+    ctx: dict[str, Any] = {}
     branch = out(["git", "branch", "--show-current"]) or "(detached)"
     db = default_branch()
     ctx["branch"], ctx["default_branch"] = branch, db
@@ -245,13 +246,13 @@ def section_identity(root: Path, scope: str | None) -> tuple[Section, dict]:
     return s, ctx
 
 
-def detect_license(root: Path, pyproject: dict | None) -> str:
+def detect_license(root: Path, pyproject: dict[str, Any] | None) -> str:
     if pyproject:
         lic = pyproject.get("project", {}).get("license")
         if isinstance(lic, str):
             return lic
         if isinstance(lic, dict) and lic.get("text"):
-            return lic["text"]
+            return str(lic["text"])
     lf = root / "LICENSE"
     if lf.exists():
         head = lf.read_text(errors="ignore").splitlines()[:2]
@@ -262,9 +263,9 @@ def detect_license(root: Path, pyproject: dict | None) -> str:
 # --------------------------------------------------------------------------- #
 # 2. code size & language mix
 # --------------------------------------------------------------------------- #
-def section_code_size(root: Path, scope: str | None) -> tuple[Section, dict]:
+def section_code_size(root: Path, scope: str | None) -> tuple[Section, dict[str, Any]]:
     s = Section("Code size & language mix")
-    ctx: dict = {}
+    ctx: dict[str, Any] = {}
     files = ls_files(scope)
 
     ext_counts: dict[str, int] = {}
@@ -328,7 +329,7 @@ def section_code_size(root: Path, scope: str | None) -> tuple[Section, dict]:
     return s, ctx
 
 
-def language_split(scope: str | None) -> dict | None:
+def language_split(scope: str | None) -> dict[str, Any] | None:
     target = scope or "."
     if have("scc"):
         raw = out(["scc", "--format", "json", target])
@@ -476,9 +477,9 @@ def section_deps(root: Path) -> Section:
 # --------------------------------------------------------------------------- #
 # 6. git activity
 # --------------------------------------------------------------------------- #
-def section_git(ctx: dict) -> tuple[Section, dict]:
+def section_git(ctx: dict[str, Any]) -> tuple[Section, dict[str, Any]]:
     s = Section("Git activity")
-    gc: dict = {}
+    gc: dict[str, Any] = {}
     total = out(["git", "rev-list", "--count", "HEAD"])
     d30 = out(["git", "rev-list", "--count", "--since=30 days ago", "HEAD"])
     d90 = out(["git", "rev-list", "--count", "--since=90 days ago", "HEAD"])
@@ -583,7 +584,7 @@ def section_git(ctx: dict) -> tuple[Section, dict]:
 # --------------------------------------------------------------------------- #
 # 7. rhiza template status
 # --------------------------------------------------------------------------- #
-def _rhiza_status_json(root: Path) -> dict | None:
+def _rhiza_status_json(root: Path) -> dict[str, Any] | None:
     """Authoritative lock state from `rhiza status --json`, or None if unavailable.
 
     Prefers the rhiza CLI's own reading of .rhiza/template.lock (accurate sha,
@@ -602,9 +603,9 @@ def _rhiza_status_json(root: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def section_rhiza(root: Path) -> tuple[Section, dict]:
+def section_rhiza(root: Path) -> tuple[Section, dict[str, Any]]:
     s = Section("Rhiza template status")
-    rc: dict = {}
+    rc: dict[str, Any] = {}
     tmpl = root / ".rhiza" / "template.yml"
     if not tmpl.exists():
         s.row("Rhiza", na("not a rhiza-managed repo (.rhiza/template.yml missing)"))

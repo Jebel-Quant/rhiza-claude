@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test validate stats book book-serve clean changelog release
+.PHONY: help install lint test types validate stats book book-serve clean changelog release
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
 PLUGIN := rhiza@rhiza-claude
@@ -18,6 +18,9 @@ lint:  ## Run all pre-commit hooks against every file
 
 test:  ## Run the script test suite with a 100% coverage gate
 	uvx --with pytest-cov pytest tests/ --cov=scripts --cov-report=term-missing --cov-fail-under=100 $(ARGS)
+
+types:  ## Strict type-check scripts/ with mypy
+	uvx mypy
 
 validate:  ## Validate the plugin manifests (JSON + version parity)
 	@python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json')); print('JSON OK')"

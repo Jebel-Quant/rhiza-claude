@@ -59,3 +59,9 @@ repos:
         language: system
         pass_filenames: false
         files: '^\.claude-plugin/(plugin|marketplace)\.json$'
+      - id: mypy
+        name: mypy (strict type check of scripts/)
+        entry: uvx mypy
+        language: system
+        pass_filenames: false
+        files: '^(scripts/.*\.py|mypy\.ini)$'

@@ -44,6 +44,7 @@ import re
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
+from typing import Any
 
 DEFAULT_TEMPLATE_REPO = {"python": "jebel-quant/rhiza", "go": "jebel-quant/rhiza-go"}
 OPTIONAL_COMPONENTS = ("package", "mkdocs", "readme")
@@ -333,7 +334,7 @@ def scaffold(
     ref: str,
     components: list[str],
     description: str = DEFAULT_DESCRIPTION,
-) -> dict:
+) -> dict[str, Any]:
     """Write the starter files; return a summary dict."""
     repo_host, pages_host = _HOSTS.get(host, _HOSTS["github"])
     created: list[str] = []
