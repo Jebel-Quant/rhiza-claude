@@ -68,6 +68,7 @@ def out(cmd: list[str], timeout: int = 60) -> str | None:
 
 
 def have(binary: str) -> bool:
+    """Return True if *binary* is resolvable on PATH."""
     return shutil.which(binary) is not None
 
 
@@ -81,10 +82,12 @@ def tool(name: str) -> list[str] | None:
 
 
 def na(reason: str) -> str:
+    """Format a 'not available' cell with a short reason."""
     return f"n/a ({reason})"
 
 
 def count_lines(path: Path) -> int:
+    """Count newline bytes in *path*; 0 when it can't be read."""
     try:
         n = 0
         with path.open("rb") as f:
@@ -96,6 +99,7 @@ def count_lines(path: Path) -> int:
 
 
 def ls_files(pathspec: str | None = None) -> list[str]:
+    """Return tracked files (optionally under *pathspec*) via `git ls-files`."""
     cmd = ["git", "ls-files"]
     if pathspec:
         cmd += ["--", pathspec]
@@ -107,15 +111,20 @@ def ls_files(pathspec: str | None = None) -> list[str]:
 # section model + rendering
 # --------------------------------------------------------------------------- #
 class Section:
+    """A titled group of key/value rows and tables in the dashboard."""
+
     def __init__(self, title: str) -> None:
+        """Create an empty section with the given title."""
         self.title = title
         self.rows: list[tuple[str, object]] = []
         self.tables: list[dict[str, Any]] = []
 
     def row(self, label: str, value: object) -> None:
+        """Append a label/value row to the section."""
         self.rows.append((label, value))
 
     def table(self, caption: str, headers: list[str], rows: list[list[object]]) -> None:
+        """Append a captioned table (headers + rows) to the section."""
         self.tables.append({"caption": caption, "headers": headers, "rows": rows})
 
 
@@ -123,6 +132,7 @@ class Section:
 # TOML / config readers
 # --------------------------------------------------------------------------- #
 def read_toml(path: Path) -> dict[str, Any] | None:
+    """Parse a TOML file into a dict, or None if absent/unreadable."""
     if tomllib is None or not path.exists():
         return None
     try:
@@ -159,6 +169,7 @@ def parse_remote(url: str) -> tuple[str, str]:
 
 
 def default_branch() -> str:
+    """Best-effort default branch name (gh, then git, else 'main')."""
     db = out(["gh", "repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"])
     if db:
         return db
@@ -169,6 +180,7 @@ def default_branch() -> str:
 
 
 def section_identity(root: Path, scope: str | None) -> tuple[Section, dict[str, Any]]:
+    """Build the repo-identity section (branch, remote, license, host stats)."""
     s = Section("Repo identity")
     ctx: dict[str, Any] = {}
     branch = out(["git", "branch", "--show-current"]) or "(detached)"
@@ -247,6 +259,7 @@ def section_identity(root: Path, scope: str | None) -> tuple[Section, dict[str, 
 
 
 def detect_license(root: Path, pyproject: dict[str, Any] | None) -> str:
+    """Resolve the project license from pyproject or a LICENSE file."""
     if pyproject:
         lic = pyproject.get("project", {}).get("license")
         if isinstance(lic, str):
@@ -264,6 +277,7 @@ def detect_license(root: Path, pyproject: dict[str, Any] | None) -> str:
 # 2. code size & language mix
 # --------------------------------------------------------------------------- #
 def section_code_size(root: Path, scope: str | None) -> tuple[Section, dict[str, Any]]:
+    """Build the code-size and language-mix section."""
     s = Section("Code size & language mix")
     ctx: dict[str, Any] = {}
     files = ls_files(scope)
@@ -330,6 +344,7 @@ def section_code_size(root: Path, scope: str | None) -> tuple[Section, dict[str,
 
 
 def language_split(scope: str | None) -> dict[str, Any] | None:
+    """Return code/comment/blank counts via scc or tokei, or None."""
     target = scope or "."
     if have("scc"):
         raw = out(["scc", "--format", "json", target])
@@ -365,6 +380,7 @@ def language_split(scope: str | None) -> dict[str, Any] | None:
 # 3. tests & coverage
 # --------------------------------------------------------------------------- #
 def section_tests(root: Path) -> Section:
+    """Build the tests and coverage section."""
     s = Section("Tests & coverage")
     if ls_files("tests"):
         test_files = [f for f in ls_files("tests") if re.search(r"test_.*\.py$", f)]
@@ -410,6 +426,7 @@ def section_tests(root: Path) -> Section:
 # 4. complexity (Python)
 # --------------------------------------------------------------------------- #
 def section_complexity() -> Section:
+    """Build the Python cyclomatic-complexity section (radon)."""
     s = Section("Complexity (Python)")
     if not ls_files("src"):
         s.row("Complexity", na("no src/ tree"))
@@ -438,6 +455,7 @@ def section_complexity() -> Section:
 # 5. dependencies
 # --------------------------------------------------------------------------- #
 def section_deps(root: Path) -> Section:
+    """Build the dependencies section from pyproject."""
     s = Section("Dependencies")
     pyproject = read_toml(root / "pyproject.toml")
     if not pyproject:
@@ -478,6 +496,7 @@ def section_deps(root: Path) -> Section:
 # 6. git activity
 # --------------------------------------------------------------------------- #
 def section_git(ctx: dict[str, Any]) -> tuple[Section, dict[str, Any]]:
+    """Build the git-activity section (commits, contributors, host stats)."""
     s = Section("Git activity")
     gc: dict[str, Any] = {}
     total = out(["git", "rev-list", "--count", "HEAD"])
@@ -604,6 +623,7 @@ def _rhiza_status_json(root: Path) -> dict[str, Any] | None:
 
 
 def section_rhiza(root: Path) -> tuple[Section, dict[str, Any]]:
+    """Build the rhiza template-status section."""
     s = Section("Rhiza template status")
     rc: dict[str, Any] = {}
     tmpl = root / ".rhiza" / "template.yml"
@@ -684,12 +704,14 @@ def section_rhiza(root: Path) -> tuple[Section, dict[str, Any]]:
 # rendering
 # --------------------------------------------------------------------------- #
 def fmt(value: object) -> str:
+    """Render a value for display ('—' for None)."""
     return "—" if value is None else str(value)
 
 
 def render_terminal(
     headline: list[tuple[str, object]], summary: str, sections: list[Section]
 ) -> None:
+    """Print the assembled dashboard to the terminal."""
     bold = "\033[1m" if sys.stdout.isatty() else ""
     dim = "\033[2m" if sys.stdout.isatty() else ""
     rst = "\033[0m" if sys.stdout.isatty() else ""
@@ -715,6 +737,7 @@ def render_html(
     title: str,
     generated: str,
 ) -> str:
+    """Render the dashboard as a self-contained HTML document."""
     e = html.escape
 
     def tiles() -> str:
@@ -810,6 +833,7 @@ def render_html(
 # main
 # --------------------------------------------------------------------------- #
 def main() -> None:
+    """Entry point: gather the sections, print them, and optionally write HTML."""
     global SLOW
     ap = argparse.ArgumentParser(description="Read-only repo statistics dashboard.")
     ap.add_argument(

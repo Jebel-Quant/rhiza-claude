@@ -21,6 +21,7 @@ VERSION_RE = re.compile(r'("version"\s*:\s*")[^"]*(")')
 
 
 def main() -> None:
+    """Entry point: set the version in both manifests from argv."""
     if len(sys.argv) != 2 or not sys.argv[1]:
         print("usage: bump_version.py <version>  (e.g. 0.3.0)", file=sys.stderr)
         sys.exit(2)

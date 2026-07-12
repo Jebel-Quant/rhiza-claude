@@ -94,6 +94,7 @@ def status(target: Path, *, json_output: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point: print status; return an exit code."""
     parser = argparse.ArgumentParser(
         description="Show the current rhiza sync status from .rhiza/template.lock.",
     )

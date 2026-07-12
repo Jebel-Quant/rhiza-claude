@@ -260,6 +260,7 @@ def _fill(template: str, **subs: str) -> str:
 def render_pyproject(
     project_name: str, package_name: str, owner: str, repo_host: str, description: str
 ) -> str:
+    """Render pyproject.toml for the given project/package."""
     return _fill(
         _PYPROJECT,
         PROJECT_NAME=project_name,
@@ -273,6 +274,7 @@ def render_pyproject(
 def render_mkdocs(
     project_name: str, owner: str, repo_host: str, pages_host: str, description: str
 ) -> str:
+    """Render mkdocs.yml for the given project."""
     return _fill(
         _MKDOCS,
         PROJECT_NAME=project_name,
@@ -284,6 +286,7 @@ def render_mkdocs(
 
 
 def render_readme(project_name: str, package_name: str, description: str) -> str:
+    """Render the starter README.md."""
     return _fill(
         _README, PROJECT_NAME=project_name, PACKAGE_NAME=package_name, DESCRIPTION=description
     )
@@ -438,6 +441,7 @@ def _parse_components(raw: str | None, language: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point: parse args, scaffold, and return an exit code."""
     parser = argparse.ArgumentParser(
         description="Scaffold a new rhiza-managed project's non-synced starter files.",
     )

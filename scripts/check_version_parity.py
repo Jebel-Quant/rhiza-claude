@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 def main() -> None:
+    """Entry point: assert both manifests share a version; exit 1 on mismatch."""
     plugin = json.loads(Path(".claude-plugin/plugin.json").read_text())["version"]
     entries = json.loads(Path(".claude-plugin/marketplace.json").read_text())["plugins"]
     mismatches = [e["name"] for e in entries if e.get("version") != plugin]

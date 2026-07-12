@@ -48,30 +48,37 @@ class Log:
     _SYMBOLS = {"error": "✗", "warning": "!", "success": "✓", "info": " ", "debug": " "}
 
     def __init__(self, *, verbose: bool = False) -> None:
+        """Start the sink with empty error/warning buffers."""
         self.errors: list[str] = []
         self.warnings: list[str] = []
         self._verbose = verbose
 
     def _emit(self, level: str, message: str) -> None:
+        """Print a symbol-prefixed line (debug only when verbose)."""
         if level == "debug" and not self._verbose:
             return
         print(f"{self._SYMBOLS[level]} {message}", file=sys.stderr)
 
     def error(self, message: str) -> None:
+        """Record and print an error."""
         self.errors.append(message)
         self._emit("error", message)
 
     def warning(self, message: str) -> None:
+        """Record and print a warning."""
         self.warnings.append(message)
         self._emit("warning", message)
 
     def success(self, message: str) -> None:
+        """Print a success line."""
         self._emit("success", message)
 
     def info(self, message: str) -> None:
+        """Print an info line."""
         self._emit("info", message)
 
     def debug(self, message: str) -> None:
+        """Print a debug line (verbose only)."""
         self._emit("debug", message)
 
 
@@ -150,6 +157,7 @@ def _check_project_structure(log: Log, target: Path, language: str) -> bool:
 # preconditions
 # --------------------------------------------------------------------------- #
 def _check_git_repository(log: Log, target: Path) -> bool:
+    """Require *target* to be a git repository."""
     if not (target / ".git").is_dir():
         log.error(f"Target directory is not a git repository: {target}")
         log.error("Initialize a git repository with 'git init' first")
@@ -160,6 +168,7 @@ def _check_git_repository(log: Log, target: Path) -> bool:
 def _check_template_file_exists(
     log: Log, target: Path, template_file: Path | None
 ) -> tuple[bool, Path]:
+    """Locate template.yml and confirm it exists."""
     if template_file is None:
         template_file = target / ".rhiza" / "template.yml"
     try:
@@ -178,6 +187,7 @@ def _check_template_file_exists(
 
 
 def _parse_template_file(log: Log, template_file: Path) -> tuple[bool, dict[str, Any] | None]:
+    """Load and parse template.yml into a config dict."""
     log.debug(f"Parsing template file: {template_file}")
     try:
         config = load_yaml(template_file)
@@ -222,6 +232,7 @@ def _validate_profiles_field(log: Log, config: dict[str, Any]) -> bool | None:
 
 
 def _validate_configuration_mode(log: Log, config: dict[str, Any]) -> bool:
+    """Validate the profiles/templates/include selection mode."""
     log.debug("Validating configuration mode")
     has_templates = bool(config.get("templates"))
     has_include = bool(config.get("include"))
@@ -258,6 +269,7 @@ def _validate_configuration_mode(log: Log, config: dict[str, Any]) -> bool:
 
 
 def _validate_required_fields(log: Log, config: dict[str, Any]) -> bool:
+    """Require a 'template-repository' or 'repository' string field."""
     log.debug("Validating required fields")
     has_template_repo = "template-repository" in config
     has_repo = "repository" in config
@@ -277,6 +289,7 @@ def _validate_required_fields(log: Log, config: dict[str, Any]) -> bool:
 
 
 def _validate_repository_format(log: Log, config: dict[str, Any]) -> bool:
+    """Check the repository field is in 'owner/repo' form."""
     log.debug("Validating repository format")
     repo_field = (
         "template-repository"
@@ -324,6 +337,7 @@ def _validate_string_list(log: Log, config: dict[str, Any], field: str, example:
 
 
 def _validate_branch_field(log: Log, config: dict[str, Any]) -> None:
+    """Warn if the branch/ref field is present but not a string."""
     branch_field = (
         "template-branch" if "template-branch" in config else "ref" if "ref" in config else None
     )
@@ -338,6 +352,7 @@ def _validate_branch_field(log: Log, config: dict[str, Any]) -> None:
 
 
 def _validate_host_field(log: Log, config: dict[str, Any]) -> None:
+    """Warn if template-host is non-string or an unsupported host."""
     if "template-host" not in config:
         return
     host = config["template-host"]
@@ -352,6 +367,7 @@ def _validate_host_field(log: Log, config: dict[str, Any]) -> None:
 
 
 def _validate_language_field(log: Log, config: dict[str, Any]) -> None:
+    """Warn if the language field is non-string or unrecognized."""
     if "language" not in config:
         return
     language = config["language"]
@@ -366,6 +382,7 @@ def _validate_language_field(log: Log, config: dict[str, Any]) -> None:
 
 
 def _validate_exclude_field(log: Log, config: dict[str, Any]) -> None:
+    """Warn if the exclude field is malformed."""
     if "exclude" not in config:
         return
     exclude = config["exclude"]
@@ -382,6 +399,7 @@ def _validate_exclude_field(log: Log, config: dict[str, Any]) -> None:
 
 
 def _validate_optional_fields(log: Log, config: dict[str, Any]) -> None:
+    """Run the non-fatal optional-field checks."""
     log.debug("Validating optional fields")
     _validate_branch_field(log, config)
     _validate_host_field(log, config)
@@ -449,6 +467,7 @@ def validate(log: Log, target: Path, template_file: Path | None = None) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point: validate, optionally emit JSON, and return an exit code."""
     parser = argparse.ArgumentParser(
         description="Validate .rhiza/template.yml configuration.",
     )

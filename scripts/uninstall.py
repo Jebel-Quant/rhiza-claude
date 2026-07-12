@@ -31,10 +31,12 @@ LOCK_REL = Path(".rhiza") / "template.lock"
 
 
 def _info(message: str) -> None:
+    """Print an informational line to stderr."""
     print(message, file=sys.stderr)
 
 
 def _error(message: str) -> None:
+    """Print an error line to stderr."""
     print(f"error: {message}", file=sys.stderr)
 
 
@@ -103,6 +105,7 @@ def _cleanup_empty_directories(files_to_remove: list[Path], target: Path) -> int
 
 
 def _print_summary(removed: int, skipped: int, empty_dirs: int, errors: int) -> None:
+    """Print the deletion summary counts."""
     _info("\nUninstall summary:")
     _info(f"  Files removed: {removed}")
     if skipped:
@@ -168,6 +171,7 @@ def uninstall(target: Path, *, force: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point: parse args and run the uninstall."""
     parser = argparse.ArgumentParser(
         description="Remove all rhiza-managed files (from .rhiza/template.lock) from the repo.",
     )

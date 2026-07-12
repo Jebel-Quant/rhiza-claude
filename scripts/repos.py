@@ -105,6 +105,7 @@ def repos(topic: str, per_page: int) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point: parse args and print the JSON document."""
     parser = argparse.ArgumentParser(
         description="List GitHub repositories with a rhiza topic as a JSON document.",
     )

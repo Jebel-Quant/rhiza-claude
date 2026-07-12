@@ -77,6 +77,7 @@ def tree(target: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point: print the managed-file tree; return an exit code."""
     parser = argparse.ArgumentParser(
         description="List files managed by rhiza (from .rhiza/template.lock) as a tree.",
     )

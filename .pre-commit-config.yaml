@@ -65,3 +65,9 @@ repos:
         language: system
         pass_filenames: false
         files: '^(scripts/.*\.py|mypy\.ini)$'
+      - id: interrogate
+        name: interrogate (100% docstring coverage of scripts/)
+        entry: uvx interrogate --ignore-nested-functions --fail-under=100 scripts
+        language: system
+        pass_filenames: false
+        files: '^scripts/.*\.py$'
