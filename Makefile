@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help lint validate stats changelog release
+.PHONY: help lint validate stats clean changelog release
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -15,6 +15,11 @@ validate:  ## Validate the plugin manifests (JSON + version parity)
 
 stats:  ## Print the repo statistics dashboard + write docs/stats.html
 	python3 scripts/stats.py $(ARGS)
+
+clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, docs/stats.html)
+	rm -rf .ruff_cache
+	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+	rm -f docs/stats.html
 
 changelog:  ## Regenerate CHANGELOG.md from conventional commits
 	uvx git-cliff --output CHANGELOG.md
