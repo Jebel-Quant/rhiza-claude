@@ -1,5 +1,5 @@
 ---
-description: Bootstrap a rhiza-managed repo in the current folder (empty, or an existing git repo that isn't yet rhiza-managed) — git init if needed, ask whether it lives on GitHub or GitLab (auto-detecting an existing remote), ask owner/name/visibility, pick language (python/go) and template repo (default jebel-quant/rhiza or rhiza-go, with a reachability check), optionally scaffold the language skeleton + mkdocs.yml, validate the config, then put the .rhiza scaffold and the first template sync on a `rhiza_init_<date>` branch and open a PR. Never pushes rhiza changes straight to the default branch.
+description: Bootstrap a rhiza-managed repo in the current folder (empty, or an existing git repo that isn't yet rhiza-managed) — git init if needed, ask whether it lives on GitHub or GitLab (auto-detecting an existing remote), ask owner/name/visibility, pick language (python/go) and template repo (default jebel-quant/rhiza or rhiza-go, with a reachability check), optionally scaffold the project (pyproject/src/tests, mkdocs.yml, a real starter README) via the bundled init_scaffold.py, validate the config, then put the scaffold and the first template sync on a `rhiza_init_<date>` branch and open a PR. Never pushes rhiza changes straight to the default branch.
 argument-hint: "[repo name]  (optional; defaults to the current folder name)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, AskUserQuestion
 ---
@@ -26,11 +26,11 @@ that seeds a brand-new repo (step 6), because a PR needs a base branch to exist.
 Argument (optional): `$ARGUMENTS` — the repository name. If empty, default to the
 current folder's basename.
 
-**Chicken-and-egg note.** The `Makefile` and `.rhiza/rhiza.mk` (which provide the
-`make sync` target) are themselves delivered *by* the template. A brand-new folder
-has neither, so the **first** sync is bootstrapped by invoking the rhiza CLI
-directly with `uvx` (step 9), not `make sync`. Every sync *after* this one uses
-`make sync`.
+**How the first sync bootstraps.** `.rhiza/rhiza.mk` (the real `make` API) is
+delivered *by* the template sync. The scaffolder in step 8 writes a small
+**bootstrap `Makefile`** whose `sync` target runs `uvx rhiza sync .` and is active
+only until that first sync writes `.rhiza/rhiza.mk` — so `make sync` works even on
+a brand-new repo, and every sync afterward uses the template's own target.
 
 Work through these steps. Stop and report if a precondition fails.
 
@@ -120,9 +120,9 @@ Runs on **both** paths (a repo can be Go even when it already has a remote).
   `$TEMPLATE_REPO`, `gh release list -R "$TEMPLATE_REPO" -L 1 --json tagName --jq '.[0].tagName'`
   (falls back to `git ls-remote --tags` for a GitLab-hosted template repo). If
   neither works, ask the user for the tag (e.g. `v1.1.3`).
-- **Tool version:** pin `0.18.0` (the version the fleet currently runs). This is
-  the **rhiza CLI** version and is decoupled from `TARGET` above — do not derive
-  one from the other.
+
+Note: `.rhiza/.rhiza-version` (the rhiza **tool** version, distinct from `TARGET`)
+is *not* written here — the sync in step 9 delivers it, matching `rhiza init`.
 
 ## 6. Establish the remote and the default branch
 Every rhiza change goes on a branch (step 7) and out as a PR (step 10), so first
@@ -156,39 +156,49 @@ Determine the default branch name `DEFAULT` (existing repo:
   - existing remote: `git checkout -b "$BRANCH" "origin/$DEFAULT"`;
   - brand-new (default only exists locally so far): `git checkout -b "$BRANCH"`.
 
-## 8. Scaffold `.rhiza/` and commit (on the branch)
-Write two files (create the `.rhiza/` directory first):
+## 8. Scaffold the project (bundled script) and commit (on the branch)
+**This is a thin wrapper around the bundled `scripts/init_scaffold.py`** — a
+deterministic, stdlib-only port of what `rhiza init` used to scaffold (the whole
+point is to let `rhiza init` be retired). It writes only the files that the sync
+in step 9 does **not** own: `.rhiza/template.yml`, a bootstrap `Makefile`, and —
+for Python — `pyproject.toml`, `src/<pkg>/`, `tests/test_main.py`, `mkdocs.yml`,
+and a real starter `README.md` (running `uv lock` when `uv` is present). It
+creates **only what's missing** and never overwrites. Do not hand-write these
+files yourself — run the script.
 
-`.rhiza/template.yml` (use `TEMPLATE_REPO` and `TARGET` from step 5):
-```yaml
-template-repository: "<TEMPLATE_REPO>"   # e.g. jebel-quant/rhiza or jebel-quant/rhiza-go
-template-branch: "<TARGET>"
+First, offer the optional pieces (`.rhiza/template.yml` + `Makefile` are always
+written; these are the extras). Ask with an `AskUserQuestion` **multi-select**
+(`multiSelect: true`) — recommend all for a brand-new empty repo, fewer if the
+repo already has code:
+- **package** — `pyproject.toml` + `src/<pkg>/` + `tests/` (Python only);
+- **mkdocs** — `mkdocs.yml` that inherits the synced `docs/mkdocs-base.yml`;
+- **readme** — a real starter `README.md`.
 
-profiles:
-  - <github-project | gitlab-project>   # per step 3
+Build the `--components` value from the selection (comma-joined; empty string if
+none). Then run the script with the plugin-root path (**keep the quotes**;
+falls back to the repo-relative `scripts/init_scaffold.py` in a source checkout):
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/init_scaffold.py" . \
+  --project-name "$NAME" --owner "$OWNER" \
+  --host <github|gitlab> --language <python|go> \
+  --template-repo "$TEMPLATE_REPO" --ref "$TARGET" \
+  --components <selected>
 ```
-Use the `github-project` / `gitlab-project` profile matching the platform. If a
-non-default `TEMPLATE_REPO` defines its own profile names, use that repo's
-convention instead of assuming these two.
-
-`.rhiza/.rhiza-version`:
-```
-0.18.0
-```
-
-Then commit:
-- `git add .rhiza`
-- `git commit -m "chore: add rhiza template config"`
+Relay its `created`/`skipped`/`notes` output (for `go` it prints the
+`go mod init` hint). Then commit:
+- `git add --all`
+- `git commit -m "chore: scaffold rhiza-managed project"`
 
 ## 9. Bootstrap the first sync (on the branch)
-The Makefile doesn't exist yet, so run the rhiza CLI directly (pinned to the tool
-version from step 5):
+The scaffolder wrote a bootstrap `Makefile`, so run:
 ```bash
-uvx "rhiza==0.18.0" sync .
+make sync
 ```
-This materialises the template for the chosen profile — the `Makefile`,
+(equivalent to `uvx rhiza sync .`, which you can run directly if `make` is
+unavailable). This materialises the template for the chosen profile —
 `.rhiza/rhiza.mk`, CI workflows (`.github/workflows/*` for GitHub or
-`.gitlab-ci.yml` for GitLab), and the rest.
+`.gitlab-ci.yml` for GitLab), `docs/mkdocs-base.yml`, `.rhiza/.rhiza-version`,
+and the rest.
 - On a truly **empty** folder there's nothing to conflict with, so a non-zero
   exit is unexpected — capture the output and report it rather than papering
   over it.
@@ -201,52 +211,25 @@ This materialises the template for the chosen profile — the `Makefile`,
 Then commit the sync output:
 - `git add --all`
 - If `git diff --cached --name-only` is non-empty:
-  `git commit -m "chore: apply rhiza sync <TARGET tag>"`
+  `git commit -m "chore: apply rhiza sync <TARGET>"`
 - Else report "sync produced no files" (unexpected — flag it).
 
-### Optional project scaffolding
-Offer, don't impose. Ask with an `AskUserQuestion` **multi-select**
-(`multiSelect: true`) which of these to add — recommend all for a brand-new
-empty repo, none if the repo already has them. Create **only what's missing**;
-never overwrite an existing file (skip it and say so). Let `PKG` be `NAME`
-lowercased with non-identifier characters (e.g. `-`) turned into `_`.
-
-- **Language skeleton** — matches the language chosen in step 5:
-  - **python:** `pyproject.toml` (minimal `[project]`: `name = "$NAME"`,
-    `version = "0.0.0"`, `requires-python`, empty `dependencies`, plus a
-    `[build-system]`) if absent; `src/$PKG/__init__.py` (one-line docstring) if
-    `src/` has no package yet; `tests/test_smoke.py` with a single trivial passing
-    test if `tests/` is empty.
-  - **go:** don't write a package for the user — mirror `rhiza-go`'s own flow and
-    just tell them to run `go mod init <module>` (e.g. `<host>/$OWNER/$NAME`). Skip
-    the pyproject/src/tests items.
-- **`mkdocs.yml`** — a minimal config (`site_name: $NAME`, `theme: material`,
-  `docs_dir: docs`, a Home → `index.md` nav entry) plus a placeholder
-  `docs/index.md`, if `mkdocs.yml` is absent. Tell the user this is a bare
-  starting point — **`/revisit`** produces the full docs set (README + CLAUDE.md
-  + a richer mkdocs.yml with badges and API docs) and is the better tool once the
-  repo has content.
-
-If anything was created, commit it separately on the branch:
-`git commit -m "chore: scaffold minimal project layout"`. If the user picked
-nothing (or everything already existed), skip this commit silently.
-
 ### Validate the configuration
-Before pushing, confirm the `.rhiza/template.yml` you wrote is valid — this is
-what `rhiza-cli`'s own `init` does at the end, so don't skip it:
+Before pushing, confirm the config and scaffold are valid — this is what
+`rhiza init` did at the end, so don't skip it. With the Makefile now in place:
 ```bash
-uvx "rhiza==0.18.0" validate .
+make validate
 ```
-(Or the plugin's stdlib validator `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate.py"`
-if `uvx` is unavailable.) If validation fails, stop and show the errors rather
-than opening a PR on a broken config.
+(or `uvx rhiza validate .`, or the plugin's stdlib validator
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate.py"`). If validation fails, stop
+and show the errors rather than opening a PR on a broken config.
 
 ## 10. Push the branch and open the PR
 - `git push -u origin "$BRANCH"`.
 - Open a PR/MR from `$BRANCH` into `$DEFAULT` with the platform CLI:
   - **GitHub:** `gh pr create --base "$DEFAULT" --head "$BRANCH" --title "chore: initialise rhiza-managed repo (<TARGET tag>)" --body-file <BODY>`
   - **GitLab:** `glab mr create --source-branch "$BRANCH" --target-branch "$DEFAULT" --title "chore: initialise rhiza-managed repo (<TARGET tag>)" --description-file <BODY>`
-  - The body should note: platform/profile, template tag + pinned tool version,
+  - The body should note: platform/profile, language + template repo + tag,
     that it seeds the repo as rhiza-managed, and that CI arrives with this PR.
 - If the platform CLI is unavailable or unauthenticated, don't fail — the branch
   is already pushed; print the branch name and the "create a PR" compare URL so
@@ -254,9 +237,9 @@ than opening a PR on a broken config.
 
 ## 11. Report
 Summarise concisely: the repo slug (`OWNER/NAME`) and its URL, platform + profile,
-visibility (for a new repo), template tag and pinned tool version, the work branch
-name, the commits on it, the count of files the sync added, any optional
-scaffolding created (or skipped as already-present), and the **PR URL** (or the
+visibility (for a new repo), language + template repo + tag, the work branch name,
+the commits on it, the files the scaffolder created (and any skipped as
+already-present), the count of files the sync added, and the **PR URL** (or the
 manual compare URL if the CLI was unavailable). Point the user at next steps:
 review + merge the PR, then flesh out the docs with `/revisit` and run `/quality`
 for the initial scorecard.
