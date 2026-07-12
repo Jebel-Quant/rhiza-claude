@@ -9,6 +9,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
 
 # MkDocs book build + generated dashboard
 _book/
