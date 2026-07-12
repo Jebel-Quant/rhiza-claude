@@ -20,6 +20,7 @@ stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 make help        # list targets
 make lint        # run pre-commit against every file
 make test        # run the script test suite (100% coverage gate)
+make types       # strict mypy type-check of scripts/
 make validate    # validate the plugin manifests (JSON + version parity)
 make stats       # print the stats dashboard + write docs/stats.html
 make book        # build the documentation site into _book/
@@ -52,6 +53,8 @@ template's own gates pass — the sign-off for changes to the `init` scaffolder.
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`) runs pre-commit and the test suite.
+- **CI** (`.github/workflows/ci.yml`) runs pre-commit (including a strict
+  `mypy` type-check of `scripts/`) and the test suite under the 100% coverage
+  gate.
 - **Book** (`.github/workflows/book.yml`) builds the site on every push and
   deploys it to GitHub Pages from the default branch.

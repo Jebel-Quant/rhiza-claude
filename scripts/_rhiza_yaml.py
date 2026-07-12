@@ -22,9 +22,9 @@ from pathlib import Path
 from typing import Any
 
 try:  # pragma: no cover - exercised only when PyYAML is installed
-    import yaml as _pyyaml  # type: ignore
+    import yaml as _pyyaml
 except ModuleNotFoundError:  # pragma: no cover
-    _pyyaml = None  # type: ignore
+    _pyyaml = None
 
 
 def load_yaml(path: Path) -> dict[str, Any]:

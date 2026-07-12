@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _rhiza_yaml import load_yaml  # noqa: E402
@@ -28,9 +29,9 @@ from _rhiza_yaml import load_yaml  # noqa: E402
 LOCK_REL = Path(".rhiza") / "template.lock"
 
 
-def _build_tree(paths: list[str]) -> dict:
+def _build_tree(paths: list[str]) -> dict[str, Any]:
     """Fold a flat path list into a nested {name: subtree} dict."""
-    root: dict = {}
+    root: dict[str, Any] = {}
     for path in sorted(paths):
         node = root
         for part in Path(path).parts:
@@ -38,7 +39,7 @@ def _build_tree(paths: list[str]) -> dict:
     return root
 
 
-def _render(node: dict, prefix: str = "") -> list[str]:
+def _render(node: dict[str, Any], prefix: str = "") -> list[str]:
     """Render a nested tree dict into Unix-`tree`-style lines."""
     lines: list[str] = []
     items = sorted(node.items())
