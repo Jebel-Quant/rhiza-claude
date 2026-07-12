@@ -1,10 +1,17 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help lint test validate stats clean changelog release
+.PHONY: help install lint test validate stats clean changelog release
+
+MARKETPLACE := Jebel-Quant/rhiza-config
+PLUGIN := rhiza@rhiza-config
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+install:  ## Install the rhiza plugin via the Claude Code CLI
+	claude plugin marketplace add $(MARKETPLACE)
+	claude plugin install $(PLUGIN)
 
 lint:  ## Run all pre-commit hooks against every file
 	uvx pre-commit run --all-files
