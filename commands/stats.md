@@ -4,6 +4,13 @@ argument-hint: "[path or topic to scope the stats to]  (optional; defaults to th
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(make*), Bash(find*), Bash(wc*), Bash(grep*), Bash(sort*), Bash(uniq*), Bash(head*), Bash(cat*), Bash(sed*), Bash(awk*), Bash(du*), Bash(uv*), Bash(uvx*), Bash(pip*), Bash(python3*), Bash(date*), Bash(mkdir*), Read, Glob, Grep, Write
 ---
 
+> **No-agent alternative.** Everything below is deterministic data-gathering, so
+> there's a token-free Python port at `scripts/stats.py` that produces the same
+> terminal dashboard and `docs/stats.html`. Run it directly against any repo:
+> `python3 <plugin>/scripts/stats.py [PATH] [--slow] [--no-html]`. Use this command
+> (the agent path) when you also want narrative interpretation; use the script when
+> you just want the numbers. Keep the two in sync when either changes.
+
 You are running `/stats` in the **current working directory's repo**.
 Goal: gather and present a concise **statistics dashboard** for this repo, both as
 a terminal report (step 8) and as a self-contained `docs/stats.html` artifact
