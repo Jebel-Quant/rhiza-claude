@@ -15,7 +15,7 @@ Work through these steps. Stop and report if any precondition fails.
 ## 1. Preconditions
 - Confirm `.rhiza/template.yml` exists in the repo root. If not, abort: "Not a rhiza-managed repo (no .rhiza/template.yml)."
 - Confirm the working tree is clean (`git status --porcelain`). If dirty, stop and show the dirty files — do not proceed over uncommitted work.
-- Note the current branch and default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`, fallback `main`).
+- Note the current branch as `ORIG_BRANCH` (`git branch --show-current`) and the default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`, fallback `main`). `/boost` restores `ORIG_BRANCH` on the way out (step 13).
 - Note the **hosting platform** from `git remote get-url origin` (contains `github.com` → GitHub; `gitlab.com` or a self-hosted GitLab host → GitLab) and the current `profiles:` + `templates:` in `.rhiza/template.yml`. These are the "findings" for the platform menu in step 3.
 
 ## 2. Resolve target version
@@ -39,14 +39,18 @@ Present the **findings** from step 1 and ask the user with an `AskUserQuestion` 
 
 If the choice **differs** from the current profile, also reconcile platform-specific entries in the `templates:` list: convert `github-*` ↔ `gitlab-*` where an equivalent bundle exists (e.g. `github-marimo` ↔ `gitlab-marimo`, `github-book` ↔ `gitlab-book`), and for entries with no cross-platform equivalent (e.g. `github-devcontainer`, `github-docker`, `github-paper`) list them and ask the user whether to drop them. Don't silently delete platform config.
 
-## 4. Edit template.yml (version + profile)
-- Set `template-branch:` (or `ref:`, whichever key is present) to `"<TARGET>"`.
+## 4. Branch off the default branch
+- `BRANCH=rhiza_<TARGET>`
+- **Always base the branch on the up-to-date default branch — never on the invocation branch.** `/boost` may be run from any branch, but the PR must contain only the template bump, not whatever diverged on the current branch. Create the branch *before* editing any files, so the edit in step 5 lands on a clean base:
+  - `git fetch origin <DEFAULT_BRANCH>`
+  - `git checkout -b "$BRANCH" "origin/<DEFAULT_BRANCH>"` — create the branch off the freshly-fetched default.
+  - If `$BRANCH` already exists locally, `git checkout "$BRANCH"` instead (assume a prior run created it off the same base).
+- The working tree was confirmed clean in step 1, so this checkout carries nothing across.
+
+## 5. Edit template.yml (version + profile) + commit the bump
+- On `$BRANCH`, set `template-branch:` (or `ref:`, whichever key is present) to `"<TARGET>"`.
 - If step 3 chose a different platform, set `profiles:` (and any reconciled `templates:`) accordingly.
 - Do NOT touch `.rhiza/.rhiza-version` — it is the decoupled tool version (see note above).
-
-## 5. Branch + commit the bump
-- `BRANCH=rhiza_<TARGET>`
-- Create/checkout the branch: `git checkout -b "$BRANCH"` (if it already exists locally, `git checkout "$BRANCH"`).
 - `git add .rhiza/template.yml`
 - `git commit -m "chore: bump rhiza to <TARGET>"` (if step 3 switched platform, append `" (switch to <github|gitlab>-project)"` to the message)
 - `git push --set-upstream origin "$BRANCH"`
@@ -123,3 +127,8 @@ The findings from step 8 also live in the PR scorecard, but `boost` owns filing 
 
 ## 12. Report
 Summarize: target version, platform profile (and whether it was switched), branch, conflicts/`.rej` resolved, files changed, the gate PASS/FAIL line, the overall score, the PR URL, and the issues filed (URLs) or skipped-as-duplicate / declined. Keep it short.
+
+## 13. Return to the invocation branch
+- Restore the branch you started on: `git checkout "$ORIG_BRANCH"`.
+- Skip this if `ORIG_BRANCH` is empty (detached HEAD at invocation) or equals `$BRANCH` (already there) — in either case just report the current branch.
+- The bump work is committed and pushed by now, so switching away is clean. If the checkout fails (e.g. the run aborted with an unexpected dirty tree), don't force it — report that you've left the tree on `$BRANCH` and why.
