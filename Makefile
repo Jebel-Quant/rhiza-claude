@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help lint validate changelog release
+.PHONY: help lint validate stats changelog release
 
 help:  ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -12,6 +12,9 @@ lint:  ## Run all pre-commit hooks against every file
 validate:  ## Validate the plugin manifests (JSON + version parity)
 	@python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json')); print('JSON OK')"
 	@python3 scripts/check_version_parity.py
+
+stats:  ## Print the repo statistics dashboard + write docs/stats.html
+	python3 scripts/stats.py $(ARGS)
 
 changelog:  ## Regenerate CHANGELOG.md from conventional commits
 	uvx git-cliff --output CHANGELOG.md
