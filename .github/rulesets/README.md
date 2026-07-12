@@ -13,9 +13,10 @@ policy is reviewable and reproducible.
 - 0 required approvals — a solo maintainer can still merge their own PR.
 - Conversation resolution required before merge.
 - No force-pushes; no branch deletion.
-- **No required status checks** — deliberately, so the org-enforced CodeQL
-  check (which cannot analyze this Markdown/JSON-only repo) never blocks merges.
-- Repository admins may bypass (`bypass_actors`).
+- **Required status checks** — the CI `pre-commit` and `tests` jobs must pass
+  before merge (non-strict, so branches need not be forcibly up to date).
+- Repository admins may bypass (`bypass_actors`), so a solo maintainer can still
+  merge in a pinch without waiting on a red/absent check.
 
 ## Apply / update
 
