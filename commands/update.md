@@ -24,7 +24,7 @@ Work through these steps. Stop and report if any precondition fails.
   - If `$ARGUMENTS` is non-empty, use it verbatim as the tag (ensure it starts with `v`).
   - Else run `gh release list -R jebel-quant/rhiza -L 1 --json tagName --jq '.[0].tagName'` for the latest release tag.
 - **Safety:** if TARGET's major version is greater than the current `template-branch`/`ref`'s major (e.g. jumping `v0.19.x` → `v1.x`), STOP and ask the user to confirm before continuing — major bumps are not automatic.
-- If TARGET equals the current `template-branch`/`ref`, the version file won't change. Tell the user it's already on TARGET and ask whether to re-run `make sync` anyway (to re-apply template content); stop unless they confirm.
+- If TARGET equals the current `template-branch`/`ref`, the version file won't change. Tell the user it's already on TARGET and ask whether to re-run the sync anyway (to re-apply template content); stop unless they confirm.
 
 ## 3. Choose platform profile (GitHub vs GitLab)
 The `profiles:` field in `.rhiza/template.yml` selects which platform's CI gets materialized on sync. Rhiza (`jebel-quant/rhiza`, `.rhiza/template-bundles.yml`) defines three:
@@ -56,7 +56,15 @@ If the choice **differs** from the current profile, also reconcile platform-spec
 - `git push --set-upstream origin "$BRANCH"`
 
 ## 6. Sync the template
-- Run `make sync`. A non-zero exit is expected when there are conflicts — do not treat it as fatal; capture the output and continue.
+- Apply the template with the plugin's bundled, stdlib-only sync (no `rhiza` CLI needed — **keep the quotes**):
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
+  ```
+  If `${CLAUDE_PLUGIN_ROOT}` is empty (source checkout), fall back to `python3 scripts/sync.py .`.
+- Interpret the exit code — **capture it before continuing**:
+  - **0** — synced cleanly; go to step 8 (no conflicts to resolve in step 7).
+  - **1** — synced with conflicts; the lock was written and merged files are on disk. This is expected — do **not** treat it as fatal; continue to step 7.
+  - **2** — a real failure (dirty tree, invalid `template.yml`, or a git error). **Stop** and report; nothing was applied.
 
 ## 7. Resolve conflicts (take upstream)
 - Resolve rhiza-sync fallout by taking the **upstream (theirs) side** everywhere:
@@ -104,7 +112,7 @@ Persist both artifacts for the next steps: write the scorecard to `$SCRATCHPAD/r
   ## Summary
   - Bumps the template `ref`/`template-branch` to `<TARGET>` in `.rhiza/template.yml`
   - Platform profile: `<github-project|gitlab-project|local>` (note here if step 3 switched platforms)
-  - Runs `make sync` to apply upstream template changes; conflicts resolved taking upstream
+  - Runs the bundled `scripts/sync.py` to apply upstream template changes; conflicts resolved taking upstream
 
   ## Quality gates
   <per-gate PASS/FAIL table>

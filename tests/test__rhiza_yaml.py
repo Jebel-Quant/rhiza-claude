@@ -110,3 +110,150 @@ def test_load_yaml_with_pyyaml(tmp_path, monkeypatch):
     f.write_text("list")
     with pytest.raises(ValueError):
         y.load_yaml(f)
+
+
+# --- scalar/flow-map extensions -------------------------------------------------
+
+
+def test_scalar_flow_map():
+    assert y._scalar("{source: a, dest: b}") == {"source": "a", "dest": "b"}
+    assert y._scalar("{}") == {}
+
+
+def test_flow_map_ignores_entries_without_colon():
+    assert y._flow_map("source: a, bogus") == {"source": "a"}
+
+
+# --- nested parser --------------------------------------------------------------
+
+
+def test_parse_nested_mapping():
+    text = (
+        "bundles:\n  core:\n    required: true\n    requires: [base]\n"
+        "  base:\n    standalone: true\n"
+    )
+    assert y._parse_subset(text) == {
+        "bundles": {
+            "core": {"required": True, "requires": ["base"]},
+            "base": {"standalone": True},
+        }
+    }
+
+
+def test_parse_profile_with_block_sequence():
+    text = "profiles:\n  std:\n    description: Std\n    bundles:\n      - core\n      - tests\n"
+    assert y._parse_subset(text) == {
+        "profiles": {"std": {"description": "Std", "bundles": ["core", "tests"]}}
+    }
+
+
+def test_parse_block_scalar_is_consumed_not_misparsed():
+    # The `- Documentation` line inside a `|` block must NOT become a sequence.
+    text = (
+        "book:\n"
+        "  description: |\n"
+        "    Docs combining:\n"
+        "    - a site\n"
+        "    - notebooks\n"
+        "  standalone: true\n"
+        "  requires:\n"
+        "    - core\n"
+    )
+    result = y._parse_subset(text)
+    assert result["book"]["standalone"] is True
+    assert result["book"]["requires"] == ["core"]
+    assert "a site" in result["book"]["description"]
+
+
+def test_parse_block_form_list_of_maps():
+    text = "files:\n  - source: a\n    dest: b\n  - source: c\n"
+    assert y._parse_subset(text) == {"files": [{"source": "a", "dest": "b"}, {"source": "c"}]}
+
+
+def test_parse_inline_flow_map_list_item():
+    text = "files:\n  - {source: a, dest: b}\n"
+    assert y._parse_subset(text) == {"files": [{"source": "a", "dest": "b"}]}
+
+
+def test_parse_bare_seq_item_is_none():
+    text = "items:\n  -\n  - x\n"
+    assert y._parse_subset(text) == {"items": [None, "x"]}
+
+
+def test_parse_dedent_ends_nested_block():
+    text = "a:\n  x: 1\nb: 2\n"
+    assert y._parse_subset(text) == {"a": {"x": 1}, "b": 2}
+
+
+def test_parse_top_level_sequence_yields_empty_map():
+    # A document that starts with a sequence is not a mapping -> {}.
+    assert y._parse_subset("- a\n- b\n") == {}
+
+
+def test_parse_bare_key_before_sibling_key_is_null():
+    # `a:` with the next line a sibling key (same indent) leaves `a` as null.
+    assert y._parse_subset("a:\nb: 2\n") == {"a": None, "b": 2}
+
+
+# --- dump / emit ----------------------------------------------------------------
+
+
+def test_dumps_yaml_layout_and_roundtrip():
+    lock = {
+        "sha": "abc123",
+        "repo": "owner/name",
+        "host": "github",
+        "ref": "v1.1.3",
+        "include": [],
+        "exclude": ["a/b.yml"],
+        "templates": ["legal"],
+        "files": ["Makefile", "docs/x.md"],
+        "synced_at": "2026-07-13T10:00:00Z",
+        "strategy": "merge",
+    }
+    text = y.dumps_yaml(lock)
+    assert "include: []" in text
+    assert "exclude:\n- a/b.yml" in text
+    assert "synced_at: '2026-07-13T10:00:00Z'" in text  # timestamp must be quoted
+    assert y._parse_subset(text) == lock  # round-trips through the subset parser
+
+
+def test_dumps_yaml_empty_dict():
+    assert y.dumps_yaml({}) == ""
+
+
+def test_dump_yaml_writes_file(tmp_path):
+    path = tmp_path / "template.lock"
+    y.dump_yaml({"sha": "x", "files": ["a"]}, path)
+    assert path.read_text() == "sha: x\nfiles:\n- a\n"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, "null"),
+        (True, "true"),
+        (False, "false"),
+        (7, "7"),
+        ("plain", "plain"),
+        ("owner/name", "owner/name"),
+        ("", "''"),
+        ("true", "'true'"),
+        ("123", "'123'"),
+        ("1.5", "'1.5'"),
+        ("2026-07-13T10:00:00Z", "'2026-07-13T10:00:00Z'"),
+        ("a: b", "'a: b'"),
+        ("*anchor", "'*anchor'"),
+        ("- dash", "'- dash'"),
+        ("it's", "it's"),  # a mid-string apostrophe is valid unquoted
+        ("'quoted'", "'''quoted'''"),  # leading quote forces quoting + doubling
+    ],
+)
+def test_emit_scalar_quoting(value, expected):
+    assert y._emit_scalar(value) == expected
+
+
+def test_is_float():
+    assert y._is_float("1.5") is True
+    assert y._is_float("nan") is True
+    assert y._is_float("abc") is False
