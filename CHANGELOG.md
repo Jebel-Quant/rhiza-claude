@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.4.0] - 2026-07-13
+
+### New Features
+- *(boost)* Always branch from default, restore invocation branch on exit (#11)
+- *(stats)* Extract /stats into scripts/stats.py + HTML dashboard (#12)
+- *(stats)* Prefer `rhiza status --json` for authoritative template state (#14)
+- *(commands)* Add stdlib-only validate + status commands with tests (#15)
+- *(commands)* Add stdlib-only tree + uninstall commands with tests (#16)
+- *(make)* Add `make install` target for plugin installation (#17)
+- *(commands)* Add stdlib-only repos command listing rhiza-topic repos as JSON (#18)
+- *(commands)* Add `init` command to bootstrap a rhiza-managed repo (#19)
+- *(sync)* Bundle a stdlib-only `rhiza sync` port + /rhiza:sync command (#30)
+
+### Documentation
+- Add mkdocs book with a page per command + Pages CI/CD (#20)
+
+### Maintenance
+- Add `make clean` target (#13)
+- Rename rhiza-config → rhiza-claude (#21)
+- Reach 100% script coverage + raise gate to 100% (#23)
+- Raise script coverage to 85% + enforce an 80% gate (#22)
+- Add a strict mypy type-check gate (#24)
+- Add community files + a 100% docstring-coverage gate (#25)
+- Add CodeQL + OpenSSF Scorecard security workflows (#26)
+- Require the CI checks in the main-protection ruleset (#27)
+- *(commands)* Rename boost→update and init→install (#28)
+- Enforce 1:1 test/source layout parity (new gate + suite refactor) (#29)
+
 ## [0.3.0] - 2026-07-11
 
 ### Other Changes

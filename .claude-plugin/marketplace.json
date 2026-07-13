@@ -10,7 +10,7 @@
       "name": "rhiza",
       "source": ".",
       "description": "Global slash commands for rhiza-managed repos: update (template sync + quality-scorecard PR), quality gate, README/CLAUDE.md/mkdocs revisit, and a read-only stats dashboard.",
-      "version": "0.3.0"
+      "version": "0.4.0"
     }
   ]
 }
