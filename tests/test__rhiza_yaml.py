@@ -74,3 +74,39 @@ def test_load_yaml_empty_returns_empty_dict(tmp_path):
     f = tmp_path / "empty.yml"
     f.write_text("# just a comment\n")
     assert y.load_yaml(f) == {}
+
+
+def test_scalar_variants():
+    assert y._scalar("") is None  # empty → None
+    assert y._scalar('"q"') == "q"
+    assert y._scalar("[a, b]") == ["a", "b"]
+    assert y._scalar("null") is None
+    assert y._scalar("true") is True
+    assert y._scalar("42") == 42
+    assert y._scalar("bare") == "bare"
+
+
+def test_parse_subset_skips_line_without_colon():
+    d = y._parse_subset("key: v\nlineWithoutColon\n")
+    assert d == {"key": "v"}
+
+
+def test_load_yaml_with_pyyaml(tmp_path, monkeypatch):
+    class FakeYaml:
+        @staticmethod
+        def safe_load(text):
+            if "none" in text:
+                return None
+            if "list" in text:
+                return [1, 2]
+            return {"a": 1}
+
+    monkeypatch.setattr(y, "_pyyaml", FakeYaml)
+    f = tmp_path / "f.yml"
+    f.write_text("dict")
+    assert y.load_yaml(f) == {"a": 1}
+    f.write_text("none")
+    assert y.load_yaml(f) == {}
+    f.write_text("list")
+    with pytest.raises(ValueError):
+        y.load_yaml(f)

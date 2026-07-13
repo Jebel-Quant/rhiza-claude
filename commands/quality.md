@@ -1,7 +1,7 @@
 ---
-description: Run the Rhiza code-quality gate and score the current repo (lint, types, docs, deps, security, tests, complexity, architecture), then optionally file findings as issues.
+description: Run the Rhiza code-quality gate and score the current repo (lint, types, docs, deps, security, tests, test-layout, complexity, architecture), then optionally file findings as issues.
 argument-hint: "[path or topic to scope the assessment to]  (optional; defaults to the whole repo)"
-allowed-tools: Bash(make*), Bash(git*), Bash(gh*), Bash(glab*), Bash(uvx*), Bash(grep*), Bash(find*), Bash(wc*), Bash(sed*), Bash(sort*), Bash(uniq*), Grep, Glob, Read, Edit, Write, AskUserQuestion
+allowed-tools: Bash(make*), Bash(git*), Bash(gh*), Bash(glab*), Bash(uvx*), Bash(python3*), Bash(grep*), Bash(find*), Bash(wc*), Bash(sed*), Bash(sort*), Bash(uniq*), Grep, Glob, Read, Edit, Write, AskUserQuestion
 ---
 
 Assess the quality of the **current working directory's repo** against Rhiza
@@ -19,6 +19,11 @@ first so fast failures surface before the slow test suite — and collect result
 5. `make security` — pip-audit + bandit scans
 6. `make validate` — validate project structure against the Rhiza template (`.rhiza/template.yml`)
 7. `make test` — full test suite **with** its coverage gate (slowest, run last)
+8. **Test-layout parity** — run the bundled checker
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_test_layout.py"` (fall back to
+   `scripts/check_test_layout.py` in a source checkout). It fails when a
+   source module has no mirrored `test_<name>.py`, a source `class A` has no
+   `TestA`, or a test file/`Test*` class has no source counterpart.
 
 Guidelines:
 

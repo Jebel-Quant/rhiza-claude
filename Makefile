@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test types docstrings validate stats book book-serve clean changelog release
+.PHONY: help install lint test types docstrings test-layout validate stats book book-serve clean changelog release
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
 PLUGIN := rhiza@rhiza-claude
@@ -24,6 +24,9 @@ types:  ## Strict type-check scripts/ with mypy
 
 docstrings:  ## Enforce 100% docstring coverage of scripts/ (interrogate)
 	uvx interrogate --ignore-nested-functions --fail-under=100 scripts
+
+test-layout:  ## Check tests mirror sources 1:1 (files + Test classes)
+	python3 scripts/check_test_layout.py --src scripts --tests tests
 
 validate:  ## Validate the plugin manifests (JSON + version parity)
 	@python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json')); print('JSON OK')"

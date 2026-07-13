@@ -60,3 +60,11 @@ def test_tree_singular_file_count(tmp_path, capsys):
 def test_main_returns_zero(tmp_path):
     _write_lock(tmp_path, "sha: abc\nfiles:\n- a.txt\n")
     assert tree.main([str(tmp_path)]) == 0
+
+
+def test_tree_unreadable_write_lock(tmp_path, monkeypatch, capsys):
+    _write_lock(tmp_path, "files:\n  - a\n")
+    monkeypatch.setattr(tree, "load_yaml", lambda p: (_ for _ in ()).throw(ValueError("bad")))
+    rc = tree.tree(tmp_path)
+    assert rc == 1
+    assert "Could not read" in capsys.readouterr().err

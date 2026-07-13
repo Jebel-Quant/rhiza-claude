@@ -12,7 +12,7 @@ The optional argument scopes the assessment; it defaults to the whole repo.
 ## What it does
 
 1. **Runs the quality gates** (cheapest first) — lint, types, docs, deps,
-   security, tests, complexity, and architecture — adapting to whichever repo it
+   security, tests, test-layout, complexity, and architecture — adapting to whichever repo it
    runs in.
 2. **Scores 1–10** across the eight subcategories, with an overall score and the
    highest-leverage improvement called out.

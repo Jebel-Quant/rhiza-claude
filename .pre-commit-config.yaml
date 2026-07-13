@@ -71,3 +71,9 @@ repos:
         language: system
         pass_filenames: false
         files: '^scripts/.*\.py$'
+      - id: test-layout
+        name: test layout mirrors sources (1:1 files + Test classes)
+        entry: python3 scripts/check_test_layout.py --src scripts --tests tests
+        language: system
+        pass_filenames: false
+        files: '^(scripts|tests)/.*\.py$'
