@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
+import shutil
+import subprocess
 import tomllib
+from pathlib import Path
 
 import init_scaffold as scaf
 import pytest
@@ -260,3 +264,163 @@ def test_main_defaults_project_name_to_dir(tmp_path, capsys, monkeypatch):
 def test_main_rejects_unknown_component(tmp_path):
     with pytest.raises(SystemExit):
         scaf.main([str(tmp_path), "--components", "bogus"])
+
+
+def test_run_uv_lock_early_return_when_present(tmp_path):
+    (tmp_path / "uv.lock").write_text("x")
+    notes: list[str] = []
+    scaf._run_uv_lock(tmp_path, notes)
+    assert notes == []
+
+
+def test_run_uv_lock_uv_missing(tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(scaf.subprocess, "run", boom)
+    notes: list[str] = []
+    scaf._run_uv_lock(tmp_path, notes)
+    assert any("uv not found" in n for n in notes)
+
+
+def test_run_uv_lock_success_and_failure(tmp_path, monkeypatch):
+    class OK:
+        returncode = 0
+
+    monkeypatch.setattr(scaf.subprocess, "run", lambda *a, **k: OK())
+    notes: list[str] = []
+    scaf._run_uv_lock(tmp_path, notes)
+    assert any("uv.lock" in n for n in notes)
+
+    class Fail:
+        returncode = 1
+        stderr = "boom"
+
+    monkeypatch.setattr(scaf.subprocess, "run", lambda *a, **k: Fail())
+    notes2: list[str] = []
+    scaf._run_uv_lock(tmp_path, notes2)  # no uv.lock created (mocked) → runs
+    assert any("failed" in n for n in notes2)
+
+
+def test_parse_components_rejects_unknown():
+    with pytest.raises(ValueError):
+        scaf._parse_components("bogus", "python")
+
+
+def test_main_text_output(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(scaf, "_run_uv_lock", lambda t, n: None)
+    rc = scaf.main([str(tmp_path), "--project-name", "x", "--components", "readme"])
+    assert rc == 0
+    cap = capsys.readouterr()
+    assert "created" in cap.out
+
+
+def test_main_text_output_with_note(tmp_path, monkeypatch, capsys):
+    # a Go project emits a `go mod init` note → covers the notes loop
+    monkeypatch.setattr(scaf, "_run_uv_lock", lambda t, n: None)
+    rc = scaf.main([str(tmp_path), "--language", "go", "--components", "readme"])
+    assert rc == 0
+    assert "note" in capsys.readouterr().err
+
+
+def test_main_nothing_to_create(tmp_path, monkeypatch, capsys):
+    # pre-create the always-written files so nothing new is produced
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("x\n")
+    (tmp_path / "Makefile").write_text("x\n")
+    monkeypatch.setattr(scaf, "_run_uv_lock", lambda t, n: None)
+    rc = scaf.main([str(tmp_path), "--project-name", "x", "--components", ""])
+    assert rc == 0
+    assert "nothing to create" in capsys.readouterr().err
+
+
+# The template ref to sync. Pinned for determinism; bump when validating a newer
+# rhiza release (any release whose bundled tests the scaffold must still pass).
+TEMPLATE_REF = "v1.1.3"
+
+SCAFFOLD = Path(__file__).resolve().parents[1] / "scripts" / "init_scaffold.py"
+
+_REQUIRED_TOOLS = ("git", "make", "uv", "uvx")
+
+_E2E_MISSING = [t for t in ("git", "make", "uv", "uvx") if shutil.which(t) is None]
+
+
+def _run_cmd(cmd: list[str], cwd: Path, timeout: int = 600) -> subprocess.CompletedProcess:
+    """Run a command, returning the completed process (stdout+stderr captured)."""
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def _git(cwd: Path, *args: str) -> None:
+    """Run a git command, raising on failure."""
+    result = _run_cmd(["git", *args], cwd)
+    assert result.returncode == 0, f"git {' '.join(args)} failed:\n{result.stderr}"
+
+
+def _assert_ok(result: subprocess.CompletedProcess, label: str) -> None:
+    """Assert a command exited 0, surfacing its output on failure."""
+    assert result.returncode == 0, f"{label} failed:\n{result.stdout}\n{result.stderr}"
+
+
+@pytest.mark.skipif(os.environ.get("RHIZA_E2E") != "1", reason="slow/network; set RHIZA_E2E=1")
+@pytest.mark.skipif(bool(_E2E_MISSING), reason="git/make/uv/uvx not all available")
+def test_init_scaffold_survives_sync_and_gates(tmp_path: Path) -> None:
+    """A scaffolded repo passes the template gates after a real sync."""
+    repo = tmp_path / "e2e-init"
+    repo.mkdir()
+
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "e2e@example.com")
+    _git(repo, "config", "user.name", "E2E Test")
+
+    # 1. Scaffold via the bundled script (the same call commands/init.md makes).
+    scaffold = _run_cmd(
+        [
+            "python3",
+            str(SCAFFOLD),
+            str(repo),
+            "--project-name",
+            "e2e-init",
+            "--owner",
+            "jebel-quant",
+            "--host",
+            "github",
+            "--language",
+            "python",
+            "--template-repo",
+            "jebel-quant/rhiza",
+            "--ref",
+            TEMPLATE_REF,
+            "--components",
+            "package,mkdocs,readme",
+        ],
+        repo,
+    )
+    assert scaffold.returncode == 0, f"scaffold failed:\n{scaffold.stderr}"
+    for expected in ("pyproject.toml", "Makefile", "README.md", ".rhiza/template.yml"):
+        assert (repo / expected).exists(), f"scaffolder did not create {expected}"
+
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "chore: scaffold rhiza-managed project")
+
+    # 2. First sync via the bootstrap Makefile (→ uvx rhiza sync .).
+    sync = _run_cmd(["make", "sync"], repo)
+    _assert_ok(sync, "make sync")
+    assert (repo / ".rhiza" / "rhiza.mk").exists(), "sync did not deliver .rhiza/rhiza.mk"
+    template_tests = repo / ".rhiza" / "tests" / "test_pyproject.py"
+    assert template_tests.exists(), "sync did not deliver the template tests"
+
+    # 3. The template's own contract tests must pass against our scaffold.
+    rhiza_test = _run_cmd(["make", "rhiza-test"], repo)
+    _assert_ok(rhiza_test, "make rhiza-test")
+    assert "failed" not in rhiza_test.stdout.lower(), rhiza_test.stdout
+
+    # 4. The scaffolded project's own tests must pass under the coverage gate.
+    project_test = _run_cmd(["make", "test"], repo)
+    _assert_ok(project_test, "make test")
+    assert "passed" in project_test.stdout.lower(), project_test.stdout

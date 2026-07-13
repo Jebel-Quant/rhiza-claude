@@ -80,3 +80,38 @@ def test_status_include_shown_when_no_templates(tmp_path, capsys):
     _write_lock(tmp_path, "host: github\nrepo: o/r\ninclude:\n- .github\n- .gitignore\n")
     status.status(tmp_path)
     assert "Include    : .github, .gitignore" in capsys.readouterr().out
+
+
+def test_status_human_readable_templates(tmp_path, capsys):
+    _write_lock(
+        tmp_path,
+        "host: github\nrepo: a/b\nref: main\nsha: abcdef1234567890\n"
+        "synced_at: 2026-07-01\nstrategy: merge\ntemplates:\n  - legal\n",
+    )
+    rc = status.status(tmp_path, json_output=False)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Repository : github/a/b" in out
+    assert "SHA        : abcdef123456" in out
+    assert "Templates  : legal" in out
+
+
+def test_status_human_readable_include_and_unknown_sha(tmp_path, capsys):
+    _write_lock(tmp_path, "repo: a/b\ninclude:\n  - .github\n")  # no sha → (unknown)
+    status.status(tmp_path, json_output=False)
+    out = capsys.readouterr().out
+    assert "SHA        : (unknown)" in out
+    assert "Include    : .github" in out
+
+
+def test_status_unreadable_write_lock(tmp_path, monkeypatch, capsys):
+    _write_lock(tmp_path, "x: 1\n")
+    monkeypatch.setattr(status, "load_yaml", lambda p: (_ for _ in ()).throw(ValueError("bad")))
+    rc = status.status(tmp_path)
+    assert rc == 1
+    assert "Could not read" in capsys.readouterr().err
+
+
+def test_status_main(tmp_path):
+    _write_lock(tmp_path, "repo: a/b\nref: main\n")
+    assert status.main([str(tmp_path), "--json"]) == 0

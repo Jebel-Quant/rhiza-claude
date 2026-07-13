@@ -22,6 +22,7 @@ make lint        # run pre-commit against every file
 make test        # run the script test suite (100% coverage gate)
 make types       # strict mypy type-check of scripts/
 make docstrings  # 100% docstring coverage of scripts/ (interrogate)
+make test-layout # tests mirror sources 1:1 (files + Test classes)
 make validate    # validate the plugin manifests (JSON + version parity)
 make stats       # print the stats dashboard + write docs/stats.html
 make book        # build the documentation site into _book/
