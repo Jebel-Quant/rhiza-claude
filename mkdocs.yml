@@ -20,7 +20,6 @@ nav:
       - new: commands/new.md
   - Repo utilities:
       - status: commands/status.md
-      - tree: commands/tree.md
       - validate: commands/validate.md
       - uninstall: commands/uninstall.md
   - Development: development.md

@@ -5,17 +5,21 @@ A stdlib-only port of the `rhiza status` command, bundled with this plugin so
 `/rhiza:status` works without the `rhiza` CLI (or PyYAML) installed. It reads
 the authoritative lock written by the last sync and reports the template
 repository, ref, SHA, sync timestamp, strategy, and included templates/paths.
+With `--files` it also renders the managed files as a directory tree — the view
+that used to live in the separate `/rhiza:tree` command.
 
 Usage:
-  python3 scripts/status.py [TARGET] [--json]
+  python3 scripts/status.py [TARGET] [--json] [--files]
 
-  TARGET   repository root to inspect (default: current directory)
-  --json   emit a single JSON object on stdout instead of human-readable lines
+  TARGET    repository root to inspect (default: current directory)
+  --json    emit a single JSON object on stdout instead of human-readable lines
+  --files   append the managed files as a `tree`-style listing (human output)
 
 When no lock is present the repo has never been synced; this prints a hint to
 stderr and exits 0 (nothing to report is not an error). The `--json` payload
-mirrors `rhiza status --json` field-for-field, so tools like stats.py can read
-either interchangeably.
+mirrors `rhiza status --json` field-for-field (including `files`), so tools like
+stats.py can read either interchangeably. Where the CLI uses `rich` for the file
+tree, this renders plain ASCII connectors so it stays dependency-free.
 """
 
 from __future__ import annotations
@@ -62,7 +66,41 @@ def _status_dict(lock: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def status(target: Path, *, json_output: bool = False) -> int:
+def _build_tree(paths: list[str]) -> dict[str, Any]:
+    """Fold a flat path list into a nested {name: subtree} dict."""
+    root: dict[str, Any] = {}
+    for path in sorted(paths):
+        node = root
+        for part in Path(path).parts:
+            node = node.setdefault(part, {})
+    return root
+
+
+def _render(node: dict[str, Any], prefix: str = "") -> list[str]:
+    """Render a nested tree dict into Unix-`tree`-style lines."""
+    lines: list[str] = []
+    items = sorted(node.items())
+    for i, (name, child) in enumerate(items):
+        last = i == len(items) - 1
+        lines.append(f"{prefix}{'└── ' if last else '├── '}{name}")
+        if child:
+            lines.extend(_render(child, prefix + ("    " if last else "│   ")))
+    return lines
+
+
+def _print_file_tree(files: list[str]) -> None:
+    """Print the managed files as a `tree`-style listing plus a total count."""
+    if not files:
+        print("No files are tracked in template.lock", file=sys.stderr)
+        return
+    print("\nFiles managed by Rhiza:")
+    print(".")
+    for line in _render(_build_tree(files)):
+        print(line)
+    print(f"\n{len(files)} file{'s' if len(files) != 1 else ''} managed by Rhiza")
+
+
+def status(target: Path, *, json_output: bool = False, show_files: bool = False) -> int:
     """Print the sync status; return a process exit code."""
     lock_path = (target / LOCK_REL).resolve()
     if not lock_path.exists():
@@ -90,6 +128,8 @@ def status(target: Path, *, json_output: bool = False) -> int:
         print(f"Templates  : {', '.join(payload['templates'])}")
     elif payload["include"]:
         print(f"Include    : {', '.join(payload['include'])}")
+    if show_files:
+        _print_file_tree(payload["files"])
     return 0
 
 
@@ -110,8 +150,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Emit the status as a single JSON object on stdout.",
     )
+    parser.add_argument(
+        "--files",
+        "--tree",
+        dest="show_files",
+        action="store_true",
+        help="Append the managed files as a tree-style listing (human output).",
+    )
     args = parser.parse_args(argv)
-    return status(Path(args.target), json_output=args.json_output)
+    return status(Path(args.target), json_output=args.json_output, show_files=args.show_files)
 
 
 if __name__ == "__main__":

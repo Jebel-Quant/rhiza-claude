@@ -115,3 +115,54 @@ def test_status_unreadable_write_lock(tmp_path, monkeypatch, capsys):
 def test_status_main(tmp_path):
     _write_lock(tmp_path, "repo: a/b\nref: main\n")
     assert status.main([str(tmp_path), "--json"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# File-tree view (folded in from the retired `/tree` command)
+# ---------------------------------------------------------------------------
+
+
+def test_build_tree_nests_paths():
+    built = status._build_tree(["a/b/c.txt", "a/d.txt", "top.txt"])
+    assert built == {"a": {"b": {"c.txt": {}}, "d.txt": {}}, "top.txt": {}}
+
+
+def test_render_connectors():
+    lines = status._render(status._build_tree(["a/b.txt", "a/c.txt", "d.txt"]))
+    assert lines == [
+        "├── a",
+        "│   ├── b.txt",
+        "│   └── c.txt",
+        "└── d.txt",
+    ]
+
+
+def test_status_files_output_and_count(tmp_path, capsys):
+    _write_lock(tmp_path, "repo: o/r\nfiles:\n- .github/ci.yml\n- LICENSE\n")
+    rc = status.status(tmp_path, show_files=True)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Repository : github/o/r" in out  # summary still shown
+    assert "Files managed by Rhiza:" in out
+    assert "├── .github" in out
+    assert "│   └── ci.yml" in out
+    assert "└── LICENSE" in out
+    assert "2 files managed by Rhiza" in out
+
+
+def test_status_files_singular_count(tmp_path, capsys):
+    _write_lock(tmp_path, "repo: o/r\nfiles:\n- solo.txt\n")
+    status.status(tmp_path, show_files=True)
+    assert "1 file managed by Rhiza" in capsys.readouterr().out
+
+
+def test_status_files_empty_is_not_an_error(tmp_path, capsys):
+    _write_lock(tmp_path, "repo: o/r\nfiles: []\n")
+    rc = status.status(tmp_path, show_files=True)
+    assert rc == 0
+    assert "No files are tracked" in capsys.readouterr().err
+
+
+def test_status_main_files_flag(tmp_path):
+    _write_lock(tmp_path, "repo: a/b\nfiles:\n- a.txt\n")
+    assert status.main([str(tmp_path), "--files"]) == 0
