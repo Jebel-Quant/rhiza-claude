@@ -83,6 +83,10 @@ remove the marketplace and re-add it at the desired tag:
   (default `rhiza`) as a JSON document — name, description, URL, topics,
   language, stars, and timestamps. Set `GITHUB_TOKEN` to raise the API rate
   limit.
+- **`/rhiza:new`** — scaffold a new source module and its mirrored test file in a
+  rhiza-managed Python repo (`src/<pkg>/<name>.py` + `tests/<pkg>/test_<name>.py`),
+  keeping the 1:1 test/source layout parity that `/rhiza:quality` enforces. Pass
+  `--class Name` to stub a class plus its matching `TestName`. Never overwrites.
 
 ### Repo utilities
 
