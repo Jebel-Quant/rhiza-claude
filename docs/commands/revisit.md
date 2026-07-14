@@ -26,5 +26,5 @@ The optional argument limits the run to one file; it defaults to `all`.
 ## Notes
 
 - Auto-detects the platform (GitHub/GitLab) for the correct badge and page URLs.
-- This is the tool to reach for after [`/rhiza:install`](install.md) scaffolds a bare
+- This is the tool to reach for after [`/rhiza:init`](init.md) scaffolds a bare
   starter README.

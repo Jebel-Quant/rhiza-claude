@@ -21,5 +21,5 @@ Runs the bundled `scripts/validate.py` — stdlib-only — and checks that:
 ## Notes
 
 - Works without the `rhiza` CLI installed.
-- Used by [`/rhiza:install`](install.md) as its final gate before opening the PR, so a
+- Used by [`/rhiza:init`](init.md) as its final gate before opening the PR, so a
   freshly scaffolded config is never shipped broken.
