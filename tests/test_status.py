@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import status
 
@@ -166,3 +167,84 @@ def test_status_files_empty_is_not_an_error(tmp_path, capsys):
 def test_status_main_files_flag(tmp_path):
     _write_lock(tmp_path, "repo: a/b\nfiles:\n- a.txt\n")
     assert status.main([str(tmp_path), "--files"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Outdated check (--check): compare the pinned ref to the latest release
+# ---------------------------------------------------------------------------
+
+
+def test_parse_semver():
+    assert status._parse_semver("v1.2.3") == (1, 2, 3)
+    assert status._parse_semver("1.2.3") == (1, 2, 3)
+    assert status._parse_semver("main") is None
+    assert status._parse_semver("v1.2") is None
+
+
+def test_remote_url_host_selection():
+    assert status._remote_url("github", "o/r") == "https://github.com/o/r"
+    assert status._remote_url("gitlab-project", "o/r") == "https://gitlab.com/o/r"
+
+
+def test_remote_tags_parses_and_dedupes(monkeypatch):
+    stdout = (
+        "sha1\trefs/tags/v0.1.0\n"
+        "sha2\trefs/tags/v0.2.0\n"
+        "sha2\trefs/tags/v0.2.0^{}\n"  # annotated-tag peel — deduped
+        "sha3\trefs/heads/main\n"  # not a tag — skipped
+    )
+    monkeypatch.setattr(status.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout=stdout))
+    assert status._remote_tags("github", "o/r") == ["v0.1.0", "v0.2.0"]
+
+
+def test_remote_tags_failure_returns_empty(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("git not found")
+
+    monkeypatch.setattr(status.subprocess, "run", boom)
+    assert status._remote_tags("github", "o/r") == []
+
+
+def test_outdated_message_no_releases():
+    assert "could not determine" in status._outdated_message("v1.0.0", ["not-a-version"])
+
+
+def test_outdated_message_ref_not_a_tag():
+    msg = status._outdated_message("main", ["v1.0.0", "v1.1.0"])
+    assert "latest release is v1.1.0" in msg
+    assert "not a release tag" in msg
+
+
+def test_outdated_message_up_to_date():
+    assert "up to date" in status._outdated_message("v1.1.0", ["v1.0.0", "v1.1.0"])
+
+
+def test_outdated_message_behind_singular():
+    msg = status._outdated_message("v1.0.0", ["v1.0.0", "v1.1.0"])
+    assert "v1.0.0 → v1.1.0" in msg
+    assert "1 release behind" in msg
+
+
+def test_outdated_message_behind_plural():
+    msg = status._outdated_message("v1.0.0", ["v1.0.0", "v1.1.0", "v2.0.0"])
+    assert "2 releases behind" in msg
+
+
+def test_print_outdated_no_repo(capsys):
+    status._print_outdated({"repo": "", "host": "github", "ref": "main"})
+    assert "no template repository recorded" in capsys.readouterr().out
+
+
+def test_status_check_line(tmp_path, monkeypatch, capsys):
+    _write_lock(tmp_path, "host: github\nrepo: o/r\nref: v1.0.0\n")
+    monkeypatch.setattr(status, "_remote_tags", lambda host, repo: ["v1.0.0", "v1.1.0"])
+    rc = status.status(tmp_path, check=True)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "1 release behind" in out
+
+
+def test_status_main_check_flag(tmp_path, monkeypatch):
+    _write_lock(tmp_path, "host: github\nrepo: o/r\nref: v1.0.0\n")
+    monkeypatch.setattr(status, "_remote_tags", lambda host, repo: [])
+    assert status.main([str(tmp_path), "--check"]) == 0
