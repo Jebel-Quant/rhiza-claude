@@ -83,6 +83,11 @@ remove the marketplace and re-add it at the desired tag:
   (default `rhiza`) as a JSON document — name, description, URL, topics,
   language, stars, and timestamps. Set `GITHUB_TOKEN` to raise the API rate
   limit.
+- **`/rhiza:release`** — prepare a release for the current rhiza-managed repo:
+  derive the next semantic version from the conventional commits since the last
+  tag (via git-cliff, overridable), bump `pyproject.toml`, regenerate
+  `CHANGELOG.md`, then commit and tag locally. Stops before pushing — it prints
+  the push commands, and pushing the tag is what triggers the release CI.
 
 ## Layout
 

@@ -17,6 +17,7 @@ nav:
       - revisit: commands/revisit.md
       - stats: commands/stats.md
       - repos: commands/repos.md
+      - release: commands/release.md
   - Repo utilities:
       - status: commands/status.md
       - tree: commands/tree.md
