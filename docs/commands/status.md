@@ -4,7 +4,7 @@ Show the current rhiza **sync status** for the repo. Read-only; no scoring, no
 fixes, no issues.
 
 ```
-/rhiza:status [path to a repo root]
+/rhiza:status [path to a repo root] [--files]
 ```
 
 The optional argument is the repo root to inspect; it defaults to the current
@@ -21,7 +21,9 @@ Runs the bundled `scripts/status.py` — a stdlib-only read of
 - the templates / paths that were materialized.
 
 Pass `--json` for a machine-readable object whose fields mirror
-`rhiza status --json`.
+`rhiza status --json`. Pass `--files` (alias `--tree`) to append the managed
+files as a directory tree — the view the retired `/rhiza:tree` command used to
+give.
 
 ## Notes
 

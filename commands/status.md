@@ -30,6 +30,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/status.py" $ARGUMENTS
 - Pass `$ARGUMENTS` through as the optional target path. If it's empty, just omit it.
 - Add `--json` only when the user wants machine-readable output; the default is
   the human-readable summary.
+- Add `--files` (alias `--tree`) when the user wants the managed files listed as
+  a directory tree beneath the summary — this is the view the retired
+  `/rhiza:tree` command used to give. `--json` already includes the `files`
+  array, so `--files` only affects the human-readable output.
 
 ## 2. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
