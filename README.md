@@ -23,7 +23,7 @@ Or, from a shell, `make install` runs the equivalent `claude` CLI commands:
 make install
 ```
 
-The commands then appear namespaced under the plugin: `/rhiza:install`,
+The commands then appear namespaced under the plugin: `/rhiza:init`,
 `/rhiza:update`, `/rhiza:quality`, `/rhiza:revisit`, `/rhiza:stats`,
 `/rhiza:repos`. Type `/rhiza` to have Claude Code autocomplete them.
 
@@ -58,13 +58,13 @@ remove the marketplace and re-add it at the desired tag:
 
 ## Commands
 
-- **`/rhiza:install`** — bootstrap a rhiza-managed repo in the current folder
+- **`/rhiza:init`** — bootstrap a rhiza-managed repo in the current folder
   (empty, or an existing git repo that isn't managed yet): `git init` if
   needed, ask whether it lives on GitHub or GitLab, ask owner/name/visibility,
   pick the language (Python or Go) and template repo (`jebel-quant/rhiza` /
   `rhiza-go`, or a custom one), optionally scaffold the project (`pyproject.toml`
   + `src/` + `tests/`, `mkdocs.yml`, a starter `README.md`), validate the config,
-  then put the scaffold and the first template sync on a `rhiza_install_<date>`
+  then put the scaffold and the first template sync on a `rhiza_init_<date>`
   branch and open a PR — never pushing rhiza changes straight to the default
   branch.
 - **`/rhiza:update`** — bump the current repo to the latest (or a given) rhiza
