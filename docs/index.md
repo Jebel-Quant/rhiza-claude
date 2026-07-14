@@ -33,6 +33,7 @@ These are the AI-driven workflow commands. Each has its own page.
 | [`/rhiza:revisit`](commands/revisit.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
 | [`/rhiza:stats`](commands/stats.md) | A read-only statistics dashboard for the repo. |
 | [`/rhiza:repos`](commands/repos.md) | List the GitHub repos tagged with a rhiza topic as JSON. |
+| [`/rhiza:new`](commands/new.md) | Scaffold a new source module + its mirrored test, keeping layout parity. |
 
 ## Repo utilities
 
