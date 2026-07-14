@@ -34,6 +34,7 @@ These are the AI-driven workflow commands. Each has its own page.
 | [`/rhiza:stats`](commands/stats.md) | A read-only statistics dashboard for the repo. |
 | [`/rhiza:repos`](commands/repos.md) | List the GitHub repos tagged with a rhiza topic as JSON. |
 | [`/rhiza:release`](commands/release.md) | Prepare a release: derive the next version, bump, changelog, commit, tag (no push). |
+| [`/rhiza:new`](commands/new.md) | Scaffold a new source module + its mirrored test, keeping layout parity. |
 
 ## Repo utilities
 
@@ -43,7 +44,6 @@ Thin, **stdlib-only** commands backed by bundled scripts — they read
 
 | Command | What it does |
 | --- | --- |
-| [`/rhiza:status`](commands/status.md) | Show the current sync status (template, ref, SHA, timestamp). |
-| [`/rhiza:tree`](commands/tree.md) | List the files rhiza manages, as a directory tree. |
+| [`/rhiza:status`](commands/status.md) | Show the current sync status (template, ref, SHA, timestamp); `--files` lists managed files as a tree. |
 | [`/rhiza:validate`](commands/validate.md) | Validate `.rhiza/template.yml`. |
 | [`/rhiza:uninstall`](commands/uninstall.md) | Remove all rhiza-managed files (destructive). |

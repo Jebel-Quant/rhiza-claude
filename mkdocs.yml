@@ -18,9 +18,9 @@ nav:
       - stats: commands/stats.md
       - repos: commands/repos.md
       - release: commands/release.md
+      - new: commands/new.md
   - Repo utilities:
       - status: commands/status.md
-      - tree: commands/tree.md
       - validate: commands/validate.md
       - uninstall: commands/uninstall.md
   - Development: development.md

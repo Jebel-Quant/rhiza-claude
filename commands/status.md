@@ -30,6 +30,17 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/status.py" $ARGUMENTS
 - Pass `$ARGUMENTS` through as the optional target path. If it's empty, just omit it.
 - Add `--json` only when the user wants machine-readable output; the default is
   the human-readable summary.
+- Add `--files` (alias `--tree`) when the user wants the managed files listed as
+  a directory tree beneath the summary — this is the view the retired
+  `/rhiza:tree` command used to give. `--json` already includes the `files`
+  array, so `--files` only affects the human-readable output.
+- Add `--check` when the user wants to know whether the template is behind: it
+  compares the pinned `ref` to the latest upstream release (via
+  `git ls-remote --tags`, no `gh` or auth needed) and prints an `Update` line —
+  e.g. `v1.0.0 → v1.2.0 (2 releases behind) — run /update`, or `up to date`.
+  This is the **only** part of `/status` that needs network; a git/network
+  failure is reported, never fatal. For actually applying the bump, point the
+  user at `/update`.
 
 ## 2. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,

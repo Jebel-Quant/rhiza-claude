@@ -88,6 +88,26 @@ remove the marketplace and re-add it at the desired tag:
   tag (via git-cliff, overridable), bump `pyproject.toml`, regenerate
   `CHANGELOG.md`, then commit and tag locally. Stops before pushing — it prints
   the push commands, and pushing the tag is what triggers the release CI.
+- **`/rhiza:new`** — scaffold a new source module and its mirrored test file in a
+  rhiza-managed Python repo (`src/<pkg>/<name>.py` + `tests/<pkg>/test_<name>.py`),
+  keeping the 1:1 test/source layout parity that `/rhiza:quality` enforces. Pass
+  `--class Name` to stub a class plus its matching `TestName`. Never overwrites.
+
+### Repo utilities
+
+Thin, **stdlib-only** commands backed by bundled scripts — they read
+`.rhiza/template.lock` / `.rhiza/template.yml` directly and work without the
+`rhiza` CLI installed.
+
+- **`/rhiza:status`** — show the current sync status (template repository, ref,
+  synced SHA, timestamp, strategy). Add `--files` (alias `--tree`) to list the
+  managed files as a directory tree, or `--check` to compare the pinned ref
+  against the latest upstream release and see whether you're behind. Read-only.
+- **`/rhiza:validate`** — validate `.rhiza/template.yml`: that it parses and its
+  required/optional fields are present and well-typed. Exits non-zero on failure.
+- **`/rhiza:uninstall`** — remove every rhiza-managed file listed in
+  `.rhiza/template.lock`, prune the emptied directories, and delete the lock.
+  **Destructive**; prompts for confirmation unless `--force` is passed.
 
 ## Layout
 
