@@ -27,6 +27,35 @@ The commands then appear namespaced under the plugin: `/rhiza:install`,
 `/rhiza:update`, `/rhiza:quality`, `/rhiza:revisit`, `/rhiza:stats`,
 `/rhiza:repos`. Type `/rhiza` to have Claude Code autocomplete them.
 
+### Install a specific version
+
+By default the marketplace tracks this repo's default branch, so `/plugin
+install` pulls the latest release. To pin to a specific published version,
+append that version's git tag as a `#<ref>` suffix when you add the marketplace
+(see the [releases page](https://github.com/Jebel-Quant/rhiza-claude/releases)
+for available tags):
+
+```
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.4.1
+/plugin install rhiza@rhiza-claude
+```
+
+The same `#<ref>` suffix works from a shell:
+
+```bash
+claude plugin marketplace add Jebel-Quant/rhiza-claude#v0.4.1
+claude plugin install rhiza@rhiza-claude
+```
+
+Pinning happens at the marketplace layer, not per plugin — once the marketplace
+is added, `/plugin install` uses whatever ref it points at. To switch versions,
+remove the marketplace and re-add it at the desired tag:
+
+```
+/plugin marketplace remove rhiza-claude
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.4.0
+```
+
 ## Commands
 
 - **`/rhiza:install`** — bootstrap a rhiza-managed repo in the current folder
