@@ -1,7 +1,7 @@
 ---
-description: Bootstrap a rhiza-managed repo in the current folder (empty, or an existing git repo that isn't yet rhiza-managed) — git init if needed, ask whether it lives on GitHub or GitLab (auto-detecting an existing remote), ask owner/name/visibility, pick language (python/go) and template repo (default jebel-quant/rhiza or rhiza-go, with a reachability check), optionally scaffold the project (pyproject/src/tests, mkdocs.yml, a real starter README) via the bundled init_scaffold.py, validate the config, then put the scaffold and the first template sync on a `rhiza_install_<date>` branch and open a PR. Never pushes rhiza changes straight to the default branch.
+description: Bootstrap a rhiza-managed repo in the current folder (empty, or an existing git repo that isn't yet rhiza-managed) — git init if needed, ask whether it lives on GitHub or GitLab (auto-detecting an existing remote), ask owner/name/visibility, pick language (python/go) and template repo (default jebel-quant/rhiza or rhiza-go, with a reachability check), optionally scaffold the project (pyproject/src/tests, mkdocs.yml, a real starter README) via the bundled init_scaffold.py, validate the config and run the template test suite (enhancing a pre-existing pyproject.toml if it fails a structural check), then put the scaffold and the first template sync on a `rhiza_install_<date>` branch and open a PR. Never pushes rhiza changes straight to the default branch.
 argument-hint: "[repo name]  (optional; defaults to the current folder name)"
-allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, AskUserQuestion
+allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion
 ---
 
 You are running `/install` in the **current working directory**. Goal: turn this
@@ -161,7 +161,9 @@ in step 9 does **not** own: `.rhiza/template.yml`, a bootstrap `Makefile`, and �
 for Python — `pyproject.toml`, `src/<pkg>/`, `tests/test_main.py`, `mkdocs.yml`,
 and a real starter `README.md` (running `uv lock` when `uv` is present). It
 creates **only what's missing** and never overwrites. Do not hand-write these
-files yourself — run the script.
+files yourself — run the script. (A `pyproject.toml` that predates `/install` is
+left untouched here; if it then fails a template test in step 9 it gets
+*enhanced* — not clobbered — at that point.)
 
 First, offer the optional pieces (`.rhiza/template.yml` + `Makefile` are always
 written; these are the extras). Ask with an `AskUserQuestion` **multi-select**
@@ -220,6 +222,39 @@ make validate
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate.py"`). If validation fails, stop
 and show the errors rather than opening a PR on a broken config.
 
+### Run the test suite
+Then exercise the suite the sync just delivered — the template's `.rhiza/tests/`
+checks (structural ones like `test_pyproject.py`, `test_docstrings`,
+`test_readme_validation`) plus any project tests — so the PR isn't opened on a
+repo that can't pass its own gates:
+```bash
+make test
+```
+(bare `uvx pytest` if `make` is unavailable). `make test` also enforces a
+coverage gate, so on a freshly-scaffolded repo the example `tests/test_main.py`
+should carry it green. Triage a non-zero exit **by cause**:
+
+- **A pre-existing file fails a `.rhiza/tests/` structural check** — most often a
+  `pyproject.toml` that predated `/install` (step 8 never overwrote it) missing a
+  field `test_pyproject.py` requires. **Enhance the file to satisfy the check**:
+  merge in the missing keys/sections (`Read` it, then `Edit` in the additions),
+  preserving the user's existing content and comments — then re-run `make test`.
+  Editing a locally-owned `pyproject.toml` this way is expected here, not a
+  violation of the never-overwrite rule (that rule is the *scaffolder's*; this is
+  a deliberate, surgical fix). If the generated `pyproject.toml` from step 8 is a
+  useful reference for what the test wants, compare against it.
+- **A genuine project-test failure, or a coverage shortfall from the user's own
+  untested code** (only possible when the folder already had source) — don't
+  paper over it and don't block on it. Record it clearly in the report and the PR
+  body as a known-red gate the user must address, and continue to the PR — the
+  same way step 9 surfaces sync conflicts instead of guessing.
+- **A brand-new / empty scaffold going red** — unexpected; capture the output and
+  report it rather than opening the PR.
+
+If you enhanced any file to get the suite green, commit that fix on the branch:
+- `git add --all`
+- `git commit -m "chore: align pyproject with rhiza template tests"`
+
 ## 10. Push the branch and open the PR
 - `git push -u origin "$BRANCH"`.
 - Open a PR/MR from `$BRANCH` into `$DEFAULT` with the platform CLI:
@@ -235,7 +270,9 @@ and show the errors rather than opening a PR on a broken config.
 Summarise concisely: the repo slug (`OWNER/NAME`) and its URL, platform + profile,
 visibility (for a new repo), language + template repo + tag, the work branch name,
 the commits on it, the files the scaffolder created (and any skipped as
-already-present), the count of files the sync added, and the **PR URL** (or the
-manual compare URL if the CLI was unavailable). Point the user at next steps:
+already-present), the count of files the sync added, the **test-suite result**
+(`make test` — green, or any known-red gate carried into the PR per step 9), and
+the **PR URL** (or the manual compare URL if the CLI was unavailable). Point the
+user at next steps:
 review + merge the PR, then flesh out the docs with `/revisit` and run `/quality`
 for the initial scorecard.
