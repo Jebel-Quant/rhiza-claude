@@ -63,7 +63,9 @@ jobs:
 
           # Every command .md we ship must surface as a registered command.
           missing=0
+          total=0
           for f in commands/*.md; do
+            total=$((total + 1))
             name="$(basename "$f" .md)"
             if ! grep -qw "$name" <<<"$details"; then
               echo "✗ command '$name' is not registered by the installed plugin"
@@ -73,4 +75,4 @@ jobs:
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
-          echo "✓ all $(ls commands/*.md | wc -l | tr -d ' ') commands registered"
+          echo "✓ all $total commands registered"
