@@ -36,10 +36,14 @@ name.
    `rhiza_init_<date>` branch and **opens a PR** — never pushing rhiza changes
    straight to the default branch.
 
+## Prerequisites
+
+[`uv`](https://docs.astral.sh/uv/) is required (for `uv init` and `uvx`). Install
+it once with `curl -LsSf https://astral.sh/uv/install.sh | sh` — or just run
+`/rhiza:init`, which **offers to install `uv`** for you (with your approval) if
+it's missing.
+
 ## Notes
 
-- The bootstrap `Makefile` self-installs rhiza (`uvx rhiza sync .`) until the
-  first sync writes `.rhiza/rhiza.mk`, so `make sync` works even on a brand-new
-  repo.
 - Only for repos that **aren't** rhiza-managed yet; an existing `.rhiza/` routes
   to [`/rhiza:update`](update.md).

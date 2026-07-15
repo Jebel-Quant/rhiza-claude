@@ -56,6 +56,19 @@ remove the marketplace and re-add it at the desired tag:
 /plugin marketplace add Jebel-Quant/rhiza-claude#v0.4.0
 ```
 
+## Prerequisites
+
+The commands drive a rhiza-managed repo with [`uv`](https://docs.astral.sh/uv/) —
+install it once:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+(`/rhiza:init` offers to run this for you if `uv` is missing.) `git` and `make`
+are also used but are near-universal, and the plugin's own bundled scripts are
+stdlib-only Python — no `rhiza` CLI required.
+
 ## Commands
 
 - **`/rhiza:init`** — bootstrap a rhiza-managed repo in the current folder

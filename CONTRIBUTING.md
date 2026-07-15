@@ -27,13 +27,14 @@ By participating you agree to abide by our
 Everything is driven by `make` (run `make help` for the full list):
 
 ```bash
-make lint         # pre-commit across every file (ruff, markdownlint, actionlint, …)
+make lint         # pre-commit across every file (ruff, mypy, interrogate, test-layout, manifest checks, …)
 make test         # pytest with a 100% coverage gate on scripts/
-make types        # strict mypy type-check of scripts/
-make docstrings   # 100% docstring coverage of scripts/ (interrogate)
-make validate     # validate the plugin manifests (JSON + version parity)
 make book         # build the docs site locally
 ```
+
+`make lint` runs every quality hook (mypy, interrogate, the test-layout check,
+and the manifest JSON/version-parity checks included). To run just one, use
+`uvx pre-commit run <hook-id> --all-files`.
 
 The CI gates mirror these exactly, so a green `make lint && make test` locally
 means a green PR.

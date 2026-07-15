@@ -1,7 +1,7 @@
 ---
 description: Bootstrap a rhiza-managed repo in the current folder. If it's already rhiza-managed (a `.rhiza/` directory exists) it hands off to `/update` and never touches template.yml. Otherwise it wraps `uv init --lib` to create the standard Python skeleton (git repo + pyproject.toml + src/<pkg>/ + README), seeds a starter module and test via `/new` so the coverage gate passes, asks GitHub vs GitLab (auto-detecting an existing remote) and owner/name/visibility, picks the template repo (default jebel-quant/rhiza, with a reachability check), scaffolds the rhiza-only config (.rhiza/template.yml + a bootstrap Makefile, and optionally mkdocs.yml) via init_scaffold.py, runs the first template sync, validates, runs the test suite, then opens a PR on a `rhiza_init_<date>` branch. Never pushes rhiza changes straight to the default branch.
 argument-hint: "[repo name]  (optional; defaults to the current folder name)"
-allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion, Skill
+allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(curl*), Bash(brew*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion, Skill
 ---
 
 You are running `/init` in the **current working directory**. Goal: turn this
@@ -35,11 +35,12 @@ commit that seeds a brand-new repo (step 6), because a PR needs a base branch.
 Argument (optional): `$ARGUMENTS` — the repository name. If empty, default to the
 current folder's basename.
 
-**How the first sync bootstraps.** `.rhiza/rhiza.mk` (the real `make` API) is
-delivered *by* the template sync. The scaffolder in step 8 writes a small
-**bootstrap `Makefile`** whose `sync` target runs `uvx rhiza sync .` and is active
-only until that first sync writes `.rhiza/rhiza.mk` — so `make sync` works even on
-a brand-new repo, and every sync afterward uses the template's own target.
+**How the first sync works.** `.rhiza/rhiza.mk` (the real `make` API) is delivered
+*by* the template sync (step 9), which `/init` runs with the bundled
+`scripts/sync.py` — **not** the `rhiza` CLI. The scaffolder in step 8 writes a
+small repo-owned `Makefile` that just `-include`s `.rhiza/rhiza.mk` once it
+exists; before the first sync, its `sync` target only prints a hint (it does not
+shell out to `uvx rhiza`, which is being retired).
 
 Work through these steps. Stop and report if a precondition fails.
 
@@ -64,9 +65,17 @@ Run these checks first, in order:
   `.git/` and ordinary dotfiles, list them and ask the user (`AskUserQuestion`)
   whether to proceed — `/init` layers a skeleton, `.rhiza/` config, and a large
   template sync on top of whatever is here. Do not proceed without a yes.
-- Confirm `uv` and `uvx` are available (`uv --version`). `uv` is required for the
-  skeleton in step 2 and `uvx` for the bootstrap sync in step 9. If missing, stop
-  and tell the user to install `uv` first.
+- Confirm `uv` is available (`uv --version`) — it provides both `uv` (the
+  skeleton in step 2) and `uvx` (e.g. the `uvx pytest` fallback). If it's
+  **missing**, offer to install it (`AskUserQuestion`): with the user's approval,
+  run the official installer and re-check `uv --version`:
+  - macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh` (or
+    `brew install uv` if they prefer Homebrew);
+  - Windows: `winget install --id=astral-sh.uv -e`, or the PowerShell one-liner
+    from <https://docs.astral.sh/uv/getting-started/installation/>.
+
+  If the user declines, or the install can't complete, stop and point them at the
+  installation docs — don't try to proceed without `uv`.
 
 ## 2. Bootstrap the project skeleton with `uv init`
 First settle the two things the skeleton needs — they have safe defaults, so you
@@ -214,12 +223,15 @@ Relay its `created`/`skipped`/`notes` output (for `go` it prints the
 - `git commit -m "chore: scaffold rhiza config"`
 
 ## 9. Bootstrap the first sync (on the branch)
-The scaffolder wrote a bootstrap `Makefile`, so run:
+Run the first sync with the plugin's **bundled, stdlib-only** porter — the same
+`scripts/sync.py` that `/update` uses. Do **not** use `uvx rhiza sync` (or the
+bootstrap `Makefile`'s `make sync`, which shells out to it): the `rhiza` CLI is
+being retired, and the bundled script is its stdlib replacement.
 ```bash
-make sync
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
 ```
-(equivalent to `uvx rhiza sync .`, which you can run directly if `make` is
-unavailable). This materialises the template for the chosen profile —
+(falls back to the repo-relative `scripts/sync.py` in a source checkout). This
+materialises the template for the chosen profile —
 `.rhiza/rhiza.mk`, CI workflows (`.github/workflows/*` for GitHub or
 `.gitlab-ci.yml` for GitLab), `docs/mkdocs-base.yml`, and the rest.
 - On a fresh skeleton there's little to conflict with, so a non-zero exit is
@@ -237,14 +249,11 @@ Then commit the sync output:
 - Else report "sync produced no files" (unexpected — flag it).
 
 ### Validate the configuration
-Before pushing, confirm the config and scaffold are valid. With the Makefile now
-in place:
-```bash
-make validate
-```
-(or `uvx rhiza validate .`, or the plugin's stdlib validator
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate.py"`). If validation fails, stop
-and show the errors rather than opening a PR on a broken config.
+Before pushing, confirm the config and scaffold are valid by **invoking the
+`validate` command via the Skill tool** — it wraps the bundled stdlib
+`scripts/validate.py` (again, not `uvx rhiza validate`, which is retiring). If
+validation fails, stop and show the errors rather than opening a PR on a broken
+config.
 
 ### Run the test suite
 Then exercise the suite the sync just delivered — the template's `.rhiza/tests/`

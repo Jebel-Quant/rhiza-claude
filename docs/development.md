@@ -20,15 +20,16 @@ stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 make help        # list targets
 make lint        # run pre-commit against every file
 make test        # run the script test suite (100% coverage gate)
-make types       # strict mypy type-check of scripts/
-make docstrings  # 100% docstring coverage of scripts/ (interrogate)
-make test-layout # tests mirror sources 1:1 (files + Test classes)
-make validate    # validate the plugin manifests (JSON + version parity)
 make stats       # print the stats dashboard + write docs/stats.html
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts
 ```
+
+`make lint` runs every quality hook — mypy, interrogate (docstrings), the
+test-layout check, and the manifest JSON/version-parity checks. To run a single
+one, use `uvx pre-commit run <hook-id> --all-files` (e.g. `mypy`, `interrogate`,
+`test-layout`, `manifest-version-parity`).
 
 ## Building the book
 
