@@ -224,10 +224,9 @@ Relay its `created`/`skipped`/`notes` output (for `go` it prints the
 
 ## 9. Bootstrap the first sync (on the branch)
 Run the first sync with the plugin's **bundled, stdlib-only** porter — the same
-`scripts/sync.py` that `/update` uses. Do **not** use `uvx rhiza sync`: the
-`rhiza` CLI is being retired, and the bundled script is its stdlib replacement.
-(The repo-owned `Makefile` can't sync yet either — its `sync` target only prints
-a hint until this first sync delivers `.rhiza/rhiza.mk`.)
+`scripts/sync.py` that `/update` uses. Do **not** use `uvx rhiza sync` (or the
+bootstrap `Makefile`'s `make sync`, which shells out to it): the `rhiza` CLI is
+being retired, and the bundled script is its stdlib replacement.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
 ```
