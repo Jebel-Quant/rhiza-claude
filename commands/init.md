@@ -214,12 +214,15 @@ Relay its `created`/`skipped`/`notes` output (for `go` it prints the
 - `git commit -m "chore: scaffold rhiza config"`
 
 ## 9. Bootstrap the first sync (on the branch)
-The scaffolder wrote a bootstrap `Makefile`, so run:
+Run the first sync with the plugin's **bundled, stdlib-only** porter — the same
+`scripts/sync.py` that `/update` uses. Do **not** use `uvx rhiza sync` (or the
+bootstrap `Makefile`'s `make sync`, which shells out to it): the `rhiza` CLI is
+being retired, and the bundled script is its stdlib replacement.
 ```bash
-make sync
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
 ```
-(equivalent to `uvx rhiza sync .`, which you can run directly if `make` is
-unavailable). This materialises the template for the chosen profile —
+(falls back to the repo-relative `scripts/sync.py` in a source checkout). This
+materialises the template for the chosen profile —
 `.rhiza/rhiza.mk`, CI workflows (`.github/workflows/*` for GitHub or
 `.gitlab-ci.yml` for GitLab), `docs/mkdocs-base.yml`, and the rest.
 - On a fresh skeleton there's little to conflict with, so a non-zero exit is
@@ -237,14 +240,11 @@ Then commit the sync output:
 - Else report "sync produced no files" (unexpected — flag it).
 
 ### Validate the configuration
-Before pushing, confirm the config and scaffold are valid. With the Makefile now
-in place:
-```bash
-make validate
-```
-(or `uvx rhiza validate .`, or the plugin's stdlib validator
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/validate.py"`). If validation fails, stop
-and show the errors rather than opening a PR on a broken config.
+Before pushing, confirm the config and scaffold are valid by **invoking the
+`validate` command via the Skill tool** — it wraps the bundled stdlib
+`scripts/validate.py` (again, not `uvx rhiza validate`, which is retiring). If
+validation fails, stop and show the errors rather than opening a PR on a broken
+config.
 
 ### Run the test suite
 Then exercise the suite the sync just delivered — the template's `.rhiza/tests/`
