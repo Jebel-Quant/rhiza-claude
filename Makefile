@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test types docstrings test-layout validate stats book book-serve clean changelog release
+.PHONY: help install lint test stats book book-serve clean changelog release
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
 PLUGIN := rhiza@rhiza-claude
@@ -19,18 +19,9 @@ lint:  ## Run all pre-commit hooks against every file
 test:  ## Run the script test suite with a 100% coverage gate
 	uvx --with pytest-cov pytest tests/ --cov=scripts --cov-report=term-missing --cov-fail-under=100 $(ARGS)
 
-types:  ## Strict type-check scripts/ with mypy
-	uvx mypy
-
-docstrings:  ## Enforce 100% docstring coverage of scripts/ (interrogate)
-	uvx interrogate --ignore-nested-functions --fail-under=100 scripts
-
-test-layout:  ## Check tests mirror sources 1:1 (files + Test classes)
-	python3 scripts/check_test_layout.py --src scripts --tests tests
-
-validate:  ## Validate the plugin manifests (JSON + version parity)
-	@python3 -c "import json; json.load(open('.claude-plugin/plugin.json')); json.load(open('.claude-plugin/marketplace.json')); print('JSON OK')"
-	@python3 scripts/check_version_parity.py
+# Individual quality checks (mypy, interrogate, test-layout, manifest validation)
+# all run via `make lint` (pre-commit). For a single one, use e.g.
+# `uvx pre-commit run mypy --all-files`.
 
 stats:  ## Print the repo statistics dashboard + write docs/stats.html
 	python3 scripts/stats.py $(ARGS)
