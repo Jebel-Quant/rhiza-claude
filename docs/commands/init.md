@@ -1,7 +1,7 @@
 # `/rhiza:init`
 
-Bootstrap a **rhiza-managed repo** in the current folder — empty, or an existing
-git repo that isn't managed yet.
+Bootstrap a **rhiza-managed repo** in the current folder. Wraps `uv init` for the
+project skeleton — you don't need to be in a git repo first (uv creates one).
 
 ```
 /rhiza:init [repo name]
@@ -12,28 +12,38 @@ name.
 
 ## What it does
 
-1. **Detects the starting state** — aborts if the repo is already rhiza-managed
-   (use [`/rhiza:update`](update.md) instead); otherwise handles both an empty
-   folder and an existing `.git` (with commits and/or an `origin` remote).
-2. **`git init`** only when there's no repo yet — never re-inits or renames an
-   existing branch.
+1. **Checks preconditions** — if a `.rhiza/` directory already exists the repo is
+   already managed, so `/init` **hands off to [`/rhiza:update`](update.md)** (to
+   bring the template to its latest version, never touching an existing
+   `template.yml`) and stops. Otherwise it captures any existing git state and
+   confirms `uv` is available.
+2. **Bootstraps the skeleton with `uv init`** — for Python (the default) it runs
+   `uv init --lib`, which creates the git repo, `pyproject.toml`, `src/<pkg>/`,
+   `README.md`, `.gitignore`, and `.python-version`. It **skips** `uv init` when a
+   `pyproject.toml` already exists. Since `uv init` creates no `tests/`, it then
+   seeds a starter module and test via [`/rhiza:new`](new.md) so the coverage gate
+   starts green. (Go: `git init` + a `go mod init` hint.)
 3. **Asks GitHub vs GitLab** (auto-detecting the host from an existing `origin`),
-   then owner / name / visibility for a brand-new repo.
-4. **Picks language and template repo** — Python or Go, defaulting to
-   `jebel-quant/rhiza` or `jebel-quant/rhiza-go`, with a reachability check
-   before writing anything.
-5. **Scaffolds the project** via the bundled `scripts/init_scaffold.py`:
-   `.rhiza/template.yml`, a bootstrap `Makefile`, and — optionally — the Python
-   skeleton (`pyproject.toml` + `src/` + `tests/`), `mkdocs.yml`, and a real
-   starter `README.md`. Creates only what's missing; never overwrites.
-6. **Validates** the config, then puts the scaffold and the first template sync
-   on a `rhiza_init_<date>` branch and **opens a PR** — never pushing rhiza
-   changes straight to the default branch.
+   then owner / name / visibility.
+4. **Picks the template repo** — defaulting to `jebel-quant/rhiza` or
+   `jebel-quant/rhiza-go` by the language chosen in step 2, with a reachability
+   check.
+5. **Scaffolds the rhiza-only config** via `scripts/init_scaffold.py`:
+   `.rhiza/template.yml`, a bootstrap `Makefile`, and — optionally — `mkdocs.yml`.
+   The project skeleton already came from `uv init`, so the scaffolder no longer
+   writes `pyproject.toml`/`src/`/`README.md`.
+6. **Runs the first sync, validates, tests**, then puts everything on a
+   `rhiza_init_<date>` branch and **opens a PR** — never pushing rhiza changes
+   straight to the default branch.
+
+## Prerequisites
+
+[`uv`](https://docs.astral.sh/uv/) is required (for `uv init` and `uvx`). Install
+it once with `curl -LsSf https://astral.sh/uv/install.sh | sh` — or just run
+`/rhiza:init`, which **offers to install `uv`** for you (with your approval) if
+it's missing.
 
 ## Notes
 
-- The bootstrap `Makefile` self-installs rhiza (`uvx rhiza sync .`) until the
-  first sync writes `.rhiza/rhiza.mk`, so `make sync` works even on a brand-new
-  repo.
-- The scaffolder is a stdlib-only port of what `rhiza init` produced, verified
-  against the template's own bundled tests — the path to retiring `rhiza init`.
+- Only for repos that **aren't** rhiza-managed yet; an existing `.rhiza/` routes
+  to [`/rhiza:update`](update.md).
