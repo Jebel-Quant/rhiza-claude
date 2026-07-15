@@ -22,6 +22,12 @@ The optional argument limits the run to one file; it defaults to `all`.
 3. **Preserves hand-written prose** — existing sections, tables, and ordering are
    authoritative; nothing is deleted to "standardize" it. Uses `Edit` over
    `Write` on existing files so diffs stay reviewable.
+4. **Syncs the README's `make help` target list** — if the repo has a `Makefile`
+   with a `help` target, refreshes the fenced code block that follows the
+   `` Run `make help` to see all available targets: `` marker with live, cleaned
+   `make help` output (ANSI codes and recursive-make chatter stripped). Idempotent,
+   and a no-op when there's no `Makefile`/`help` target or no marker in an existing
+   README. This folds in what the retired rhiza-tools `update-readme` command did.
 
 ## Notes
 

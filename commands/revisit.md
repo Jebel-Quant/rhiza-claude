@@ -1,7 +1,7 @@
 ---
-description: Create or revisit the current repo's README.md (with the full standard rhiza badge set), CLAUDE.md, and mkdocs.yml, auto-detecting platform, owner/repo, and project metadata; preserve hand-written content, fill gaps, and refresh badges.
+description: Create or revisit the current repo's README.md (with the full standard rhiza badge set), CLAUDE.md, and mkdocs.yml, auto-detecting platform, owner/repo, and project metadata; preserve hand-written content, fill gaps, refresh badges, and sync the README's `make help` target list.
 argument-hint: "[readme | claude | mkdocs | all]  (optional; defaults to all)"
-allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(grep*), Bash(find*), Bash(cat*), Bash(sed*), Bash(head*), Bash(python3*), Bash(uvx*), Read, Edit, Write, AskUserQuestion
+allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(grep*), Bash(find*), Bash(cat*), Bash(sed*), Bash(head*), Bash(make*), Bash(python3*), Bash(uvx*), Read, Edit, Write, AskUserQuestion
 ---
 
 You are running `/revisit` in the **current working directory's repo**.
@@ -72,10 +72,46 @@ are generated, not hand-authored), but keep the `# Title` and everything below.
 
 ## 3. README.md — body
 
-- **If the file doesn't exist**, scaffold: `# <project name>`, a one-line description, the badge block from step 2, then standard sections — **Installation/Setup**, **Usage**, **Development** (the `make` targets a rhiza repo exposes: `make fmt`, `make test`, `make docs`, etc.), and **License**. Keep it concise and truthful to what the repo actually contains — don't invent features.
+- **If the file doesn't exist**, scaffold: `# <project name>`, a one-line description, the badge block from step 2, then standard sections — **Installation/Setup**, **Usage**, **Development**, and **License**. In the Development section, don't hand-list the `make` targets: emit the marker line `` Run `make help` to see all available targets: `` followed by an empty fenced code block, then let step 4 fill it from live `make help` output. Keep it concise and truthful to what the repo actually contains — don't invent features.
 - **If it exists**, revisit: refresh the badge block, then read the body and add only *missing* standard sections; leave existing prose intact. Fix obviously stale references (old repo name, renamed workflow). List substantive gaps you chose not to auto-fill in the report rather than guessing.
 
-## 4. CLAUDE.md
+## 4. README.md — sync the `make help` target block
+
+Keep the README's list of `make` targets in lockstep with the actual `Makefile`,
+so contributors never read a stale target list. This reproduces the retired
+rhiza-tools `update-readme` command: a marker line plus the fenced code block
+right after it, refreshed from live `make help` output. Idempotent — re-running
+against an unchanged `Makefile` produces no diff. (Runs as part of the README
+work, i.e. when `$ARGUMENTS` is `readme` or `all`.)
+
+- **Precondition — is there a `help` target?** Only do this if the repo has a
+  `Makefile` (or `makefile`/`GNUmakefile`) exposing a `help` target
+  (`grep -E '^help:' Makefile`, or a `.DEFAULT_GOAL := help` line). If there's no
+  Makefile or no `help` target, **skip this step and note it in the report** — no-op.
+- **Capture and clean the output.** Run `make help` and sanitize it, because the
+  help target typically colorizes target names and recursive makes emit directory
+  chatter:
+  - strip ANSI color escape codes, and
+  - drop any `make[N]: Entering directory …` / `make[N]: Leaving directory …` lines.
+
+  e.g. `make help 2>/dev/null | sed -E $'s/\x1b\\[[0-9;]*m//g' | grep -vE '^make\[[0-9]+\]: (Entering|Leaving) directory'`.
+- **Find the marker.** Look in `README.md` for the literal line
+  `` Run `make help` to see all available targets: `` and the fenced ```` ``` ````
+  code block immediately following it.
+  - **Marker + following fence both present** → replace only the *contents* of
+    that fenced block with the cleaned output; leave the marker line, the fence
+    delimiters, and everything else byte-for-byte intact. Use `Edit` so the diff
+    stays reviewable. This is the idempotent common case.
+  - **Marker absent (or present with no following fence)** on an existing,
+    hand-written README → this is a no-op for the sync itself, exactly as
+    `update-readme` behaved: **skip and report**. The exception is when you are
+    scaffolding a new README or adding a missing **Development** section in step 3
+    — there you *do* emit the marker + a fenced block and populate it here, since
+    filling in a missing standard section is squarely `/revisit`'s job.
+- Don't reformat, sort, or annotate the captured lines — the block mirrors
+  `make help` verbatim (post-cleanup) so the next run stays a no-op.
+
+## 5. CLAUDE.md
 
 `CLAUDE.md` is guidance for future Claude Code sessions in this repo — the
 build/test commands, the architecture, and (for rhiza repos) the crucial
@@ -90,7 +126,7 @@ depends on.
 - **If it exists**, revisit: verify the `make` targets against the actual `Makefile`, verify the synced-files list against the current `.rhiza/template.lock`, and correct drift. Preserve hand-written guidance and any user-added instructions verbatim — only fix facts that are demonstrably wrong.
 - **Never** put secrets, tokens, or machine-local paths in `CLAUDE.md`.
 
-## 5. mkdocs.yml
+## 6. mkdocs.yml
 
 The docs site config. In a rhiza `book`-profile repo, the top-level `mkdocs.yml`
 is **locally-owned** (site metadata + `nav`) and inherits shared theme/plugins
@@ -106,8 +142,8 @@ writes the local file and must **not** duplicate or edit the synced base.
 - **If it exists**, revisit: correct `site_name`/`site_url`/`repo_url`/`repo_name` drift against step 1's detected identity, verify the `INHERIT:` target still exists, and reconcile `nav:` with the actual files under `docs/` — flag entries pointing at missing files and files not yet in the nav, but **don't** aggressively reorder a hand-curated nav. Preserve custom theme/plugin/extension overrides verbatim.
 - Never edit the Rhiza-synced `docs/mkdocs-base.yml` here — drift there is fixed upstream via `make sync`.
 
-## 6. Verify and report
+## 7. Verify and report
 
 - If badge URLs are cheap to sanity-check and `gh`/`glab` is authenticated, confirm the referenced CI workflow file exists (a badge to a non-existent workflow renders broken). Don't hard-fail on this — just flag broken ones.
 - Do **not** commit, branch, or open a PR — this command only writes the files, leaving them staged in the working tree for the user to review. (Say so, and remind them to `git add`/commit when happy.)
-- Report concisely: which files were created vs. revisited, the final badge list (and any omitted-because-not-detected), stale facts corrected, and any hand-written gaps you deliberately left for the user to fill.
+- Report concisely: which files were created vs. revisited, the final badge list (and any omitted-because-not-detected), whether the `make help` target block was refreshed / added / skipped (and why, if skipped), stale facts corrected, and any hand-written gaps you deliberately left for the user to fill.
