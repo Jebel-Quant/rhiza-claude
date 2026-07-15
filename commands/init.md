@@ -1,7 +1,7 @@
 ---
 description: Bootstrap a rhiza-managed repo in the current folder. If it's already rhiza-managed (a `.rhiza/` directory exists) it hands off to `/update` and never touches template.yml. Otherwise it wraps `uv init --lib` to create the standard Python skeleton (git repo + pyproject.toml + src/<pkg>/ + README), seeds a starter module and test via `/new` so the coverage gate passes, asks GitHub vs GitLab (auto-detecting an existing remote) and owner/name/visibility, picks the template repo (default jebel-quant/rhiza, with a reachability check), scaffolds the rhiza-only config (.rhiza/template.yml + a bootstrap Makefile, and optionally mkdocs.yml) via init_scaffold.py, runs the first template sync, validates, runs the test suite, then opens a PR on a `rhiza_init_<date>` branch. Never pushes rhiza changes straight to the default branch.
 argument-hint: "[repo name]  (optional; defaults to the current folder name)"
-allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion, Skill
+allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(curl*), Bash(brew*), Bash(cat*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion, Skill
 ---
 
 You are running `/init` in the **current working directory**. Goal: turn this
@@ -64,9 +64,17 @@ Run these checks first, in order:
   `.git/` and ordinary dotfiles, list them and ask the user (`AskUserQuestion`)
   whether to proceed — `/init` layers a skeleton, `.rhiza/` config, and a large
   template sync on top of whatever is here. Do not proceed without a yes.
-- Confirm `uv` and `uvx` are available (`uv --version`). `uv` is required for the
-  skeleton in step 2 and `uvx` for the bootstrap sync in step 9. If missing, stop
-  and tell the user to install `uv` first.
+- Confirm `uv` is available (`uv --version`) — it provides both `uv` (the
+  skeleton in step 2) and `uvx` (e.g. the `uvx pytest` fallback). If it's
+  **missing**, offer to install it (`AskUserQuestion`): with the user's approval,
+  run the official installer and re-check `uv --version`:
+  - macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh` (or
+    `brew install uv` if they prefer Homebrew);
+  - Windows: `winget install --id=astral-sh.uv -e`, or the PowerShell one-liner
+    from <https://docs.astral.sh/uv/getting-started/installation/>.
+
+  If the user declines, or the install can't complete, stop and point them at the
+  installation docs — don't try to proceed without `uv`.
 
 ## 2. Bootstrap the project skeleton with `uv init`
 First settle the two things the skeleton needs — they have safe defaults, so you
