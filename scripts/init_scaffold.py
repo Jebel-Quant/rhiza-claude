@@ -1,38 +1,28 @@
 #!/usr/bin/env python3
-"""Scaffold a new rhiza-managed project's non-synced starter files.
+"""Scaffold a rhiza-managed project's non-synced, rhiza-only starter files.
 
-A stdlib-only port of the project-scaffolding that `rhiza init` performs in
-rhiza-cli (`rhiza.commands._init_helpers`), bundled with this plugin so
-`/rhiza:init` can create a repo without the `rhiza` CLI's `init` command — the
-long-term goal being to retire `rhiza init` entirely.
-
-`rhiza sync` delivers the shared infrastructure (CI, `.rhiza/rhiza.mk`,
-`docs/mkdocs-base.yml`, `ruff.toml`, `pytest.ini`, …). This script writes only
-the files sync does **not** own and that a fresh project needs:
+Bundled with this plugin so `/rhiza:init` can wire up a repo without the `rhiza`
+CLI. The project *skeleton* (`pyproject.toml`, `src/<pkg>/`, `README.md`) now
+comes from `uv init --lib`, and `rhiza sync` delivers the shared infrastructure
+(CI, `.rhiza/rhiza.mk`, `docs/mkdocs-base.yml`, `ruff.toml`, `pytest.ini`, …).
+This script writes only the rhiza-specific files neither of those provides:
 
   .rhiza/template.yml   the sync config (repository/ref/profile)
-  Makefile              a bootstrap Makefile whose `sync` target self-installs
-                        rhiza until the first sync writes `.rhiza/rhiza.mk`
-  pyproject.toml        satisfies the template's `.rhiza/tests/test_pyproject.py`
-  src/<pkg>/…           __init__.py + main.py (docstringed, for test_docstrings)
-  tests/test_main.py    example tests importing the package
-  mkdocs.yml            INHERITs docs/mkdocs-base.yml (delivered by sync)
-  README.md             a real starter README (test_readme_validation passes it)
+  Makefile              a small repo-owned Makefile that includes .rhiza/rhiza.mk
+                        once the first sync delivers it
+  mkdocs.yml            (optional) INHERITs docs/mkdocs-base.yml (delivered by sync)
 
 Every file is created **only if absent** — existing files are left untouched.
-The jinja2 templates from rhiza-cli are reproduced here as plain string
-templates so this stays dependency-free like the other bundled scripts.
 
 Usage:
   python3 scripts/init_scaffold.py [TARGET] --project-name NAME --owner OWNER \
       [--host github|gitlab] [--language python|go] \
       [--template-repo owner/repo] [--ref TAG] \
-      [--components package,mkdocs,readme] [--json]
+      [--components mkdocs] [--json]
 
 `.rhiza/template.yml` and `Makefile` are always written; `--components` selects
-from the optional set {package, mkdocs, readme} (a Python-only set — `go`
-scaffolds only README). Creating `package` also runs `uv lock` when `uv` is
-available.
+from the optional set {mkdocs} (Python only). Go projects get `template.yml` +
+`Makefile` and a `go mod init` hint.
 """
 
 from __future__ import annotations
@@ -41,13 +31,12 @@ import argparse
 import json
 import keyword
 import re
-import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any
 
 DEFAULT_TEMPLATE_REPO = {"python": "jebel-quant/rhiza", "go": "jebel-quant/rhiza-go"}
-OPTIONAL_COMPONENTS = ("package", "mkdocs", "readme")
+OPTIONAL_COMPONENTS = ("mkdocs",)
 DEFAULT_DESCRIPTION = "Add your description here."
 
 _HOSTS = {
@@ -55,101 +44,7 @@ _HOSTS = {
     "gitlab": ("gitlab.com", "gitlab.io"),
 }
 
-# --- string templates (ported from rhiza-cli's _templates/basic/*.jinja2) ----
-
-_PYPROJECT = """\
-[build-system]
-requires = ["hatchling>=1.29"]
-build-backend = "hatchling.build"
-
-[project]
-name = "__PROJECT_NAME__"
-version = "0.1.0"
-description = "__DESCRIPTION__"
-readme = "README.md"
-requires-python = ">=3.11"
-license = "MIT"
-license-files = ["LICENSE"]
-authors = [
-  { name = "__OWNER__" }
-]
-keywords = []
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: MIT License",
-    "Intended Audience :: Developers",
-]
-dependencies = []
-
-[project.urls]
-Homepage = "https://__REPO_HOST__/__OWNER__/__PROJECT_NAME__"
-Repository = "https://__REPO_HOST__/__OWNER__/__PROJECT_NAME__"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/__PACKAGE_NAME__"]
-
-[dependency-groups]
-test = [
-    "pytest>=8.0.0",
-    "pytest-cov>=6.0.0",
-    "pytest-xdist>=3.0.0",
-]
-lint = [
-    "ruff>=0.11.0",
-]
-dev = []
-"""
-
-_INIT_PY = '"""__PROJECT_NAME__."""\n'
-
-_MAIN_PY = '''\
-"""Main module for __PROJECT_NAME__."""
-
-
-def say_hello(name: str) -> str:
-    """Say hello to the user.
-
-    Args:
-        name: The name of the user.
-
-    Returns:
-        A greeting string.
-    """
-    return f"Hello, {name}!"
-
-
-def main() -> None:
-    """Execute the main function."""
-    print(say_hello("World"))
-'''
-
-_TEST_MAIN_PY = '''\
-"""Tests for __PACKAGE_NAME__.main module."""
-
-from __PACKAGE_NAME__.main import main, say_hello
-
-
-def test_say_hello():
-    """Test say_hello with default name."""
-    assert say_hello("World") == "Hello, World!"
-
-
-def test_say_hello_custom_name():
-    """Test say_hello with a custom name."""
-    assert say_hello("Alice") == "Hello, Alice!"
-
-
-def test_main_prints_hello_world(capsys):
-    """Test that main prints Hello, World! to stdout."""
-    main()
-    captured = capsys.readouterr()
-    assert captured.out == "Hello, World!\\n"
-'''
+# --- string templates -------------------------------------------------------
 
 _MKDOCS = """\
 INHERIT: docs/mkdocs-base.yml
@@ -170,56 +65,27 @@ nav:
       - Coverage Report: reports/html-coverage/index.html
 """
 
-# The bootstrap Makefile: its `sync` target self-installs rhiza via uvx and is
-# active only until the first sync writes `.rhiza/rhiza.mk`, which then takes
-# over. This is what makes `make sync` work on a brand-new repo.
+# A small repo-owned Makefile. Before the first sync there is no `.rhiza/rhiza.mk`
+# yet, so `sync` prints guidance instead of shelling out to the (retired) `rhiza`
+# CLI — the first sync is performed by `/rhiza:init` (bundled scripts/sync.py),
+# and afterwards the template's own `.rhiza/rhiza.mk` provides the real targets.
 _MAKEFILE = """\
 ## Makefile (repo-owned)
 # Keep this file small. It can be edited without breaking template sync.
 
-# Bootstrap sync: active only before .rhiza/rhiza.mk is written by first sync
+# Before the first sync there is no .rhiza/rhiza.mk yet.
 ifeq ($(wildcard .rhiza/rhiza.mk),)
 .PHONY: sync
-sync: ## Sync with template repository as defined in .rhiza/template.yml
-\tuvx rhiza sync .
+sync: ## Not rhiza-managed yet
+\t@echo "Not synced yet — run /rhiza:init (first sync) or /rhiza:update."
+\t@exit 1
 endif
 
-# Include the Rhiza API (template-managed, optional on first run)
+# Include the Rhiza API — delivered by the first template sync.
 -include .rhiza/rhiza.mk
 
 # Optional: developer-local extensions (not committed)
 -include local.mk
-"""
-
-# A real starter README. The Usage snippet is tagged +RHIZA_SKIP so the
-# template's README validation (test_readme_validation.py) does not try to
-# execute it against a not-yet-installed src-layout package.
-_README = """\
-# __PROJECT_NAME__
-
-__DESCRIPTION__
-
-## Installation
-
-Install the project and its dependencies with \
-[uv](https://docs.astral.sh/uv/):
-
-```bash
-uv sync
-```
-
-## Usage
-
-```python +RHIZA_SKIP
-from __PACKAGE_NAME__.main import say_hello
-
-print(say_hello("World"))
-```
-
----
-
-Scaffolded by [`rhiza`](https://github.com/jebel-quant/rhiza). Run
-`/rhiza:revisit` to flesh this out with the full badge set and project docs.
 """
 
 
@@ -257,20 +123,6 @@ def _fill(template: str, **subs: str) -> str:
     return out
 
 
-def render_pyproject(
-    project_name: str, package_name: str, owner: str, repo_host: str, description: str
-) -> str:
-    """Render pyproject.toml for the given project/package."""
-    return _fill(
-        _PYPROJECT,
-        PROJECT_NAME=project_name,
-        PACKAGE_NAME=package_name,
-        OWNER=owner,
-        REPO_HOST=repo_host,
-        DESCRIPTION=description,
-    )
-
-
 def render_mkdocs(
     project_name: str, owner: str, repo_host: str, pages_host: str, description: str
 ) -> str:
@@ -282,13 +134,6 @@ def render_mkdocs(
         REPO_HOST=repo_host,
         PAGES_HOST=pages_host,
         DESCRIPTION=description,
-    )
-
-
-def render_readme(project_name: str, package_name: str, description: str) -> str:
-    """Render the starter README.md."""
-    return _fill(
-        _README, PROJECT_NAME=project_name, PACKAGE_NAME=package_name, DESCRIPTION=description
     )
 
 
@@ -305,26 +150,6 @@ def _write_if_absent(
     created.append(rel)
 
 
-def _run_uv_lock(target: Path, notes: list[str]) -> None:
-    """Generate uv.lock via `uv lock`, skipping gracefully if uv is missing."""
-    if (target / "uv.lock").exists():
-        return
-    try:
-        result = subprocess.run(  # nosec B603 B607
-            ["uv", "lock"],  # noqa: S607
-            cwd=target,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, FileNotFoundError):
-        notes.append("uv not found — skipped uv.lock (run `uv lock` manually)")
-        return
-    if result.returncode == 0:
-        notes.append("ran `uv lock` → uv.lock")
-    else:
-        notes.append(f"`uv lock` failed (exit {result.returncode}) — skipped uv.lock")
-
-
 def scaffold(
     target: Path,
     *,
@@ -338,13 +163,13 @@ def scaffold(
     components: list[str],
     description: str = DEFAULT_DESCRIPTION,
 ) -> dict[str, Any]:
-    """Write the starter files; return a summary dict."""
+    """Write the rhiza-only starter files; return a summary dict."""
     repo_host, pages_host = _HOSTS.get(host, _HOSTS["github"])
     created: list[str] = []
     skipped: list[str] = []
     notes: list[str] = []
 
-    # Always: template.yml + bootstrap Makefile.
+    # Always: template.yml + repo-owned Makefile.
     _write_if_absent(
         target / ".rhiza" / "template.yml",
         render_template_yml(template_repo, ref, host, language),
@@ -354,61 +179,17 @@ def scaffold(
     )
     _write_if_absent(target / "Makefile", _MAKEFILE, created, skipped, target)
 
-    want = set(components)
     if language == "go":
-        # Mirror rhiza init: Go projects get only a README here; the Go package
-        # is the user's to create.
-        want &= {"readme"}
-        if "go mod init" not in " ".join(notes):
-            notes.append(
-                f"go: run `go mod init {repo_host}/{owner}/{project_name}` to start the module"
-            )
+        # The Go module is the user's to create; leave a hint.
+        notes.append(
+            f"go: run `go mod init {repo_host}/{owner}/{project_name}` to start the module"
+        )
 
-    if "package" in want and language == "python":
-        pkg_dir = target / "src" / package_name
-        _write_if_absent(
-            pkg_dir / "__init__.py",
-            _fill(_INIT_PY, PROJECT_NAME=project_name),
-            created,
-            skipped,
-            target,
-        )
-        _write_if_absent(
-            pkg_dir / "main.py",
-            _fill(_MAIN_PY, PROJECT_NAME=project_name),
-            created,
-            skipped,
-            target,
-        )
-        _write_if_absent(
-            target / "tests" / "test_main.py",
-            _fill(_TEST_MAIN_PY, PACKAGE_NAME=package_name),
-            created,
-            skipped,
-            target,
-        )
-        _write_if_absent(
-            target / "pyproject.toml",
-            render_pyproject(project_name, package_name, owner, repo_host, description),
-            created,
-            skipped,
-            target,
-        )
-        _run_uv_lock(target, notes)
-
-    if "mkdocs" in want and language == "python":
+    # Optional mkdocs.yml (Python only; Go docs are out of scope here).
+    if "mkdocs" in set(components) and language == "python":
         _write_if_absent(
             target / "mkdocs.yml",
             render_mkdocs(project_name, owner, repo_host, pages_host, description),
-            created,
-            skipped,
-            target,
-        )
-
-    if "readme" in want:
-        _write_if_absent(
-            target / "README.md",
-            render_readme(project_name, package_name, description),
             created,
             skipped,
             target,
@@ -443,7 +224,7 @@ def _parse_components(raw: str | None, language: str) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     """Entry point: parse args, scaffold, and return an exit code."""
     parser = argparse.ArgumentParser(
-        description="Scaffold a new rhiza-managed project's non-synced starter files.",
+        description="Scaffold a rhiza-managed project's rhiza-only starter files.",
     )
     parser.add_argument(
         "target", nargs="?", default=".", help="Repository root (default: current directory)."

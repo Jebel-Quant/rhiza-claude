@@ -35,11 +35,12 @@ commit that seeds a brand-new repo (step 6), because a PR needs a base branch.
 Argument (optional): `$ARGUMENTS` — the repository name. If empty, default to the
 current folder's basename.
 
-**How the first sync bootstraps.** `.rhiza/rhiza.mk` (the real `make` API) is
-delivered *by* the template sync. The scaffolder in step 8 writes a small
-**bootstrap `Makefile`** whose `sync` target runs `uvx rhiza sync .` and is active
-only until that first sync writes `.rhiza/rhiza.mk` — so `make sync` works even on
-a brand-new repo, and every sync afterward uses the template's own target.
+**How the first sync works.** `.rhiza/rhiza.mk` (the real `make` API) is delivered
+*by* the template sync (step 9), which `/init` runs with the bundled
+`scripts/sync.py` — **not** the `rhiza` CLI. The scaffolder in step 8 writes a
+small repo-owned `Makefile` that just `-include`s `.rhiza/rhiza.mk` once it
+exists; before the first sync, its `sync` target only prints a hint (it does not
+shell out to `uvx rhiza`, which is being retired).
 
 Work through these steps. Stop and report if a precondition fails.
 
