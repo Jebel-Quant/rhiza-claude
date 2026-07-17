@@ -23,7 +23,12 @@ first so fast failures surface before the slow test suite — and collect result
    `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check_test_layout.py"` (fall back to
    `scripts/check_test_layout.py` in a source checkout). It fails when a
    source module has no mirrored `test_<name>.py`, a source `class A` has no
-   `TestA`, or a test file/`Test*` class has no source counterpart.
+   `TestA`, or a test file/`Test*` class has no source counterpart. A repo that
+   deliberately organises tests by behaviour (and guarantees per-module
+   coverage another way, e.g. a 100% coverage gate) can opt out with a
+   documented `[tool.check_test_layout]` table in `pyproject.toml`
+   (`enforce = false` + a required `reason`); score this subcategory 10 when the
+   checker exits 0, whether by mirroring or a documented opt-out.
 
 Guidelines:
 
