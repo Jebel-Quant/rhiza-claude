@@ -49,6 +49,15 @@ def test_missing_test_class(tmp_path):
     assert any("missing class TestBar" in e for e in ctl.check(src, tests))
 
 
+def test_benchmarks_and_stress_are_exempt(tmp_path):
+    src, tests = tmp_path / "src", tmp_path / "tests"
+    src.mkdir()
+    # Free-standing test files with no mirrored source — normally orphans.
+    _write(tests / "benchmarks" / "test_speed.py", "def test_x():\n    pass\n")
+    _write(tests / "stress" / "test_load.py", "class TestGhost:\n    pass\n")
+    assert ctl.check(src, tests) == []
+
+
 def test_orphan_test_file(tmp_path):
     src, tests = tmp_path / "src", tmp_path / "tests"
     src.mkdir()

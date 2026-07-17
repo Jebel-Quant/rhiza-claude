@@ -12,8 +12,10 @@ drifts loose from what it covers:
   * no ``Test*`` class lacks a corresponding source class (no orphan test
     classes).
 
-``__init__.py`` and ``conftest.py`` are ignored on both sides. Test *functions*
-are unconstrained — the rules bind files and classes only.
+``__init__.py`` and ``conftest.py`` are ignored on both sides, and the
+``tests/benchmarks/`` and ``tests/stress/`` trees are exempt entirely — those
+hold benchmarks and stress tests that need not mirror a source module. Test
+*functions* are unconstrained — the rules bind files and classes only.
 
 Usage:
   python3 scripts/check_test_layout.py [--src DIR] [--tests DIR]
@@ -30,6 +32,10 @@ from pathlib import Path
 
 _IGNORED = {"__init__.py", "conftest.py"}
 
+# Top-level directories under the tests root that are exempt from parity: they
+# hold benchmarks / stress tests that need not mirror a source module.
+_EXEMPT_DIRS = {"benchmarks", "stress"}
+
 
 def _top_level_classes(path: Path) -> set[str]:
     """Return the names of top-level classes defined in *path*."""
@@ -43,8 +49,12 @@ def _source_modules(src: Path) -> list[Path]:
 
 
 def _test_files(tests: Path) -> list[Path]:
-    """Return the ``test_*.py`` files under *tests* (ignoring conftest)."""
-    return sorted(p for p in tests.rglob("test_*.py") if p.name not in _IGNORED)
+    """Return the ``test_*.py`` files under *tests* (ignoring conftest/exempt dirs)."""
+    return sorted(
+        p
+        for p in tests.rglob("test_*.py")
+        if p.name not in _IGNORED and p.relative_to(tests).parts[0] not in _EXEMPT_DIRS
+    )
 
 
 def check(src: Path, tests: Path) -> list[str]:
