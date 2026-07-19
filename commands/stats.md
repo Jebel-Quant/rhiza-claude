@@ -1,7 +1,7 @@
 ---
 description: Report a read-only statistics dashboard for the current repo — lines of code, lines of tests and their ratio, GitHub/GitLab stars, plus language mix, coverage, complexity, dependency counts, git activity, and rhiza template status. Runs the bundled scripts/stats.py (no data-gathering by the agent), which prints the dashboard and writes a self-contained docs/stats.html you can wire into mkdocs.yml. No scoring, no fixes, no issues.
 argument-hint: "[path or topic to scope the stats to]  (optional; defaults to the whole repo)"
-allowed-tools: Bash(python3*), Read
+allowed-tools: Bash(uv*), Bash(python3*), Read
 ---
 
 You are running `/stats` in the **current working directory's repo**.
@@ -25,7 +25,7 @@ Invoke it with the plugin-root path (it ships inside this plugin, so
 `${CLAUDE_PLUGIN_ROOT}` resolves at runtime — **keep the quotes**):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/stats.py" $ARGUMENTS
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/stats.py" $ARGUMENTS
 ```
 
 - Pass `$ARGUMENTS` through as the optional `PATH` scope. If it's empty, just omit it.
@@ -40,8 +40,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/stats.py" $ARGUMENTS
 
 ## 2. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
-  not an installed plugin), fall back to the repo-relative path: `python3 scripts/stats.py $ARGUMENTS`.
-- If `python3` is missing, or the script is genuinely not found at either path, report
+  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python scripts/stats.py $ARGUMENTS`.
+- If `uv` is missing, or the script is genuinely not found at either path, report
   that plainly and stop — don't hand-roll the stats as a substitute.
 
 ## 3. Relay the results

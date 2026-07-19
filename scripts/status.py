@@ -9,7 +9,7 @@ With `--files` it also renders the managed files as a directory tree — the vie
 that used to live in the separate `/rhiza:tree` command.
 
 Usage:
-  python3 scripts/status.py [TARGET] [--json] [--files] [--check]
+  uv run --python 3.12 --no-project python scripts/status.py [TARGET] [--json] [--files] [--check]
 
   TARGET    repository root to inspect (default: current directory)
   --json    emit a single JSON object on stdout instead of human-readable lines

@@ -58,7 +58,7 @@ means a green PR.
   from them (`make changelog`).
 - Branch off `main`, open a PR, and let CI run. Keep PRs focused.
 - Never bump the plugin version by hand in only one manifest — the two must
-  match (a pre-commit hook enforces it); use `python3 scripts/bump_version.py`.
+  match (a pre-commit hook enforces it); use `uv run --python 3.12 --no-project python scripts/bump_version.py`.
 
 ## Reporting bugs / requesting features
 

@@ -221,6 +221,12 @@ SCAFFOLD = _SCRIPTS / "init_scaffold.py"
 SYNC = _SCRIPTS / "sync.py"
 NEW_MODULE = _SCRIPTS / "new_module.py"
 
+# Invoke the bundled scripts the way /init does — under a pinned modern
+# interpreter via uv — so they never run under a stale system python3 (macOS
+# ships 3.9, where sync.py's datetime.UTC would crash). uv is a guaranteed E2E
+# dependency (see _E2E_MISSING below).
+PY = ["uv", "run", "--python", "3.12", "--no-project", "python"]
+
 _E2E_MISSING = [t for t in ("git", "make", "uv", "uvx") if shutil.which(t) is None]
 
 
@@ -253,12 +259,12 @@ def test_init_flow_survives_sync_and_gates(tmp_path: Path) -> None:
     _git(repo, "config", "user.name", "E2E Test")
 
     # 2. Seed a starter module + test (what /init delegates to /new).
-    _assert_ok(_run_cmd(["python3", str(NEW_MODULE), "main", str(repo)], repo), "new main")
+    _assert_ok(_run_cmd([*PY, str(NEW_MODULE), "main", str(repo)], repo), "new main")
 
     # 3. Scaffold the rhiza-only files (step 8).
     scaffold = _run_cmd(
         [
-            "python3", str(SCAFFOLD), str(repo),
+            *PY, str(SCAFFOLD), str(repo),
             "--project-name", "e2e-init", "--owner", "jebel-quant",
             "--host", "github", "--language", "python",
             "--template-repo", "jebel-quant/rhiza", "--ref", TEMPLATE_REF,
@@ -273,7 +279,7 @@ def test_init_flow_survives_sync_and_gates(tmp_path: Path) -> None:
     _git(repo, "commit", "-qm", "chore: scaffold rhiza-managed project")
 
     # 4. First sync via the bundled stdlib porter (NOT uvx rhiza).
-    sync = _run_cmd(["python3", str(SYNC), "."], repo)
+    sync = _run_cmd([*PY, str(SYNC), "."], repo)
     _assert_ok(sync, "scripts/sync.py")
     assert (repo / ".rhiza" / "rhiza.mk").exists(), "sync did not deliver .rhiza/rhiza.mk"
 

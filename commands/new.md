@@ -1,7 +1,7 @@
 ---
 description: Scaffold a new source module and its mirrored test file in a rhiza-managed Python repo — creates src/<pkg>/<name>.py (with a docstring, and optional --class stubs) plus the matching tests/<pkg>/test_<name>.py, keeping the 1:1 test/source layout parity that check_test_layout.py enforces. Runs the bundled scripts/new_module.py (stdlib-only). Creates only what's missing; never overwrites.
 argument-hint: "<module name>  (e.g. parsing or utils.parsing); optional --class Name"
-allowed-tools: Bash(python3*), Read
+allowed-tools: Bash(uv*), Bash(python3*), Read
 ---
 
 You are running `/new` in the **current working directory's repo**.
@@ -22,7 +22,7 @@ Invoke it with the plugin-root path (it ships inside this plugin, so
 `${CLAUDE_PLUGIN_ROOT}` resolves at runtime — **keep the quotes**):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/new_module.py" $ARGUMENTS
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/new_module.py" $ARGUMENTS
 ```
 
 - Pass the module name through as the first positional argument.
@@ -39,8 +39,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/new_module.py" $ARGUMENTS
 ## 2. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
   not an installed plugin), fall back to the repo-relative path:
-  `python3 scripts/new_module.py $ARGUMENTS`.
-- If `python3` is missing, or the script is genuinely not found at either path,
+  `uv run --python 3.12 --no-project python scripts/new_module.py $ARGUMENTS`.
+- If `uv` is missing, or the script is genuinely not found at either path,
   report that plainly and stop — don't hand-roll the scaffold as a substitute.
 - The script exits **1 on a usage error** (no package under `src/`, more than one
   package without an explicit `--src`, or an invalid module/class name) and prints

@@ -9,7 +9,7 @@ gets a matching ``tests/…/test_xyz.py``, and every ``class Foo`` gets a matchi
 interrogate gate stays at 100%.
 
 Usage:
-  python3 scripts/new_module.py NAME [TARGET] [--class CLASS] \
+  uv run --python 3.12 --no-project python scripts/new_module.py NAME [TARGET] [--class CLASS] \
       [--src DIR] [--tests DIR] [--json]
 
   NAME      module name, optionally dotted/slashed for a subpackage

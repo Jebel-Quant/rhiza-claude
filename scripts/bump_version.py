@@ -2,7 +2,8 @@
 """Set the plugin version in both manifests, preserving JSON formatting.
 
 Usage:
-  python3 scripts/bump_version.py 0.3.0     # bare version, no leading 'v'
+  uv run --python 3.12 --no-project python \
+    scripts/bump_version.py 0.3.0     # bare version, no leading 'v'
 
 Rewrites the single `"version"` field in each of:
   - .claude-plugin/plugin.json      (top-level)

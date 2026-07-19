@@ -24,7 +24,7 @@ test:  ## Run the script test suite with a 100% coverage gate
 # `uvx pre-commit run mypy --all-files`.
 
 stats:  ## Print the repo statistics dashboard + write docs/stats.html
-	python3 scripts/stats.py $(ARGS)
+	uv run --python 3.12 --no-project python scripts/stats.py $(ARGS)
 
 book:  ## Build the documentation site into _book/
 	uvx --with mkdocs-material mkdocs build --strict

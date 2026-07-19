@@ -37,8 +37,8 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           VER="${TAG#v}"
-          PLUGIN=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
-          MKT=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['plugins'][0]['version'])")
+          PLUGIN=$(jq -r '.version' .claude-plugin/plugin.json)
+          MKT=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
           if [ "$PLUGIN" != "$VER" ] || [ "$MKT" != "$VER" ]; then
             echo "::error::Version mismatch — tag=$VER plugin.json=$PLUGIN marketplace.json=$MKT. Run 'make release VERSION=$TAG' and retag."
             exit 1

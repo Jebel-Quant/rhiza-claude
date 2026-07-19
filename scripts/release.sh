@@ -26,10 +26,10 @@ if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
 fi
 
 echo "==> Bumping manifests to $BARE"
-python3 scripts/bump_version.py "$BARE"
+uv run --python 3.12 --no-project python scripts/bump_version.py "$BARE"
 
 echo "==> Verifying manifest version parity"
-python3 scripts/check_version_parity.py
+uv run --python 3.12 --no-project python scripts/check_version_parity.py
 
 echo "==> Regenerating CHANGELOG.md (git-cliff, including $VERSION)"
 uvx git-cliff --tag "$VERSION" --output CHANGELOG.md

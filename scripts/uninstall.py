@@ -7,7 +7,7 @@ the `files` recorded in `.rhiza/template.lock`, deletes each one, prunes the
 now-empty directories, and finally removes the lock file itself.
 
 Usage:
-  python3 scripts/uninstall.py [TARGET] [--force|-y]
+  uv run --python 3.12 --no-project python scripts/uninstall.py [TARGET] [--force|-y]
 
   TARGET       repository root to clean (default: current directory)
   --force, -y  skip the confirmation prompt and proceed with deletion

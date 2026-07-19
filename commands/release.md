@@ -1,7 +1,7 @@
 ---
 description: Prepare a release for the current rhiza-managed repo — derive the next semantic version from the conventional commits since the last tag (via git-cliff, overridable), guard that it strictly increases past every previous release, bump the project version in pyproject.toml, bump any self-referencing workflow-stub pins to the new tag, regenerate CHANGELOG.md folding the unreleased commits under the new tag, then commit and tag locally. Stops before pushing: it prints the push commands so you review first, and the tag push is what triggers the release CI. Never pushes or force-tags on its own.
 argument-hint: "[version e.g. v1.4.0]  (optional; defaults to the git-cliff-derived bump)"
-allowed-tools: Bash(git*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(grep*), Bash(sed*), Read, Edit, AskUserQuestion
+allowed-tools: Bash(git*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(python3*), Bash(cat*), Bash(grep*), Bash(sed*), Read, Edit, AskUserQuestion
 ---
 
 You are running `/release` in the **current working directory's repo** — a
@@ -67,7 +67,7 @@ git tag --list 'v*' --sort=-v:refname | head -1   # e.g. v1.1.3
   `refs/tags/$TARGET` already exists (local or remote), stop — do not overwrite
   or move it. A reliable comparison (avoids string pitfalls like `1.9 > 1.10`):
   ```bash
-  python3 - "$TARGET" "$FLOOR" <<'PY'
+  uv run --python 3.12 --no-project python - "$TARGET" "$FLOOR" <<'PY'
   import sys
   def parse(v): return tuple(int(x) for x in v.lstrip("v").split("."))
   target, floor = parse(sys.argv[1]), parse(sys.argv[2])
@@ -117,7 +117,7 @@ Derive this repo's slug from the remote, then rewrite the pins:
 SLUG=$(git remote get-url origin | sed -E 's#(git@[^:]+:|https?://[^/]+/)##; s#\.git$##')
 ```
 ```bash
-python3 - "$SLUG" "$TARGET" <<'PY'
+uv run --python 3.12 --no-project python - "$SLUG" "$TARGET" <<'PY'
 import re, sys, pathlib
 slug, target = sys.argv[1], sys.argv[2]
 # match `uses: <slug>/<path>@vX.Y.Z`; case-insensitive (uses: is case-insensitive)

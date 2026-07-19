@@ -1,7 +1,7 @@
 ---
 description: List the GitHub repositories tagged with a rhiza topic (default `rhiza`) as a JSON document — name, full name, description, URL, topics, language, stars, archived flag, and timestamps. Runs the bundled scripts/repos.py (a stdlib-only query of the GitHub Search API), so it works without the rhiza CLI installed. Read-only; no scoring, no fixes, no issues.
 argument-hint: "[topic]  (optional; defaults to 'rhiza')"
-allowed-tools: Bash(python3*), Read
+allowed-tools: Bash(uv*), Bash(python3*), Read
 ---
 
 You are running `/repos` to discover the rhiza-tagged repositories on GitHub.
@@ -24,7 +24,7 @@ Invoke it with the plugin-root path (it ships inside this plugin, so
 topic argument as `--topic` only when `$ARGUMENTS` is non-empty:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repos.py" ${ARGUMENTS:+--topic "$ARGUMENTS"}
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/repos.py" ${ARGUMENTS:+--topic "$ARGUMENTS"}
 ```
 
 - The GitHub Search API rate-limits unauthenticated requests. If `GITHUB_TOKEN`
@@ -34,8 +34,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repos.py" ${ARGUMENTS:+--topic "$ARGUMENT
 ## 2. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this
   repo, not an installed plugin), fall back to the repo-relative path:
-  `python3 scripts/repos.py ${ARGUMENTS:+--topic "$ARGUMENTS"}`.
-- If `python3` is missing, or the script is genuinely not found at either path,
+  `uv run --python 3.12 --no-project python scripts/repos.py ${ARGUMENTS:+--topic "$ARGUMENTS"}`.
+- If `uv` is missing, or the script is genuinely not found at either path,
   report that plainly and stop — don't hand-roll the query as a substitute.
 
 ## 3. Relay the results

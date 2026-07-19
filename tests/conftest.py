@@ -1,7 +1,8 @@
 """Shared test fixtures for the rhiza-config plugin scripts.
 
-The scripts under `scripts/` are standalone (run as `python3 scripts/<x>.py`),
-not an installed package, so put that directory on `sys.path` to import them.
+The scripts under `scripts/` are standalone (run as
+`uv run --python 3.12 --no-project python scripts/<x>.py`), not an installed
+package, so put that directory on `sys.path` to import them.
 """
 
 from __future__ import annotations

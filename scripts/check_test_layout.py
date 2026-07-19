@@ -30,7 +30,8 @@ documented. The same table accepts ``exempt_dirs = [...]`` to extend the
 built-in benchmarks/stress exemptions when parity *is* enforced.
 
 Usage:
-  python3 scripts/check_test_layout.py [--src DIR] [--tests DIR] [--config FILE]
+  uv run --python 3.12 --no-project python \
+    scripts/check_test_layout.py [--src DIR] [--tests DIR] [--config FILE]
 
 Exits 0 when the layout is clean (or parity is intentionally not enforced),
 1 (listing every violation) otherwise.

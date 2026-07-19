@@ -9,7 +9,8 @@ dashboard, and writes a self-contained `docs/stats.html` you can wire into
 `mkdocs.yml`.
 
 Usage:
-  python3 scripts/stats.py [PATH] [--slow] [--no-html] [--html-out docs/stats.html]
+  uv run --python 3.12 --no-project python \
+    scripts/stats.py [PATH] [--slow] [--no-html] [--html-out docs/stats.html]
 
   PATH        optional path/pathspec to scope code-size metrics to (default: whole repo)
   --slow      permit slow/networked fallbacks (uvx radon/interrogate, uv pip --outdated)

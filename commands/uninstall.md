@@ -1,7 +1,7 @@
 ---
 description: Remove all rhiza-managed files from the repo — deletes every file listed in .rhiza/template.lock, prunes the emptied directories, and removes the lock file itself. Runs the bundled scripts/uninstall.py (stdlib-only). DESTRUCTIVE; prompts for confirmation unless --force is passed.
 argument-hint: "[path to a repo root]  (optional; defaults to the current repo)"
-allowed-tools: Bash(python3*), Read
+allowed-tools: Bash(uv*), Bash(python3*), Read
 ---
 
 You are running `/uninstall` in the **current working directory's repo**.
@@ -29,7 +29,7 @@ Invoke it with the plugin-root path (it ships inside this plugin, so
 `${CLAUDE_PLUGIN_ROOT}` resolves at runtime — **keep the quotes**):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/uninstall.py" $ARGUMENTS --force
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/uninstall.py" $ARGUMENTS --force
 ```
 
 - Pass `$ARGUMENTS` through as the optional target path. If it's empty, just omit it.
@@ -40,8 +40,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/uninstall.py" $ARGUMENTS --force
 
 ## 3. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
-  not an installed plugin), fall back to the repo-relative path: `python3 scripts/uninstall.py $ARGUMENTS --force`.
-- If `python3` is missing, or the script is genuinely not found at either path, report
+  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python scripts/uninstall.py $ARGUMENTS --force`.
+- If `uv` is missing, or the script is genuinely not found at either path, report
   that plainly and stop — never hand-roll the deletions as a substitute.
 
 ## 4. Relay the results

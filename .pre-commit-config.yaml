@@ -55,7 +55,7 @@ repos:
     hooks:
       - id: manifest-version-parity
         name: plugin.json and marketplace.json versions must match
-        entry: python3 scripts/check_version_parity.py
+        entry: uv run --python 3.12 --no-project python scripts/check_version_parity.py
         language: system
         pass_filenames: false
         files: '^\.claude-plugin/(plugin|marketplace)\.json$'
@@ -73,7 +73,7 @@ repos:
         files: '^scripts/.*\.py$'
       - id: test-layout
         name: test layout mirrors sources (1:1 files + Test classes)
-        entry: python3 scripts/check_test_layout.py --src scripts --tests tests
+        entry: uv run --python 3.12 --no-project python scripts/check_test_layout.py --src scripts --tests tests
         language: system
         pass_filenames: false
         files: '^(scripts|tests)/.*\.py$'

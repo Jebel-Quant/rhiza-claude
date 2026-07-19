@@ -8,7 +8,7 @@ carrying a given topic (default: ``rhiza``) and emits a single JSON document
 on stdout.
 
 Usage:
-  python3 scripts/repos.py [--topic TOPIC] [--per-page N]
+  uv run --python 3.12 --no-project python scripts/repos.py [--topic TOPIC] [--per-page N]
 
   --topic TOPIC   GitHub topic to search for (default: 'rhiza')
   --per-page N    maximum repositories to request (default: 50, max 100)

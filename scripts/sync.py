@@ -9,13 +9,15 @@ working tree via `git apply -3` (falling back to `git merge-file`), preserving
 local edits and leaving conflict markers where both sides changed a region.
 
 Usage:
-  python3 scripts/sync.py [TARGET] [--branch BRANCH]
+  uv run --python 3.12 --no-project python scripts/sync.py [TARGET] [--branch BRANCH]
 
   TARGET     repository root to sync (default: current directory)
   --branch   template branch to use when template.yml has no `ref`
              (default: main)
 
-Requires `git` on PATH. **Mutates the working tree.** Exit codes:
+Requires `git` on PATH and Python >= 3.11 (uses ``datetime.UTC``); run it under
+``uv run --python 3.12`` since the system ``python3`` may be older (macOS ships
+3.9). **Mutates the working tree.** Exit codes:
   0  synced cleanly (or already up to date)
   1  synced with conflicts — resolve `<<<<<<<` markers and `*.rej` files, then
      commit (this is the expected outcome when local edits collide with upstream)

@@ -8,7 +8,8 @@ the project has the expected language-specific structure, and that the
 configuration's required/optional fields are present and well-typed.
 
 Usage:
-  python3 scripts/validate.py [TARGET] [--path-to-template DIR] [--json]
+  uv run --python 3.12 --no-project python \
+    scripts/validate.py [TARGET] [--path-to-template DIR] [--json]
 
   TARGET              repository root to validate (default: current directory)
   --path-to-template  directory containing template.yml (default: <TARGET>/.rhiza;

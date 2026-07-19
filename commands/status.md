@@ -1,7 +1,7 @@
 ---
 description: Show the current rhiza sync status for the repo — the template repository, ref, synced commit SHA, sync timestamp, strategy, and the templates/paths that were materialized. Runs the bundled scripts/status.py (a stdlib-only read of .rhiza/template.lock), so it works without the rhiza CLI installed. Read-only; no scoring, no fixes, no issues.
 argument-hint: "[path to a repo root]  (optional; defaults to the current repo)"
-allowed-tools: Bash(python3*), Read
+allowed-tools: Bash(uv*), Bash(python3*), Read
 ---
 
 You are running `/status` in the **current working directory's repo**.
@@ -24,7 +24,7 @@ Invoke it with the plugin-root path (it ships inside this plugin, so
 `${CLAUDE_PLUGIN_ROOT}` resolves at runtime — **keep the quotes**):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/status.py" $ARGUMENTS
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/status.py" $ARGUMENTS
 ```
 
 - Pass `$ARGUMENTS` through as the optional target path. If it's empty, just omit it.
@@ -44,8 +44,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/status.py" $ARGUMENTS
 
 ## 2. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
-  not an installed plugin), fall back to the repo-relative path: `python3 scripts/status.py $ARGUMENTS`.
-- If `python3` is missing, or the script is genuinely not found at either path, report
+  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python scripts/status.py $ARGUMENTS`.
+- If `uv` is missing, or the script is genuinely not found at either path, report
   that plainly and stop — don't hand-roll the status as a substitute.
 
 ## 3. Relay the results

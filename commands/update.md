@@ -1,7 +1,7 @@
 ---
 description: Bump the current repo to the latest (or given) rhiza release, sync the template, resolve conflicts upstream, run the rhiza_quality gates, open a PR with a quality scorecard, and (after confirmation) file one issue per below-10 scorecard finding on the repo's platform (GitHub or GitLab), deduped against existing open issues.
 argument-hint: "[version e.g. v0.19.9]  (optional; defaults to latest release)"
-allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(make*), Bash(python3*), Bash(cat*), Bash(grep*), Read, Edit, Write, AskUserQuestion, Skill
+allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(make*), Bash(uv*), Bash(python3*), Bash(cat*), Bash(grep*), Read, Edit, Write, AskUserQuestion, Skill
 ---
 
 You are running `/update` in the **current working directory's repo**. Goal: bump this one repo to a rhiza release, apply the template sync, resolve any conflicts by taking the upstream side, run the project's quality gates, and open a PR that includes a quality scorecard. Mirror the per-repo flow of `update_rhiza_versions.py` but resolve the version dynamically.
@@ -55,11 +55,11 @@ If the choice **differs** from the current profile, also reconcile platform-spec
 - `git push --set-upstream origin "$BRANCH"`
 
 ## 6. Sync the template
-- Apply the template with the plugin's bundled, stdlib-only sync (no `rhiza` CLI needed — **keep the quotes**):
+- Apply the template with the plugin's bundled, stdlib-only sync (no `rhiza` CLI needed — **keep the quotes**). Run it under a pinned modern interpreter via `uv`: the script needs Python ≥ 3.11 (`datetime.UTC`), and the system `python3` may be older — macOS ships 3.9, on which it crashes. `--no-project` keeps `uv` from resolving the target repo's env for this stdlib-only script:
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
+  uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
   ```
-  If `${CLAUDE_PLUGIN_ROOT}` is empty (source checkout), fall back to `python3 scripts/sync.py .`.
+  If `${CLAUDE_PLUGIN_ROOT}` is empty (source checkout), fall back to `uv run --python 3.12 --no-project python scripts/sync.py .`.
 - Interpret the exit code — **capture it before continuing**:
   - **0** — synced cleanly; go to step 8 (no conflicts to resolve in step 7).
   - **1** — synced with conflicts; the lock was written and merged files are on disk. This is expected — do **not** treat it as fatal; continue to step 7.

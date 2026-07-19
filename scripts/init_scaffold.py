@@ -15,7 +15,8 @@ This script writes only the rhiza-specific files neither of those provides:
 Every file is created **only if absent** — existing files are left untouched.
 
 Usage:
-  python3 scripts/init_scaffold.py [TARGET] --project-name NAME --owner OWNER \
+  uv run --python 3.12 --no-project python \
+      scripts/init_scaffold.py [TARGET] --project-name NAME --owner OWNER \
       [--host github|gitlab] [--language python|go] \
       [--template-repo owner/repo] [--ref TAG] \
       [--components mkdocs] [--json]

@@ -78,11 +78,21 @@ Run these checks first, in order:
   installation docs — don't try to proceed without `uv`.
 
 ## 2. Bootstrap the project skeleton with `uv init`
-First settle the two things the skeleton needs — they have safe defaults, so you
-can decide them here without a heavy prompt:
+First settle what the skeleton needs — `NAME` and `LANGUAGE` have safe defaults,
+but the Long Description and License do not:
 - `NAME` — the project/package name: `$ARGUMENTS` if given, else `basename "$PWD"`.
 - **Language** — ask (`AskUserQuestion`, default **python**): `python` or `go`.
   Hold as `LANGUAGE`; it also selects the default template repo in step 5.
+- **Long Description** — `uv init` is what writes `pyproject.toml`, so **before**
+  you run it, ask the user (`AskUserQuestion`) to submit a **Long Description** of
+  the project (a sentence or two on what it does). Hold as `LONG_DESCRIPTION`.
+  There's **no safe default** — the user must supply it; don't invent one. It's
+  applied to `pyproject.toml` right after `uv init` (below).
+- **License** — ask the user (`AskUserQuestion`) **which license to apply** (offer
+  e.g. **MIT**, **Apache-2.0**, **BSD-3-Clause**, and **none/proprietary**). Hold
+  the SPDX identifier as `LICENSE` (or `none`). **No safe default** — ask; don't
+  assume one. It's applied to `pyproject.toml` (and a `LICENSE` file) right after
+  `uv init` (below).
 
 Then create the skeleton:
 - **Python** — if there's **no** `pyproject.toml` yet, run:
@@ -94,6 +104,26 @@ Then create the skeleton:
   `pyproject.toml` **already** exists, do **not** run `uv init` (it refuses) —
   just ensure a git repo exists (`git init -b main` when `HAS_GIT` is false) and
   keep the existing files untouched.
+  - Once `uv init` has written `pyproject.toml`, `Edit` its `[project].description`
+    line (uv seeds it with a placeholder) to `LONG_DESCRIPTION` — a surgical
+    single-line edit; don't reformat the file. Skip this when `pyproject.toml`
+    pre-existed (keep the user's own metadata).
+  - **License (PEP 639).** Apply the `LICENSE` chosen above. Unless it's `none`,
+    set the SPDX expression field in `[project]` now — `license = "<LICENSE>"`
+    (e.g. `license = "MIT"`) — plus `license-files = ["LICENSE"]`. Use the **SPDX
+    expression field only** — do **not** write the deprecated trove classifier
+    `License :: OSI Approved :: MIT License` (or any other `License ::` classifier)
+    into `[project].classifiers`; PEP 639 abolished them and modern build backends
+    warn on them. Then write the `LICENSE` file itself with that license's standard
+    text (copyright holder = `OWNER`, current year) — but `OWNER` isn't settled
+    until step 4, so if it's not known yet defer just the file until then (the
+    metadata above is fine to set now). If `LICENSE` is `none`, add no license
+    metadata and write no `LICENSE` file.
+  - **Dependency lower bounds.** Any dependency you introduce into `pyproject.toml`
+    (here or when enhancing it in step 9) **must carry a lower bound** — e.g.
+    `httpx>=0.27`, never a bare, unbounded `httpx`. Prefer `uv add <pkg>` (it
+    writes a `>=` bound by default); if you hand-edit `[project].dependencies`, add
+    the `>=<version>` yourself. Applies to optional/dependency-group entries too.
 - **Go** — `uv` doesn't apply; ensure a git repo exists (`git init -b main` when
   `HAS_GIT` is false). The Go module is set up from the `go mod init` hint the
   scaffolder prints in step 8.
@@ -209,9 +239,10 @@ Offer the one optional piece (`.rhiza/template.yml` + `Makefile` are always
 written): ask with an `AskUserQuestion` whether to add **mkdocs** (`mkdocs.yml`).
 Build the `--components` value (`mkdocs` or empty), then run the script with the
 plugin-root path (**keep the quotes**; falls back to the repo-relative
-`scripts/init_scaffold.py` in a source checkout):
+`uv run --python 3.12 --no-project python scripts/init_scaffold.py` in a source
+checkout):
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/init_scaffold.py" . \
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_scaffold.py" . \
   --project-name "$NAME" --owner "$OWNER" \
   --host <github|gitlab> --language <python|go> \
   --template-repo "$TEMPLATE_REPO" --ref "$TARGET" \
@@ -226,11 +257,15 @@ Relay its `created`/`skipped`/`notes` output (for `go` it prints the
 Run the first sync with the plugin's **bundled, stdlib-only** porter — the same
 `scripts/sync.py` that `/update` uses. Do **not** use `uvx rhiza sync` (or the
 bootstrap `Makefile`'s `make sync`, which shells out to it): the `rhiza` CLI is
-being retired, and the bundled script is its stdlib replacement.
+being retired, and the bundled script is its stdlib replacement. Run it under a
+pinned modern interpreter via `uv` — the script needs Python ≥ 3.11 and the
+system `python3` may be older (macOS ships 3.9); `--no-project` skips resolving
+the target repo's env for this stdlib-only script:
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
 ```
-(falls back to the repo-relative `scripts/sync.py` in a source checkout). This
+(falls back to `uv run --python 3.12 --no-project python scripts/sync.py .` in a
+source checkout). This
 materialises the template for the chosen profile —
 `.rhiza/rhiza.mk`, CI workflows (`.github/workflows/*` for GitHub or
 `.gitlab-ci.yml` for GitLab), `docs/mkdocs-base.yml`, and the rest.
@@ -282,6 +317,20 @@ green. Triage a non-zero exit **by cause**:
 If you enhanced any file to get the suite green, commit that fix on the branch:
 - `git add --all`
 - `git commit -m "chore: align pyproject with rhiza template tests"`
+
+### Final polish: docs coverage + format
+Before pushing, run the docstring-coverage gate and the formatter so the branch
+lands clean:
+```bash
+make docs-coverage
+make fmt
+```
+- `make docs-coverage` (interrogate) checks the seeded module's docstrings meet
+  the gate. If it fails, add the missing docstrings and re-run.
+- `make fmt` runs the pre-commit hooks (ruff format/check, markdownlint, …) and
+  may rewrite files. If it changed anything, commit it on the branch:
+  - `git add --all`
+  - `git commit -m "chore: format + docs coverage"`
 
 ## 10. Push the branch and open the PR
 - `git push -u origin "$BRANCH"`.
