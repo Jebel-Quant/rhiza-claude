@@ -114,7 +114,7 @@ allow_dirty = false         # a release is cut from a clean tree
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
 regex = true
-search = '(?m)^\[project\]([^\[]*?)version = "{current_version}"'
+search = '(?ms)^\[project\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
 replace = '[project]\1version = "{new_version}"'
 ```
 

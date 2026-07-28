@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import status
+from conftest import PY, TEMPLATE_REF, assert_ok, run_cmd
 
 
 def _write_lock(repo, body: str):
@@ -256,3 +258,30 @@ def test_status_main_check_flag(tmp_path, monkeypatch):
     _write_lock(tmp_path, "host: github\nrepo: o/r\nref: v1.0.0\n")
     monkeypatch.setattr(status, "_remote_tags", lambda host, repo: [])
     assert status.main([str(tmp_path), "--check"]) == 0
+
+
+# --- end-to-end: /status's two halves against a real sync ---------------------
+
+
+def test_e2e_status_reports_the_real_lock(synced_repo, capsys):
+    """The sync half, read from the lock `sync.py` actually wrote."""
+    rc = status.status(synced_repo)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "github/jebel-quant/rhiza" in out
+    assert TEMPLATE_REF in out
+    assert "merge" in out
+
+
+def test_e2e_status_files_lists_what_the_template_delivered(synced_repo, capsys):
+    rc = status.status(synced_repo, show_files=True)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "files managed by Rhiza" in out
+    assert "rhiza.mk" in out
+
+
+def test_e2e_the_config_half_validates(synced_repo):
+    """/status runs validate.py first; a real synced repo must pass its checks."""
+    validate = Path(__file__).resolve().parents[1] / "scripts" / "validate.py"
+    assert_ok(run_cmd([*PY, str(validate), str(synced_repo)], synced_repo), "validate.py")

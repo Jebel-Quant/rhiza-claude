@@ -268,3 +268,44 @@ def test_main_returns_the_no_lock_exit_code(tmp_path, capsys):
     rc = st.main([str(tmp_path)])
     assert rc == st.EXIT_NO_LOCK
     assert "run the sync first" in capsys.readouterr().err
+
+
+# --- end-to-end: /update's template-only guarantee, against a real sync --------
+
+
+def test_e2e_update_stages_only_template_files(synced_repo_copy):
+    """/update's core promise, measured on a genuinely synced repo.
+
+    The fixture repos can't prove this: the lock has to be the one `sync.py` actually
+    wrote, over the ~60 files the real template delivers. A repo-owned edit alongside
+    them must be left behind — that is the bug where `git add --all` swept a `make fmt`
+    reformat of `src/` into a template bump PR.
+    """
+    repo = synced_repo_copy
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "chore: apply sync")
+
+    # Now: a template file changes upstream-style, and the repo's own source changes.
+    (repo / "ruff.toml").write_text('target-version = "py312"\n')
+    (repo / "src" / "widget" / "main.py").write_text(
+        '"""Entry point for widget."""\n\n\ndef greeting() -> str:\n'
+        '    """Reformatted locally."""\n    return "hello"\n'
+    )
+
+    summary = st.stage_synced(repo)
+
+    assert summary["exit_code"] == st.EXIT_OK
+    assert "ruff.toml" in summary["staged"], "a template file was not staged"
+    assert "src/widget/main.py" in summary["unstaged"], "a repo-owned edit was staged"
+    assert not any(p.startswith("src/") for p in summary["staged"])
+
+
+def test_e2e_the_lock_covers_what_the_template_delivered(synced_repo_copy):
+    """The staged set is the sync's own record, not a guess about which paths look shared."""
+    lock = synced_repo_copy / ".rhiza" / "template.lock"
+    files = st.lock_files(lock)
+    assert len(files) > 20, f"expected the real template's file list, got {files}"
+    # Files the template is known to own, and one it never does.
+    assert "Makefile" in files
+    assert ".rhiza/rhiza.mk" in files
+    assert not any(f.startswith("src/") for f in files), "src/ is the repo's own"

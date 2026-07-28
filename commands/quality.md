@@ -59,7 +59,7 @@ surface before the slow test suite — and collect results:
 3. `make docs-coverage` — docstring coverage (interrogate) over `src/`
 4. `make deptry` — unused/missing/misplaced dependency analysis
 5. `make security` — pip-audit + bandit scans
-6. `make validate` — validate project structure against the Rhiza template (`.rhiza/template.yml`)
+6. `make rhiza-test` — run the template's own bundled tests under `.rhiza/tests/` (pyproject structure, docstrings, README)
 7. `make test` — full test suite **with** its coverage gate (slowest, run last)
 8. **Test-layout parity** — run the bundled checker
    `uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_test_layout.py"` (fall back to
@@ -103,15 +103,19 @@ Guidelines:
   instead of the whole repo.
 - End with a concise PASS/FAIL summary per gate.
 
-**`make validate`.** A failure means this repo has drifted from the Rhiza
-template (a synced file edited locally, or a missing/extra file). That is
-in-scope: fix it by re-syncing from Rhiza or by adjusting `.rhiza/template.yml`,
-not by editing the synced artifact in place.
+**`make rhiza-test`.** Runs the test-suite the template syncs into `.rhiza/tests/` —
+the `[project]` structure gate, docstring coverage, README validation. A failure there
+is usually a *local* gap the template is checking for, so it is in scope; a failure in
+the synced test files themselves is upstream.
 
-> Not to be confused with `scripts/validate.py`, which `/rhiza:status` runs. Same
-> word, different checks: `make validate` compares the repo against the template
-> (drift); `scripts/validate.py` checks that `template.yml` itself is well-formed.
-> A repo can pass one and fail the other.
+> **`make validate` is gone.** Up to rhiza v1.1.3 there was a `validate` target that
+> checked the repo for drift from the template. It was removed by v1.2.1, and naming a
+> target the template no longer provides is precisely how this command came to score
+> repos as broken. If you meet an older template that still has it, the probe reports
+> it as available and it can be run; nothing here assumes it.
+>
+> Unrelated to `scripts/validate.py`, which `/rhiza:status` runs to check that
+> `template.yml` itself is well-formed.
 
 ## 2. Report the gate results
 

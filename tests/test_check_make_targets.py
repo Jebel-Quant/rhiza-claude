@@ -19,6 +19,7 @@ from pathlib import Path
 
 import check_make_targets as cmt
 import pytest
+from conftest import assert_ok, run_cmd
 
 _ROOT = Path(__file__).resolve().parents[1]
 _QUALITY = _ROOT / "commands" / "quality.md"
@@ -37,7 +38,7 @@ def test_gate_targets_are_parsed_from_the_command():
         "docs-coverage",
         "deptry",
         "security",
-        "validate",
+        "rhiza-test",
         "test",
     ]
 
@@ -98,7 +99,7 @@ def test_a_reduced_profile_reports_only_its_missing_gates(partial_profile_repo):
         "typecheck",
         "docs-coverage",
         "security",
-        "validate",
+        "rhiza-test",
         "test",
     }
     assert result["exit_code"] == cmt.EXIT_OK  # not a failure
@@ -219,3 +220,24 @@ def test_main_on_an_unsynced_repo_exits_1(managed_unsynced_repo, capsys):
     rc = cmt.main(["--target-dir", str(managed_unsynced_repo), "--from", str(_QUALITY)])
     assert rc == cmt.EXIT_UNAVAILABLE
     assert "not synced" in capsys.readouterr().err
+
+
+# --- end-to-end: /quality's gates against a real sync -------------------------
+
+
+def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo):
+    """The assertion that would have caught /quality being unrunnable.
+
+    /quality names seven `make` targets and used to probe none of them. Here the target
+    list is read from the shipped commands/quality.md and checked against a repo synced
+    from the real template — so a gate the template stops providing, or one added to the
+    prose that it never provided, fails in CI instead of in front of a user.
+    """
+    result = cmt.probe(synced_repo, _QUALITY)
+    assert result["unavailable"] == [], f"the template does not provide: {result['unavailable']}"
+    assert result["available"] == cmt.gate_targets(_QUALITY)
+
+
+def test_e2e_the_gates_run_and_not_just_resolve(synced_repo):
+    """Resolving is not the same as working — run the cheapest real gate."""
+    assert_ok(run_cmd(["make", "fmt"], synced_repo), "make fmt")

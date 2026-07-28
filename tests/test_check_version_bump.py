@@ -320,3 +320,91 @@ def test_main_reports_no_tags(repo, capsys):
     rc = cvb.main(["v1.0.0", "--current", "0.4.2", "--target-dir", str(repo)])
     assert rc == cvb.EXIT_OK
     assert "(no tags)" in capsys.readouterr().out
+
+
+# --- end-to-end: /release's full chain on a real repo -------------------------
+
+# Declared version locations, as prompts/skeleton.md scaffolds them: the `[project]`
+# table anchored by regex, plus a self-referencing CI stub pin. `[tool.unrelated]`
+# shares the version number deliberately — it must not move.
+_BUMPVERSION_CONFIG = r"""
+[tool.unrelated]
+version = "0.1.0"
+
+[tool.bumpversion]
+current_version = "0.1.0"
+tag = false
+commit = false
+allow_dirty = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+regex = true
+search = '(?ms)^\[project\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
+replace = '[project]\1version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = ".github/workflows/stub.yml"
+search = "widget/.github/workflows/reusable.yml@v{current_version}"
+replace = "widget/.github/workflows/reusable.yml@v{new_version}"
+"""
+
+
+def test_e2e_release_bumps_every_declared_location(synced_repo_copy):
+    """The whole /release chain, on a repo with a real pyproject and a stub pin.
+
+    Proves the property that motivated adopting bump-my-version: every *declared*
+    location moves, and nothing else does — not a dependency pinned at the same
+    version, not an unrelated `[tool.*]` table, not a third-party action ref.
+    """
+    from conftest import PY, assert_ok, run_cmd
+
+    repo = synced_repo_copy
+    pyproject = repo / "pyproject.toml"
+
+    # Declare the version locations the way prompts/skeleton.md scaffolds them, plus a
+    # self-referencing CI stub pin — the case /release used to miss entirely.
+    (repo / ".github" / "workflows" / "stub.yml").write_text(
+        "jobs:\n  ci:\n    uses: jebel-quant/widget/.github/workflows/reusable.yml@v0.1.0\n"
+        "  other:\n    uses: actions/checkout@v0.1.0\n"
+    )
+    pyproject.write_text(pyproject.read_text() + _BUMPVERSION_CONFIG)
+    assert 'version = "0.1.0"' in pyproject.read_text()
+
+    # 1. The declared current version, read by /release's step 1.
+    current = run_cmd(["uvx", "bump-my-version", "show", "current_version"], repo)
+    assert_ok(current, "bump-my-version show")
+    assert current.stdout.strip().endswith("0.1.0")
+
+    # 2. The guard — /release's step 4, and the check bump-my-version does not do.
+    guard = Path(__file__).resolve().parents[1] / "scripts" / "check_version_bump.py"
+    assert_ok(run_cmd([*PY, str(guard), "v0.2.0", "--current", "0.1.0",
+                       "--target-dir", str(repo)], repo), "guard v0.2.0")  # fmt: skip
+    backwards = run_cmd([*PY, str(guard), "v0.0.1", "--current", "0.1.0",
+                         "--target-dir", str(repo)], repo)  # fmt: skip
+    assert backwards.returncode == cvb.EXIT_NOT_INCREASING, "the guard let a backwards bump through"
+
+    # 3. The bump — /release's step 6.
+    assert_ok(
+        run_cmd(["uvx", "bump-my-version", "bump", "--new-version", "0.2.0",
+                 "--no-commit", "--no-tag"], repo),
+        "bump-my-version bump",
+    )  # fmt: skip
+
+    body = pyproject.read_text()
+    stub = (repo / ".github" / "workflows" / "stub.yml").read_text()
+    # Count whole lines, not substrings: `current_version = "0.2.0"` in the bumpversion
+    # config legitimately contains `version = "0.2.0"`, and it is *meant* to advance.
+    version_lines = [ln.strip() for ln in body.splitlines() if ln.strip().startswith("version = ")]
+    assert version_lines.count('version = "0.2.0"') == 1, f"expected one bump, got {version_lines}"
+    assert 'version = "0.1.0"' in body, "[tool.unrelated] should still hold the old version"
+    assert '[tool.unrelated]\nversion = "0.1.0"' in body, "an unrelated table was rewritten"
+    assert "httpx" not in body or ">=0.2.0" not in body, "a dependency pin was rewritten"
+    assert "reusable.yml@v0.2.0" in stub, "the self-referencing stub pin did not move"
+    assert "actions/checkout@v0.1.0" in stub, "a third-party pin was rewritten"
+
+    # The realistic shape that broke the first pattern I recommended: `classifiers = [`
+    # sits inside the [project] table *before* `version`, so a pattern excluding every
+    # `[` never matched a repo this plugin actually produces.
+    before_version = body.split('version = "0.2.0"')[0]
+    assert "classifiers = [" in before_version, "fixture no longer exercises the hard case"

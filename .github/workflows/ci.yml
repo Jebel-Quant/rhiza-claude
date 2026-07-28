@@ -46,5 +46,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      # The suite includes end-to-end tests that clone the real template
+      # (jebel-quant/rhiza, at the ref pinned in tests/conftest.py) and drive each
+      # command's script chain against a genuinely synced repo. They always run —
+      # they are not opt-in — because the failures they catch are exactly the ones
+      # that used to reach users: /quality unable to run at all, /update sweeping
+      # repo-owned files into a template PR, /release missing a version location.
       - name: Run tests with coverage gate
         run: uvx --with pytest-cov pytest tests/ --cov=scripts --cov-report=term-missing --cov-fail-under=100

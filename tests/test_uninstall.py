@@ -206,3 +206,39 @@ def test_uninstall_lock_unlink_oserror(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "unlink", fake_unlink)
     assert uninstall.uninstall(tmp_path, force=True) == 1
+
+
+# --- end-to-end: /uninstall against a real synced repo ------------------------
+
+
+def test_e2e_uninstall_removes_the_synced_files_and_spares_the_repos_own(synced_repo_copy):
+    """/uninstall's promise, measured on the files the real template delivered.
+
+    The fixtures cannot prove this: the file list has to be the one `sync.py` actually
+    wrote. What must survive is everything the repo owns — `src/`, `tests/`, the
+    pyproject — because deleting those would be unrecoverable for a user.
+    """
+    repo = synced_repo_copy
+    from _rhiza_yaml import load_yaml
+
+    managed = load_yaml(repo / ".rhiza" / "template.lock")["files"]
+    assert len(managed) > 20, f"expected the real template's file list, got {managed}"
+    assert (repo / "Makefile").is_file() and (repo / ".rhiza" / "rhiza.mk").is_file()
+
+    assert uninstall.uninstall(repo, force=True) == 0
+
+    still_there = [f for f in managed if (repo / f).exists()]
+    assert still_there == [], f"these managed files survived: {still_there}"
+    assert not (repo / ".rhiza" / "template.lock").exists(), "the lock itself must go"
+
+    # The repo's own work is untouched.
+    assert (repo / "pyproject.toml").is_file()
+    assert (repo / "src" / "widget" / "main.py").is_file()
+    assert (repo / "tests" / "widget" / "test_main.py").is_file()
+    assert (repo / ".rhiza" / "template.yml").is_file(), "the pointer is not the sync's to delete"
+
+
+def test_e2e_uninstall_twice_reports_nothing_to_do(synced_repo_copy):
+    """With the lock gone, a second run has no file list and says so rather than erroring."""
+    assert uninstall.uninstall(synced_repo_copy, force=True) == 0
+    assert uninstall.uninstall(synced_repo_copy, force=True) == 0
