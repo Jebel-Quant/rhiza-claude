@@ -5,7 +5,7 @@ Set a rhiza-managed Python project's standard interpreter version.
 !!! note "Not a slash command"
     This is an **internal procedure** (`prompts/python-version.md`), not something
     you invoke. The [skeleton](skeleton.md) procedure reads and follows it at its
-    step 5, which is itself reached from [`/rhiza:init`](../commands/init.md).
+    step 6, which is itself reached from [`/rhiza:init`](../commands/init.md).
 
 **Supported: 3.11, 3.12, 3.13, 3.14.** Python 3.9 and 3.10 are **not** supported —
 the script rejects them.

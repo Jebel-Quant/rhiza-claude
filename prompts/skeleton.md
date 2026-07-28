@@ -97,7 +97,42 @@ test -f pyproject.toml && head -20 pyproject.toml
   over it, and do **not** let `/init` proceed to commit and open a PR — say plainly
   that the skeleton step failed and why.
 
-## 5. Delegate the Python metadata
+## 5. Declare where the version lives, for `/rhiza:release`
+
+`/release` refuses to guess which files state the version — it reads
+`[tool.bumpversion]`. Without it the first release stops dead, so add the config now
+while the repo's shape is known. Append to `pyproject.toml` (or write
+`.bumpversion.toml`) if no `[tool.bumpversion]` exists yet:
+
+```toml
+[tool.bumpversion]
+current_version = "0.1.0"   # match [project].version
+tag = false                 # /rhiza:release tags after the changelog lands
+commit = false              # ... and commits, so the diff is reviewable first
+allow_dirty = false         # a release is cut from a clean tree
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+regex = true
+search = '(?m)^\[project\]([^\[]*?)version = "{current_version}"'
+replace = '[project]\1version = "{new_version}"'
+```
+
+**The pattern must be anchored.** `search`/`replace` apply to *every* occurrence in a
+file, so the naive `search = 'version = "{current_version}"'` would also rewrite a
+`[tool.something].version` that happens to share the number. The `regex` form above
+confines the change to the `[project]` table. (Dependency pins like `httpx>=0.27` are
+never at risk — they aren't line-anchored `version = ` assignments.)
+
+Set `current_version` to whatever `[project].version` actually says — they must agree,
+or `bump-my-version` won't find its search pattern.
+
+**A repo whose CI stubs point at itself** needs one entry per stub as well, or a
+published tag ships workflows calling the previous version's reusable workflows. That
+applies to a template repo, not to a downstream one, so only add it if you can see such
+a self-reference in `.github/`.
+
+## 6. Delegate the Python metadata
 
 `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/python-version.md`** and follow it with
 `$PYTHON_VERSION` (in a source checkout, `prompts/python-version.md`). It pins
@@ -108,7 +143,7 @@ hand-edit those fields here.
 **The license is not this procedure's job either.** `prompts/license.md` owns the
 SPDX metadata and the `LICENSE` file, and `/init` follows it right after this one.
 
-## 6. Report
+## 7. Report
 
 What happened, concisely: whether `uv init` ran or an existing `pyproject.toml` was
 kept, the package directory under `src/`, which `pyproject.toml` fields the script
@@ -132,4 +167,4 @@ and which `uv init` only populates from `git config`.
   classifier to silence it.** Report the failure as an upstream template question
   instead; writing a deprecated classifier to satisfy a stale assertion is the wrong
   fix. The only classifiers that get written here are the
-  `Programming Language :: Python :: X.Y` entries from step 5.
+  `Programming Language :: Python :: X.Y` entries from step 6.

@@ -97,11 +97,14 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   prose, and keeps the README's `make help` target list in lockstep with the real
   `Makefile`. Badges are generated with **omit, don't fake** — a badge whose backing
   fact isn't detected is never emitted. Writes files only; no commit, no PR.
-- **`/rhiza:release`** — prepare a release for the current rhiza-managed repo:
-  derive the next semantic version from the conventional commits since the last
-  tag (via git-cliff, overridable), bump `pyproject.toml`, regenerate
-  `CHANGELOG.md`, then commit and tag locally. Stops before pushing — it prints
-  the push commands, and pushing the tag is what triggers the release CI.
+- **`/rhiza:release`** — prepare a release locally: derive the next semantic version
+  from the conventional commits (via git-cliff, overridable), **guard that it strictly
+  increases** past every prior release, then let `bump-my-version` write it into every
+  location the repo declares in `[tool.bumpversion]` — `pyproject.toml`, plugin
+  manifests, self-referencing CI stub pins — regenerate `CHANGELOG.md`, and commit and
+  tag. Because the locations are declared rather than inferred, a dependency that
+  happens to share the version number is never rewritten. Stops before pushing; pushing
+  the tag is what triggers the release CI.
 
 ### Internals
 
