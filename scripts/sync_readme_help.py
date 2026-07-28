@@ -55,14 +55,27 @@ def find_makefile(target: Path) -> Path | None:
 
 
 def has_help_target(makefile: Path) -> bool:
-    """Is a ``help`` target (or a help default goal) declared in *makefile*?
+    """Can make resolve a ``help`` target from *makefile*'s directory?
 
-    Only the root makefile is inspected: an included ``.mk`` may well define the
-    target, which is why a false answer still leads to running ``make help`` being
-    skipped rather than to an error.
+    Asks **make**, via ``make -n help``, rather than reading the file. That matters
+    because a rhiza-managed repo's root Makefile is essentially just
+    ``include .rhiza/rhiza.mk`` — the ``help`` target lives in the *included* file. A
+    text scan of the root therefore answers "no" for every repo this is meant to serve,
+    which silently disabled the whole sync there.
+
+    ``-n`` expands the recipe without running it, so the probe has no side effects.
     """
-    text = makefile.read_text(errors="replace")
-    return bool(re.search(r"^help:", text, re.MULTILINE)) or ".DEFAULT_GOAL := help" in text
+    make = shutil.which("make")
+    if make is None:  # pragma: no cover - make is checked by the caller
+        return False
+    result = subprocess.run(  # nosec B603
+        [make, "-n", "help"],
+        cwd=str(makefile.parent),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def clean_help_output(raw: str) -> str:
@@ -111,17 +124,20 @@ def sync_readme_help(target: Path, readme_name: str = "README.md") -> dict[str, 
     makefile = find_makefile(target)
     if makefile is None:
         return _result("skipped", "no Makefile")
+
+    # Before probing: the probe itself asks make, so its absence must be reported as
+    # such rather than as "no help target", which would be misleading.
+    make = shutil.which("make")
+    if make is None:
+        return _result("skipped", "make is not on PATH")
     if not has_help_target(makefile):
-        return _result("skipped", "Makefile has no `help` target")
+        return _result("skipped", "make cannot resolve a `help` target")
 
     original = readme.read_text()
     span = find_block(original.splitlines())
     if span is None:
         return _result("skipped", f"no `{MARKER}` marker with a following fenced block")
 
-    make = shutil.which("make")
-    if make is None:
-        return _result("skipped", "make is not on PATH")
     env = os.environ.copy()
     env["NO_COLOR"] = "1"
     proc = subprocess.run(  # nosec B603

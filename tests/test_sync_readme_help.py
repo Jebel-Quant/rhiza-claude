@@ -65,14 +65,32 @@ def test_find_makefile_prefers_the_conventional_names(tmp_path):
     assert srh.find_makefile(tmp_path).name == "GNUmakefile"
 
 
-def test_has_help_target_detects_both_forms(tmp_path):
+def test_has_help_target_asks_make_not_the_file(tmp_path):
+    """Resolution is make's job, and a text scan gets it wrong both ways."""
     target = tmp_path / "Makefile"
     target.write_text("help:\n\t@echo hi\n")
     assert srh.has_help_target(target)
-    target.write_text(".DEFAULT_GOAL := help\n")
-    assert srh.has_help_target(target)
     target.write_text("test:\n\t@echo hi\n")
     assert not srh.has_help_target(target)
+    # A default goal without a target is not resolvable, though a text scan for
+    # `.DEFAULT_GOAL := help` would have claimed it was.
+    target.write_text(".DEFAULT_GOAL := help\n")
+    assert not srh.has_help_target(target)
+
+
+def test_has_help_target_sees_through_an_include(tmp_path):
+    """The bug that silently disabled this in every rhiza repo.
+
+    A managed repo's root Makefile is essentially `include .rhiza/rhiza.mk`, and the
+    `help` target lives in the included file — so grepping the root answered "no" for
+    exactly the repos the sync exists to serve.
+    """
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "rhiza.mk").write_text("help:\n\t@echo from-the-include\n")
+    root = tmp_path / "Makefile"
+    root.write_text("include .rhiza/rhiza.mk\n")
+    assert "help:" not in root.read_text()  # not in the root at all
+    assert srh.has_help_target(root)
 
 
 def test_clean_help_output_strips_colour_and_chatter():
@@ -164,7 +182,7 @@ def test_skips_when_there_is_no_makefile(tmp_path):
 def test_skips_when_the_makefile_has_no_help_target(tmp_path):
     (tmp_path / "README.md").write_text(_README)
     (tmp_path / "Makefile").write_text("test:\n\t@echo hi\n")
-    assert "no `help` target" in srh.sync_readme_help(tmp_path)["note"]
+    assert "cannot resolve a `help` target" in srh.sync_readme_help(tmp_path)["note"]
 
 
 def test_skips_a_hand_written_readme_without_the_marker(repo):
@@ -220,3 +238,45 @@ def test_main_returns_2_when_make_help_fails(repo, capsys):
     (repo / "Makefile").write_text(".DEFAULT_GOAL := help\nhelp:\n\t@exit 3\n")
     assert srh.main([str(repo)]) == srh.EXIT_MAKE_FAILED
     assert "failed" in capsys.readouterr().err
+
+
+# --- end-to-end: /docs against a real synced repo -----------------------------
+
+
+def test_e2e_docs_syncs_the_make_help_block(synced_repo_copy):
+    """The `make help` sync, against the real template's colourised help output.
+
+    The fixtures use a hand-written help target; this one exercises the genuine
+    `.rhiza/rhiza.mk` help, which emits ANSI colour and dozens of targets — the input
+    the sanitiser was written for.
+    """
+    repo = synced_repo_copy
+    readme = repo / "README.md"
+    readme.write_text(
+        f"# widget\n\nIntro that must survive.\n\n## Development\n\n{srh.MARKER}\n\n```\n```\n"
+    )
+
+    first = srh.sync_readme_help(repo)
+    assert first["status"] == "refreshed", first
+    body = readme.read_text()
+    assert "Intro that must survive." in body
+    assert "\x1b[" not in body, "ANSI escapes leaked into the README"
+    assert "Entering directory" not in body, "recursive-make chatter leaked in"
+    # The real rhiza.mk provides many targets; a couple that should be listed.
+    assert "test" in body and "help" in body
+
+    second = srh.sync_readme_help(repo)
+    assert second["status"] == "unchanged", "a second run must be a no-op"
+    assert readme.read_text() == body
+
+
+def test_e2e_docs_leaves_a_marker_less_readme_alone(synced_repo_copy):
+    """The README the /init chain produced has no marker — it must stay byte-identical."""
+    readme = synced_repo_copy / "README.md"
+    before = readme.read_text()
+    assert srh.MARKER not in before, "fixture unexpectedly has the marker"
+
+    result = srh.sync_readme_help(synced_repo_copy)
+
+    assert result["status"] == "skipped"
+    assert readme.read_text() == before
