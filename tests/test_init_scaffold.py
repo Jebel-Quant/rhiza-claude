@@ -1,8 +1,9 @@
-"""Tests for the rhiza-only scaffolding port (`scripts/init_scaffold.py`).
+"""Tests for the rhiza pointer writer (`scripts/init_scaffold.py`).
 
-The project skeleton (`pyproject.toml`, `src/`, `README.md`) comes from
-`uv init --lib`; this script writes only the rhiza-only files (`template.yml`, a
-repo-owned `Makefile`, and optionally `mkdocs.yml`).
+`/init` writes exactly one file itself, `.rhiza/template.yml`. The project skeleton
+comes from `uv init --lib` (finished by the skeleton procedure), the
+`Makefile`/CI/docs base from the template sync (`/update`), and the license, Python
+version, and docs from the license, python-version, and `/rhiza:docs` steps.
 """
 
 from __future__ import annotations
@@ -16,21 +17,7 @@ from pathlib import Path
 import init_scaffold as scaf
 import pytest
 
-# --- naming / profile helpers -----------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("raw", "expected"),
-    [
-        ("my-project", "my_project"),
-        ("weird.name!", "weird_name_"),
-        ("123start", "_123start"),
-        ("class", "class_"),
-        ("already_ok", "already_ok"),
-    ],
-)
-def test_normalize_package_name(raw, expected):
-    assert scaf.normalize_package_name(raw) == expected
+# --- profile helper ----------------------------------------------------------
 
 
 def test_profile_for_host():
@@ -57,102 +44,47 @@ def test_template_yml_gitlab_and_go():
     assert "  - gitlab-project" in out
 
 
-# --- mkdocs.yml -------------------------------------------------------------
-
-
-def test_render_mkdocs_is_host_aware():
-    out = scaf.render_mkdocs("my-proj", "acme", "github.com", "github.io", "A thing.")
-    assert out.startswith("INHERIT: docs/mkdocs-base.yml")
-    assert "site_name: my-proj" in out
-    assert "site_description: A thing." in out
-    assert "https://acme.github.io/my-proj/" in out
-    assert "repo_url: https://github.com/acme/my-proj" in out
-
-
-# --- Makefile ---------------------------------------------------------------
-
-
-def test_makefile_has_no_rhiza_cli_dependency():
-    # The repo-owned Makefile must not shell out to the (retired) rhiza CLI.
-    assert "uvx rhiza" not in scaf._MAKEFILE
-    assert "rhiza sync" not in scaf._MAKEFILE
-    assert "-include .rhiza/rhiza.mk" in scaf._MAKEFILE
-
-
 # --- scaffold() end to end --------------------------------------------------
 
 
-def test_scaffold_python_writes_rhiza_only_files(tmp_path):
+def test_scaffold_writes_only_the_pointer(tmp_path):
     summary = scaf.scaffold(
         tmp_path,
-        project_name="acme-tool",
-        package_name="acme_tool",
-        owner="acme",
         host="github",
         language="python",
         template_repo="jebel-quant/rhiza",
         ref="v1.1.3",
-        components=["mkdocs"],
     )
-    created = set(summary["created"])
-    assert created == {".rhiza/template.yml", "Makefile", "mkdocs.yml"}
-    # The skeleton is uv init's job — the scaffolder never writes it.
-    assert not (tmp_path / "pyproject.toml").exists()
-    assert not (tmp_path / "src").exists()
-    assert not (tmp_path / "README.md").exists()
-    assert (tmp_path / "Makefile").read_text().startswith("## Makefile (repo-owned)")
+    assert summary["created"] == [".rhiza/template.yml"]
+    # Everything else belongs to uv init / the sync / the focused commands.
+    assert set(p.name for p in tmp_path.iterdir()) == {".rhiza"}
+    assert (tmp_path / ".rhiza" / "template.yml").read_text().startswith("repository:")
 
 
-def test_scaffold_empty_components_writes_only_config_and_makefile(tmp_path):
+def test_scaffold_skips_an_existing_pointer(tmp_path):
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("hand-written\n")
     summary = scaf.scaffold(
         tmp_path,
-        project_name="p",
-        package_name="p",
-        owner="o",
         host="github",
         language="python",
         template_repo="jebel-quant/rhiza",
         ref="main",
-        components=[],
     )
-    assert set(summary["created"]) == {".rhiza/template.yml", "Makefile"}
-    assert not (tmp_path / "mkdocs.yml").exists()
+    assert summary["created"] == []
+    assert summary["skipped"] == [".rhiza/template.yml"]
+    assert (tmp_path / ".rhiza" / "template.yml").read_text() == "hand-written\n"  # untouched
 
 
-def test_scaffold_skips_existing_files(tmp_path):
-    (tmp_path / "Makefile").write_text("hand-written\n")
+def test_scaffold_go_defaults(tmp_path):
     summary = scaf.scaffold(
         tmp_path,
-        project_name="p",
-        package_name="p",
-        owner="o",
-        host="github",
-        language="python",
-        template_repo="jebel-quant/rhiza",
-        ref="main",
-        components=["mkdocs"],
-    )
-    assert "Makefile" in summary["skipped"]
-    assert "Makefile" not in summary["created"]
-    assert (tmp_path / "Makefile").read_text() == "hand-written\n"  # untouched
-
-
-def test_scaffold_go_gets_config_and_hint_no_mkdocs(tmp_path):
-    summary = scaf.scaffold(
-        tmp_path,
-        project_name="gotool",
-        package_name="gotool",
-        owner="acme",
         host="github",
         language="go",
         template_repo="jebel-quant/rhiza-go",
         ref="main",
-        components=["mkdocs"],  # mkdocs is Python-only → skipped for Go
     )
-    created = set(summary["created"])
-    assert created == {".rhiza/template.yml", "Makefile"}
-    assert not (tmp_path / "mkdocs.yml").exists()
-    assert any("go mod init" in n for n in summary["notes"])
+    assert summary["created"] == [".rhiza/template.yml"]
     tpl = (tmp_path / ".rhiza" / "template.yml").read_text()
     assert "language: go" in tpl
     assert "jebel-quant/rhiza-go" in tpl
@@ -162,55 +94,37 @@ def test_scaffold_go_gets_config_and_hint_no_mkdocs(tmp_path):
 
 
 def test_main_json_output(tmp_path, capsys):
-    rc = scaf.main([str(tmp_path), "--project-name", "widget", "--owner", "acme", "--json"])
-    assert rc == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["project_name"] == "widget"
-    assert payload["package_name"] == "widget"
-    assert payload["template_repository"] == "jebel-quant/rhiza"
-    assert ".rhiza/template.yml" in payload["created"]
-
-
-def test_main_defaults_project_name_to_dir(tmp_path, capsys):
     rc = scaf.main([str(tmp_path), "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["project_name"] == tmp_path.name
+    assert payload["template_repository"] == "jebel-quant/rhiza"
+    assert payload["profile"] == "github-project"
+    assert payload["ref"] == "main"
+    assert payload["created"] == [".rhiza/template.yml"]
 
 
-def test_main_rejects_unknown_component(tmp_path):
-    with pytest.raises(SystemExit):
-        scaf.main([str(tmp_path), "--components", "package"])  # retired component
-
-
-def test_parse_components_rejects_unknown():
-    with pytest.raises(ValueError):
-        scaf._parse_components("bogus", "python")
+def test_main_language_selects_default_template_repo(tmp_path, capsys):
+    rc = scaf.main([str(tmp_path), "--language", "go", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["template_repository"] == "jebel-quant/rhiza-go"
 
 
 def test_main_text_output(tmp_path, capsys):
-    rc = scaf.main([str(tmp_path), "--project-name", "x", "--components", "mkdocs"])
+    rc = scaf.main([str(tmp_path)])
     assert rc == 0
-    assert "created" in capsys.readouterr().out
+    assert "created  .rhiza/template.yml" in capsys.readouterr().out
 
 
-def test_main_text_output_with_note(tmp_path, capsys):
-    # a Go project emits a `go mod init` note → covers the notes loop
-    rc = scaf.main([str(tmp_path), "--language", "go", "--components", ""])
-    assert rc == 0
-    assert "note" in capsys.readouterr().err
-
-
-def test_main_nothing_to_create(tmp_path, capsys):
+def test_main_text_output_skipped(tmp_path, capsys):
     (tmp_path / ".rhiza").mkdir()
     (tmp_path / ".rhiza" / "template.yml").write_text("x\n")
-    (tmp_path / "Makefile").write_text("x\n")
-    rc = scaf.main([str(tmp_path), "--project-name", "x", "--components", ""])
+    rc = scaf.main([str(tmp_path)])
     assert rc == 0
-    assert "nothing to create" in capsys.readouterr().err
+    assert "skipped" in capsys.readouterr().err
 
 
-# --- end-to-end: the /init flow survives a real sync + the template gates ----
+# --- end-to-end: the /init pointer survives a real sync + the template gates --
 
 # The template ref to sync. Pinned for determinism; bump when validating a newer
 # rhiza release (any release whose bundled tests the scaffold must still pass).
@@ -218,10 +132,12 @@ TEMPLATE_REF = "v1.1.3"
 
 _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 SCAFFOLD = _SCRIPTS / "init_scaffold.py"
+SKELETON = _SCRIPTS / "init_skeleton.py"
 SYNC = _SCRIPTS / "sync.py"
-NEW_MODULE = _SCRIPTS / "new_module.py"
+SET_LICENSE = _SCRIPTS / "set_license.py"
+SET_PYVER = _SCRIPTS / "set_python_version.py"
 
-# Invoke the bundled scripts the way /init does — under a pinned modern
+# Invoke the bundled scripts the way the commands do — under a pinned modern
 # interpreter via uv — so they never run under a stale system python3 (macOS
 # ships 3.9, where sync.py's datetime.UTC would crash). uv is a guaranteed E2E
 # dependency (see _E2E_MISSING below).
@@ -248,41 +164,94 @@ def _assert_ok(result: subprocess.CompletedProcess, label: str) -> None:
 
 @pytest.mark.skipif(os.environ.get("RHIZA_E2E") != "1", reason="slow/network; set RHIZA_E2E=1")
 @pytest.mark.skipif(bool(_E2E_MISSING), reason="git/make/uv/uvx not all available")
-def test_init_flow_survives_sync_and_gates(tmp_path: Path) -> None:
-    """The full /init flow (uv init → scaffold → seed → sync) passes the gates."""
+def test_pointer_survives_sync_and_gates(tmp_path: Path) -> None:
+    """A repo built from the bundled scripts survives a real sync + the gates.
+
+    Walks the whole path `/rhiza:init` drives — `uv init`, the skeleton finisher,
+    the pointer, python-version, license — then `/update`'s sync, so the combination
+    stays green against the real template.
+    """
     repo = tmp_path / "e2e-init"
     repo.mkdir()
 
-    # 1. Skeleton via uv init (step 2 of /init).
-    _assert_ok(_run_cmd(["uv", "init", "--lib", "--name", "e2e_init"], repo), "uv init")
+    # 1. Skeleton via uv init (the skeleton procedure's step 2).
+    _assert_ok(
+        _run_cmd(["uv", "init", "--lib", "--name", "e2e_init", "--python", "3.12"], repo),
+        "uv init",
+    )
     _git(repo, "config", "user.email", "e2e@example.com")
     _git(repo, "config", "user.name", "E2E Test")
 
-    # 2. Seed a starter module + test (what /init delegates to /new).
-    _assert_ok(_run_cmd([*PY, str(NEW_MODULE), "main", str(repo)], repo), "new main")
+    # 2. Finish it into a rhiza shape (the skeleton procedure's step 3): normalises
+    #    uv's undocumented hello() placeholder and adds the [project] entries the
+    #    template's pyproject gate asserts.
+    _assert_ok(
+        _run_cmd(
+            [*PY, str(SKELETON), str(repo), "--owner", "jebel-quant", "--repo", "e2e-init",
+             "--description", "End-to-end fixture for the rhiza plugin."],
+            repo,
+        ),
+        "init_skeleton",
+    )  # fmt: skip
+    assert (repo / "src" / "e2e_init" / "__init__.py").read_text() == '"""e2e_init package."""\n'
 
-    # 3. Scaffold the rhiza-only files (step 8).
+    # 3. A module + its mirrored test — the user's first module, which `/init`
+    #    deliberately does not scaffold. Kept trivial and fully covered so the
+    #    template's coverage gate has something real to measure.
+    (repo / "src" / "e2e_init" / "main.py").write_text(
+        '"""Entry point for e2e_init."""\n\n\ndef greeting() -> str:\n'
+        '    """Return the module\'s greeting."""\n    return "hello"\n'
+    )
+    (repo / "tests" / "e2e_init").mkdir(parents=True)
+    (repo / "tests" / "e2e_init" / "test_main.py").write_text(
+        '"""Tests for e2e_init.main."""\n\nfrom e2e_init.main import greeting\n\n\n'
+        'def test_greeting() -> None:\n    """The greeting is returned."""\n'
+        '    assert greeting() == "hello"\n'
+    )
+
+    # 4. The pointer — the one file /init writes itself (its step 5).
     scaffold = _run_cmd(
         [
             *PY, str(SCAFFOLD), str(repo),
-            "--project-name", "e2e-init", "--owner", "jebel-quant",
             "--host", "github", "--language", "python",
             "--template-repo", "jebel-quant/rhiza", "--ref", TEMPLATE_REF,
-            "--components", "mkdocs",
         ],
         repo,
     )  # fmt: skip
     _assert_ok(scaffold, "scaffold")
-    for expected in ("pyproject.toml", "Makefile", ".rhiza/template.yml"):
-        assert (repo / expected).exists(), f"missing {expected}"
+    assert (repo / ".rhiza" / "template.yml").exists()
+    assert not (repo / "Makefile").exists(), "/init must not write a Makefile"
+
+    # 5. Packaging metadata: the python-version and license procedures.
+    _assert_ok(
+        _run_cmd([*PY, str(SET_PYVER), str(repo), "--python-version", "3.12"], repo),
+        "set_python_version",
+    )
+    _assert_ok(
+        _run_cmd(
+            [*PY, str(SET_LICENSE), str(repo), "--license", "MIT", "--owner", "jebel-quant"],
+            repo,
+        ),
+        "set_license",
+    )
+    assert (repo / "LICENSE").exists()
+    pyproject_text = (repo / "pyproject.toml").read_text()
+    assert 'license = "MIT"' in pyproject_text
+    assert "Programming Language :: Python :: 3.12" in pyproject_text
+    # The skeleton finisher's entries survive the metadata steps.
+    assert "[project.urls]" in pyproject_text
+    assert "[dependency-groups]" in pyproject_text
+
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "chore: scaffold rhiza-managed project")
 
-    # 4. First sync via the bundled stdlib porter (NOT uvx rhiza).
+    # 6. First sync via the bundled stdlib porter — this is what delivers the
+    #    Makefile, CI, and .rhiza/rhiza.mk.
     sync = _run_cmd([*PY, str(SYNC), "."], repo)
     _assert_ok(sync, "scripts/sync.py")
     assert (repo / ".rhiza" / "rhiza.mk").exists(), "sync did not deliver .rhiza/rhiza.mk"
+    assert (repo / "Makefile").exists(), "sync did not deliver a Makefile"
 
-    # 5. The scaffolded project's own tests pass under the coverage gate.
+    # 7. The scaffolded project's own tests pass under the coverage gate.
     project_test = _run_cmd(["make", "test"], repo)
     _assert_ok(project_test, "make test")
