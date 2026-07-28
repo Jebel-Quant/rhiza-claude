@@ -18,7 +18,6 @@ nav:
       - release: commands/release.md
   - Repo utilities:
       - status: commands/status.md
-      - validate: commands/validate.md
   - Destructive:
       - uninstall: commands/uninstall.md
   - Internals:

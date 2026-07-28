@@ -41,8 +41,7 @@ Thin, **read-only**, stdlib-only commands backed by bundled scripts — they rea
 
 | Command | What it does |
 | --- | --- |
-| [`/rhiza:status`](commands/status.md) | Show the current sync status (template, ref, SHA, timestamp); `--files` lists managed files as a tree. |
-| [`/rhiza:validate`](commands/validate.md) | Validate `.rhiza/template.yml`. |
+| [`/rhiza:status`](commands/status.md) | Report both halves of the repo's rhiza state: is `template.yml` valid, and what did the last sync record. `--files` lists managed files as a tree; `--check` compares the pinned ref against the latest release. |
 
 ## Destructive
 
