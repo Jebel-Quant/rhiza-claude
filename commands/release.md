@@ -143,7 +143,7 @@ Then **show `git diff --stat`** so the user sees exactly which files moved.
 > [[tool.bumpversion.files]]
 > filename = "pyproject.toml"
 > regex = true
-> search = '(?m)^\[project\]([^\[]*?)version = "{current_version}"'
+> search = '(?ms)^\[project\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
 > replace = '[project]\1version = "{new_version}"'
 > ```
 > Dependency pins (`httpx>=1.2.0`, `rich==1.2.0`) are never at risk either way — they
