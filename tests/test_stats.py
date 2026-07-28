@@ -53,10 +53,39 @@ def test_count_lines(tmp_path):
         ("https://gitlab.com/grp/proj.git", "GitLab", "grp/proj"),
         ("https://x@gitlab.example.com/g/p", "GitLab", "g/p"),
         ("https://example.org/a/b", "example.org", "a/b"),
+        # A lookalike host must not be reported as the platform it imitates.
+        ("https://github.com.evil.example/a/b", "github.com.evil.example", "a/b"),
+        ("https://gitlab.com.evil.example/a/b", "gitlab.com.evil.example", "a/b"),
+        ("https://mygitlab-lookalike.example/a/b", "mygitlab-lookalike.example", "a/b"),
     ],
 )
 def test_parse_remote(url, platform, path):
     assert stats.parse_remote(url) == (platform, path)
+
+
+@pytest.mark.parametrize(
+    ("host", "expected"),
+    [
+        ("github.com", "GitHub"),
+        ("GitHub.com", "GitHub"),  # case-insensitive
+        ("www.github.com", "GitHub"),  # subdomain
+        ("github.com.", "GitHub"),  # trailing root dot
+        ("gitlab.com", "GitLab"),
+        ("gitlab.example.com", "GitLab"),  # self-hosted: gitlab.<company>.<tld>
+        ("gitlab.corp.internal", "GitLab"),
+        # Label-boundary matching: embedding a known domain is not being it.
+        ("github.com.evil.example", None),
+        ("gitlab.com.evil.example", None),
+        ("notgithub.com", None),
+        ("mygitlab-lookalike.example", None),
+        ("evil.example", None),
+        ("git.corp.example", None),  # unrecognised self-hosted; reported verbatim
+        ("", None),
+    ],
+)
+def test_classify_host_matches_on_label_boundaries(host, expected):
+    """A substring test would call `github.com.evil.example` GitHub; this must not."""
+    assert stats.classify_host(host) == expected
 
 
 def test_read_toml(tmp_path):

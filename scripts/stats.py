@@ -146,6 +146,29 @@ def read_toml(path: Path) -> dict[str, Any] | None:
 # --------------------------------------------------------------------------- #
 # 1. repo identity
 # --------------------------------------------------------------------------- #
+_KNOWN_HOSTS = {"github.com": "GitHub", "gitlab.com": "GitLab"}
+
+
+def classify_host(host: str) -> str | None:
+    """Return the platform hosting *host*, or ``None`` when it isn't a known one.
+
+    Matching is on **label boundaries**, not substrings. A lookalike such as
+    ``github.com.evil.example`` embeds a known domain without being a subdomain of
+    it, so it is rejected — where a naive ``domain in host`` test would accept it
+    and report the wrong platform.
+    """
+    h = host.lower().rstrip(".")
+    for domain, platform in _KNOWN_HOSTS.items():
+        if h == domain or h.endswith(f".{domain}"):
+            return platform
+        if domain in h:
+            return None  # embeds a known domain elsewhere in the name → lookalike
+    # Self-hosted GitLab conventionally lives at gitlab.<company>.<tld>.
+    if h.split(".", 1)[0] == "gitlab":
+        return "GitLab"
+    return None
+
+
 def parse_remote(url: str) -> tuple[str, str]:
     """Return (platform, owner/repo) from a git remote URL."""
     u = url.strip()
@@ -160,13 +183,7 @@ def parse_remote(url: str) -> tuple[str, str]:
         m = re.match(r"[a-zA-Z]+://(?:[^@]+@)?([^/]+)/(.+)", u)
         if m:
             host, path = m.group(1), m.group(2)
-    if "github.com" in host:
-        platform = "GitHub"
-    elif "gitlab" in host:
-        platform = "GitLab"
-    else:
-        platform = host or "unknown"
-    return platform, path
+    return classify_host(host) or host or "unknown", path
 
 
 def default_branch() -> str:
