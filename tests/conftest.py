@@ -7,6 +7,7 @@ package, so put that directory on `sys.path` to import them.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
@@ -97,6 +98,12 @@ class Repo:
         return self.git("rev-parse", "HEAD").stdout.strip()
 
 
+# The template the end-to-end tests sync from. Pinned for determinism; bump
+# deliberately when validating a newer rhiza release.
+TEMPLATE_REF = "v1.2.1"
+TEMPLATE_REPO = "jebel-quant/rhiza"
+
+
 # ---------------------------------------------------------------------------
 # Fixture repos for the command-outcome tests (test_check_make_targets.py)
 #
@@ -109,14 +116,14 @@ class Repo:
 # A stand-in for the make API the template sync delivers as .rhiza/rhiza.mk. Only the
 # target names matter for probing — the recipes are never run (`make -n`).
 SYNCED_MAKEFILE = """\
-.PHONY: fmt typecheck docs-coverage deptry security validate test help
+.PHONY: fmt typecheck docs-coverage deptry security rhiza-test test help
 help: ; @echo help
 fmt: ; @echo fmt
 typecheck: ; @echo typecheck
 docs-coverage: ; @echo docs-coverage
 deptry: ; @echo deptry
 security: ; @echo security
-validate: ; @echo validate
+rhiza-test: ; @echo rhiza-test
 test: ; @echo test
 """
 
@@ -148,7 +155,7 @@ def managed_unsynced_repo(unmanaged_repo: Path) -> Path:
     There is a `template.yml` but no `rhiza.mk` and no makefile, so every gate is
     unavailable. Scoring this repo as broken was the bug the probe exists to prevent.
     """
-    write_template(unmanaged_repo, 'repository: "jebel-quant/rhiza"\nref: "v1.1.3"\n')
+    write_template(unmanaged_repo, f'repository: "{TEMPLATE_REPO}"\nref: "{TEMPLATE_REF}"\n')
     return unmanaged_repo
 
 
@@ -171,6 +178,125 @@ def partial_profile_repo(managed_unsynced_repo: Path) -> Path:
     (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE)
     (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
     return managed_unsynced_repo
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: one genuinely synced repo, built once and shared
+#
+# The commands are prose a model executes, so the only way to test their outcomes is
+# to run their script chains against a real repo synced from the real template. That
+# setup is expensive, so it is session-scoped and every command's e2e test reuses it.
+#
+# These are NOT opt-in. The failures they catch are the ones that reached users:
+# /quality unable to run at all, /update staging repo-owned files, /release skipping
+# a version location. A test that only runs when someone remembers to set an env var
+# would not have caught any of them.
+# ---------------------------------------------------------------------------
+
+# Run the bundled scripts the way the commands do — under a pinned interpreter via uv,
+# never the system python3 (macOS ships 3.9, where sync.py's datetime.UTC crashes).
+PY = ["uv", "run", "--python", "3.12", "--no-project", "python"]
+
+E2E_TOOLS = ("git", "make", "uv", "uvx")
+
+
+def run_cmd(cmd: list[str], cwd: Path, timeout: int = 900) -> subprocess.CompletedProcess[str]:
+    """Run a command in *cwd*, capturing output."""
+    return subprocess.run(  # noqa: S603
+        cmd, cwd=str(cwd), capture_output=True, text=True, timeout=timeout, check=False
+    )
+
+
+def assert_ok(result: subprocess.CompletedProcess[str], label: str) -> None:
+    """Assert a command exited 0, surfacing its output on failure."""
+    assert result.returncode == 0, (
+        f"{label} failed ({result.returncode}):\n{result.stdout}\n{result.stderr}"
+    )
+
+
+@pytest.fixture(scope="session")
+def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A real repo built by the /init chain and synced from the real template.
+
+    Follows the documented path exactly — `uv init --lib`, the skeleton finisher, a
+    first module, the `.rhiza/template.yml` pointer, python-version, license — then
+    `scripts/sync.py`, which is what `/update` runs. Session-scoped: built once.
+
+    Tests that mutate it must work on a copy (see `synced_repo_copy`), so ordering
+    between tests can never matter.
+    """
+    missing = [t for t in E2E_TOOLS if shutil.which(t) is None]
+    if missing:
+        pytest.skip(f"end-to-end tests need {', '.join(missing)}")
+
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    repo = tmp_path_factory.mktemp("e2e") / "widget"
+    repo.mkdir()
+
+    assert_ok(
+        run_cmd(["uv", "init", "--lib", "--name", "widget", "--python", "3.12"], repo), "uv init"
+    )
+    for key, value in (("user.email", "e2e@example.com"), ("user.name", "E2E")):
+        assert_ok(run_cmd(["git", "config", key, value], repo), f"git config {key}")
+
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_skeleton.py"), str(repo), "--owner", "jebel-quant",
+             "--repo", "widget", "--description", "End-to-end fixture for the rhiza plugin."],
+            repo,
+        ),
+        "init_skeleton",
+    )  # fmt: skip
+
+    # A module and its mirrored test — the user's first module, which /init does not
+    # scaffold. Trivial and fully covered so the template's coverage gate has something
+    # real to measure.
+    (repo / "src" / "widget" / "main.py").write_text(
+        '"""Entry point for widget."""\n\n\ndef greeting() -> str:\n'
+        '    """Return the greeting."""\n    return "hello"\n'
+    )
+    (repo / "tests" / "widget").mkdir(parents=True)
+    (repo / "tests" / "widget" / "test_main.py").write_text(
+        '"""Tests for widget.main."""\n\nfrom widget.main import greeting\n\n\n'
+        'def test_greeting() -> None:\n    """The greeting is returned."""\n'
+        '    assert greeting() == "hello"\n'
+    )
+
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_scaffold.py"), str(repo), "--host", "github",
+             "--language", "python", "--template-repo", TEMPLATE_REPO, "--ref", TEMPLATE_REF],
+            repo,
+        ),
+        "init_scaffold",
+    )  # fmt: skip
+    assert_ok(
+        run_cmd([*PY, str(scripts / "set_python_version.py"), str(repo),
+                 "--python-version", "3.12"], repo),
+        "set_python_version",
+    )  # fmt: skip
+    assert_ok(
+        run_cmd([*PY, str(scripts / "set_license.py"), str(repo), "--license", "MIT",
+                 "--owner", "jebel-quant"], repo),
+        "set_license",
+    )  # fmt: skip
+
+    assert_ok(run_cmd(["git", "add", "-A"], repo), "git add")
+    assert_ok(run_cmd(["git", "commit", "-qm", "feat: initial"], repo), "git commit")
+
+    # The first sync: what /update runs, and what delivers the Makefile and rhiza.mk.
+    sync = run_cmd([*PY, str(scripts / "sync.py"), "."], repo)
+    assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
+    assert (repo / ".rhiza" / "template.lock").is_file(), "sync wrote no lock"
+    return repo
+
+
+@pytest.fixture
+def synced_repo_copy(synced_repo: Path, tmp_path: Path) -> Path:
+    """A throwaway copy of the synced repo, for tests that mutate it."""
+    target = tmp_path / "widget"
+    shutil.copytree(synced_repo, target)
+    return target
 
 
 @pytest.fixture
