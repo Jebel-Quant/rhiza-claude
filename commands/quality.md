@@ -1,5 +1,5 @@
 ---
-description: Run the Rhiza code-quality gate and score the current repo (lint, types, docs, deps, security, tests, test-layout, complexity, architecture), then optionally file findings as issues.
+description: Run the Rhiza code-quality gate and score the current repo (lint, types, docs, deps, security, tests, test-layout, complexity, architecture), then optionally file findings as issues. Requires a rhiza-managed AND synced repo — it checks for .rhiza/template.yml and .rhiza/rhiza.mk first and stops otherwise, since every gate is a make target the sync delivers and an unsynced repo would score as broken rather than unsynced. Assesses only; it proposes fixes but does not apply them.
 argument-hint: "[path or topic to scope the assessment to]  (optional; defaults to the whole repo)"
 allowed-tools: Bash(make*), Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(python3*), Bash(grep*), Bash(find*), Bash(wc*), Bash(sed*), Bash(sort*), Bash(uniq*), Grep, Glob, Read, Edit, Write, AskUserQuestion
 ---
@@ -8,9 +8,43 @@ Assess the quality of the **current working directory's repo** against Rhiza
 standards. This is the global variant of the per-repo `rhiza_quality` command
 synced from `jebel-quant/rhiza`; it adapts to whichever repo it runs in by
 reading that repo's `CLAUDE.md`, `.rhiza/template.lock`, and git remote at
-runtime. Follow the command-execution policy: always prefer `make <target>`;
-never invoke `.venv/bin/...` directly. Run the gates in order — cheapest checks
-first so fast failures surface before the slow test suite — and collect results:
+runtime.
+
+## 0. Preconditions — a synced, rhiza-managed repo
+
+**`/quality` only runs in a rhiza-managed repo that has been synced.** These two
+checks come **first — before any `make`, any tool, any analysis**:
+
+```bash
+test -f .rhiza/template.yml   # rhiza-managed at all?
+test -f .rhiza/rhiza.mk       # ...and actually synced?
+```
+
+- **No `.rhiza/template.yml` → stop immediately.** The repo isn't rhiza-managed.
+  Scoring a repo against Rhiza standards it never adopted is a category error, not a
+  low score. Say so plainly and point at `/rhiza:init`. Do not run a single gate, and
+  do not produce a partial scorecard.
+- **No `.rhiza/rhiza.mk` → stop.** Managed but never synced — the state `/init`
+  leaves behind, since it deliberately doesn't sync. Point at `/rhiza:update`, which
+  performs the first sync.
+
+Why this is a hard precondition rather than a graceful degradation: **every gate
+below is a `make` target that the sync delivers.** Without `.rhiza/rhiza.mk` all of
+them fail with "No rule to make target", and the scorecard would report a broken
+repo when the truth is an unsynced one. A misleading score is worse than no score.
+
+**Profiles vary, so probe before running.** `typecheck`, `security` and
+`docs-coverage` come from the *tests* bundle and `deptry`/`fmt` from *core*, so the
+available set depends on the profile in `template.yml`. Check each target cheaply
+with `make -n <target>` first. A target that isn't defined is **"unavailable
+(not in this profile)"** — score that subcategory **out-of-scope**, exactly like the
+Rhiza-owned rule below. Never score it FAIL.
+
+## 1. Run the gates
+
+Follow the command-execution policy: always prefer `make <target>`; never invoke
+`.venv/bin/...` directly. Run them in order — cheapest checks first so fast failures
+surface before the slow test suite — and collect results:
 
 1. `make fmt` — pre-commit hooks + linting (ruff format/check, markdownlint, bandit, actionlint, …)
 2. `make typecheck` — static type checking (`ty`, and `mypy --strict` if configured) over `src/`
@@ -30,20 +64,33 @@ first so fast failures surface before the slow test suite — and collect result
    (`enforce = false` + a required `reason`); score this subcategory 10 when the
    checker exits 0, whether by mirroring or a documented opt-out.
 
+**Why `make` and not the tools directly.** It's tempting to replace these with
+`uvx ruff check`, `uvx interrogate`, `uvx bandit` and so on, which would let
+`/quality` run anywhere. **Don't** — the two disagree, and measured against this very
+repo they disagree in the worst direction: `interrogate` run bare reports FAILED at
+99.5% where the configured hook passes, and `bandit` run bare reports a high-severity
+finding where the configured hook passes. The arguments, thresholds and exclusions
+live in the `make` target (and in `.pre-commit-config.yaml`), so a direct invocation
+measures something else. For a command whose entire output is a score and a findings
+list, that means inventing failures — and then filing issues for them. The `make`
+target is the same entry point CI uses, which is exactly why its verdict is the one
+worth scoring.
+
 Guidelines:
 
 - Run each gate as a single, bare `make <target>` command — one Bash call per
   gate. Do **not** pipe (`| tee`, `| tail`), redirect (`2>&1 >`), chain
-  (`make fmt && make typecheck`), or prefix with `cd`. Bare `make <target>`
-  invocations match the allow-listed `Bash(make *)` rule and run without a
-  permission prompt; compound or piped commands do not and will prompt on every
-  gate. Read the full output directly from each call rather than capturing it to
-  a file.
-- Run all gates even after an early failure, so the full picture is visible
-  rather than stopping at the first red.
-- If something fails, show the relevant output, diagnose the root cause, and
-  propose (or apply, if clearly correct, low-risk, **and** the fix is in a
-  locally-owned file per the scoping rule below) a fix.
+  (`make fmt && make typecheck`), or prefix with `cd`. This is a tooling
+  constraint, not methodology: bare invocations match the allow-listed
+  `Bash(make *)` rule and run without a permission prompt, while compound or piped
+  commands prompt on *every* gate. Read the output directly from each call rather
+  than capturing it to a file.
+- Run all available gates even after an early failure, so the full picture is
+  visible rather than stopping at the first red.
+- If something fails, show the relevant output and diagnose the root cause.
+  **Propose the fix; don't apply it** — this command assesses, and a scoring run
+  that quietly edits code makes its own score unreproducible. The exception is
+  whatever `make fmt` auto-formats as part of running, which is unavoidable.
 - If `$ARGUMENTS` is non-empty, scope the assessment to that path or topic
   instead of the whole repo.
 - End with a concise PASS/FAIL summary per gate.
@@ -59,6 +106,11 @@ the configured threshold is the bar for a 10; report uncovered lines
 template (a synced file edited locally, or a missing/extra file). That is
 in-scope: fix it by re-syncing from Rhiza or by adjusting `.rhiza/template.yml`,
 not by editing the synced artifact in place.
+
+> Not to be confused with `scripts/validate.py`, which `/rhiza:status` runs. Same
+> word, different checks: `make validate` compares the repo against the template
+> (drift); `scripts/validate.py` checks that `template.yml` itself is well-formed.
+> A repo can pass one and fail the other.
 
 **Design analysis (not a `make` gate — gather the evidence yourself, then score).**
 Complexity and architecture are not measured by any gate, so collect the evidence
@@ -149,11 +201,12 @@ self-contained: title from the finding, and a body carrying the subcategory, the
 current→target score, the specific file(s)/lines or config to change, and the
 "done when…" acceptance criterion. Report back the created issue URLs.
 
-> **Note — invoked from `update`:** when this command is run as the
-> step-8 assessment of `update`, it operates in assessment-only
-> mode — run all gates, produce the PASS/FAIL summary, the 1–10 scorecard, and
-> the actionable findings list, then **stop**. Skip the issue-filing menu;
-> `update` owns issue filing (with dedup) in its own step 11.
+> **`/quality` is the only command that scores.** `/update` used to invoke it and
+> carry a scorecard in its PR; it no longer does — it syncs the template and nothing
+> else, so that a template bump PR can't be polluted by `make fmt` rewriting the
+> repo's own files. Run `/quality` yourself, whenever you want a score. Nothing
+> invokes this command on your behalf, so there is no assessment-only mode to
+> switch into.
 
 If everything passes, say so plainly — but still produce the 1–10 subcategory
 marks. Do not fix anything unless I ask — this command only assesses.
