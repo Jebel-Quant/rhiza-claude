@@ -14,15 +14,20 @@ nav:
       - init: commands/init.md
       - update: commands/update.md
       - quality: commands/quality.md
-      - revisit: commands/revisit.md
-      - stats: commands/stats.md
-      - repos: commands/repos.md
+      - docs: commands/docs.md
       - release: commands/release.md
-      - new: commands/new.md
   - Repo utilities:
       - status: commands/status.md
-      - validate: commands/validate.md
+  - Destructive:
       - uninstall: commands/uninstall.md
+  - Internals:
+      - install-uv: internals/install-uv.md
+      - pr-base: internals/pr-base.md
+      - skeleton: internals/skeleton.md
+      - design-analysis: internals/design-analysis.md
+      - scorecard: internals/scorecard.md
+      - license: internals/license.md
+      - python-version: internals/python-version.md
   - Development: development.md
 
 extra:

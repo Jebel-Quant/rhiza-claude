@@ -17,4 +17,3 @@ htmlcov/
 # MkDocs book build + generated dashboard
 _book/
 .cache/
-docs/stats.html

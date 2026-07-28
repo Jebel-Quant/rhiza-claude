@@ -2,7 +2,9 @@
 """Validate `.rhiza/template.yml` configuration.
 
 A stdlib-only port of the `rhiza validate` command, bundled with this plugin so
-`/rhiza:validate` works without the `rhiza` CLI (or PyYAML) installed. It checks
+`/rhiza:status` can report config validity without the `rhiza` CLI (or PyYAML)
+installed. It is also a **gate**: it exits non-zero on an invalid configuration, so
+it works in CI independently of the command. It checks
 that the target is a git repo, that the template file exists and parses, that
 the project has the expected language-specific structure, and that the
 configuration's required/optional fields are present and well-typed.
@@ -92,7 +94,7 @@ def _validate_python_structure(log: Log, target: Path) -> bool:
     if not (target / "pyproject.toml").exists():
         log.error(f"pyproject.toml not found: {target / 'pyproject.toml'}")
         log.error("pyproject.toml is required for Python projects")
-        log.info("Run 'rhiza init' to create a default pyproject.toml")
+        log.info("Run /rhiza:init to set the repo up, which creates a pyproject.toml")
         passed = False
     else:
         log.success(f"pyproject.toml exists: {target / 'pyproject.toml'}")
@@ -180,8 +182,8 @@ def _check_template_file_exists(
         log.error(f"No template file found at: {display}")
         log.error("The template configuration must be in the .rhiza folder.")
         log.info("To fix this:")
-        log.info("  • If you're starting fresh, run: rhiza init")
-        log.info("  • If you have an existing configuration, run: rhiza migrate")
+        log.info("  • If you're starting fresh, run: /rhiza:init")
+        log.info("  • It writes .rhiza/template.yml, the only file the sync needs")
         return False, template_file
     log.success(f"Template file exists: {display}")
     return True, template_file
@@ -202,7 +204,7 @@ def _parse_template_file(log: Log, template_file: Path) -> tuple[bool, dict[str,
 
     if not config:
         log.error("template.yml is empty")
-        log.error("Add configuration to template.yml or run 'rhiza init' to generate defaults")
+        log.error("Add configuration to template.yml, or run /rhiza:init to generate it")
         return False, None
 
     log.success("YAML syntax is valid")
