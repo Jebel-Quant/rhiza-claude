@@ -179,7 +179,9 @@ def status(
     """Print the sync status; return a process exit code."""
     lock_path = (target / LOCK_REL).resolve()
     if not lock_path.exists():
-        print("No template.lock found — run `rhiza sync` first", file=sys.stderr)
+        print(
+            "No template.lock found — run /rhiza:update to perform the first sync", file=sys.stderr
+        )
         return 0
 
     try:

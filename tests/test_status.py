@@ -49,9 +49,17 @@ def test_status_dict_defaults_when_lock_sparse():
 
 
 def test_status_missing_lock_is_not_an_error(tmp_path, capsys):
+    """An unsynced repo is a state to report, and the hint points at the plugin.
+
+    Not at the retired `rhiza` CLI: the whole point of the bundled scripts is that
+    they work without it, so telling the user to run it would be a dead end.
+    """
     rc = status.status(tmp_path)
     assert rc == 0
-    assert "run `rhiza sync`" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "No template.lock found" in err
+    assert "/rhiza:update" in err
+    assert "rhiza sync" not in err
 
 
 def test_status_human_output(tmp_path, capsys):

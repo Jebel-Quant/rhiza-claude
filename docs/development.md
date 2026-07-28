@@ -20,7 +20,6 @@ stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 make help        # list targets
 make lint        # run pre-commit against every file
 make test        # run the script test suite (100% coverage gate)
-make stats       # print the stats dashboard + write docs/stats.html
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts
