@@ -25,9 +25,11 @@ An argument that isn't semver-shaped is treated as a comment, not a target.
 
 ## What it does
 
-1. **Preconditions** — rhiza-managed, clean tree, `[tool.bumpversion]` present (via
+1. **Preconditions** — clean tree, `[tool.bumpversion]` present (via
    `bump-my-version show current_version`), on the default branch (asks if not), tags
-   fetched.
+   fetched, and the commits being released actually on that branch. It does **not**
+   require `.rhiza/`: nothing in the release flow comes from the template, which is why
+   this works on the plugin repo too.
 2. **Gathers candidates** — `git-cliff --bumped-version` for what the commits imply,
    plus the `patch`/`minor`/`major` versions computed from the floor by
    `scripts/check_version_bump.py`, so every option offered is guaranteed legal.

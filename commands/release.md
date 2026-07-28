@@ -1,5 +1,5 @@
 ---
-description: Prepare a release locally — derive the next semantic version from the conventional commits via git-cliff, guard that it strictly increases past every previous release, then let bump-my-version write it into every location the repo declares (pyproject.toml, plugin manifests, self-referencing CI stub pins), regenerate CHANGELOG.md, and commit + tag. The version locations live in the repo's own [tool.bumpversion] config, so nothing is inferred and a dependency that happens to share the version number is never rewritten. Stops before pushing: it prints the push commands, and pushing the tag is what triggers the release CI. Never pushes or force-tags.
+description: Prepare a release locally for any git repo that declares its version locations (no .rhiza/ required, unlike /quality) — derive the next semantic version from the conventional commits via git-cliff, guard that it strictly increases past every previous release, then let bump-my-version write it into every location the repo declares (pyproject.toml, plugin manifests, self-referencing CI stub pins), regenerate CHANGELOG.md, and commit + tag. The version locations live in the repo's own [tool.bumpversion] config, so nothing is inferred and a dependency that happens to share the version number is never rewritten. Stops before pushing: it prints the push commands, and pushing the tag is what triggers the release CI. Never pushes or force-tags.
 argument-hint: "[version e.g. v1.4.0]  (optional; defaults to the git-cliff-derived bump)"
 allowed-tools: Bash(git*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 ---
@@ -26,10 +26,19 @@ anyway (step 3).
 
 ## 1. Preconditions
 
-- **Rhiza-managed.** `.rhiza/template.yml` or `.rhiza/template.lock` exists. If not,
-  stop — this isn't a rhiza repo.
+- **A git repo with tags reachable.** That's the only structural requirement. `/release`
+  deliberately does **not** check for `.rhiza/` — nothing in this flow comes from the
+  template: the version locations are repo-owned config, `git-cliff` reads conventional
+  commits, and tags are tags. (Contrast `/quality`, where every gate *is* a synced `make`
+  target, so its rhiza-managed check is load-bearing.) This is what lets `/release`
+  release the plugin repo itself as well as a managed application.
 - **Clean tree.** `git status --porcelain`; if dirty, stop and show the files. A release
   is cut from committed work.
+- **Releasing what will actually ship.** The tag must point at a commit that exists on
+  the branch you publish from. If `HEAD` is a feature branch whose commits aren't on the
+  default branch yet, **stop and say so**: a squash-merge rewrites those SHAs, so the tag
+  would end up on a commit that never lands. Merge first, then release from the default
+  branch.
 - **Version config.** `[tool.bumpversion]` must exist, in `.bumpversion.toml` or
   `pyproject.toml`:
   ```bash
