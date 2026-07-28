@@ -5,7 +5,7 @@
 
 A [Claude Code](https://claude.com/claude-code) plugin marketplace providing the
 **`rhiza`** plugin — slash commands for working in rhiza-managed repos (template
-sync, code-quality scoring, README/doc upkeep, and repo stats).
+sync, code-quality scoring, and README/doc upkeep).
 
 📖 **Documentation:** <https://jebel-quant.github.io/rhiza-claude/> — a dedicated
 page for every command. Build it locally with `make book`.
@@ -24,7 +24,7 @@ make install
 ```
 
 The commands then appear namespaced under the plugin: `/rhiza:init`,
-`/rhiza:update`, `/rhiza:quality`, `/rhiza:docs`, `/rhiza:stats`. Type `/rhiza`
+`/rhiza:update`, `/rhiza:quality`, `/rhiza:docs`. Type `/rhiza`
 to have Claude Code autocomplete them.
 
 ### Install a specific version
@@ -97,10 +97,6 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   prose, and keeps the README's `make help` target list in lockstep with the real
   `Makefile`. Badges are generated with **omit, don't fake** — a badge whose backing
   fact isn't detected is never emitted. Writes files only; no commit, no PR.
-- **`/rhiza:stats`** — read-only statistics dashboard for the current repo:
-  lines of code/tests and their ratio, stars, open issues, PRs, branches,
-  commits, releases, coverage, complexity, dependencies, and rhiza template
-  status.
 - **`/rhiza:release`** — prepare a release for the current rhiza-managed repo:
   derive the next semantic version from the conventional commits since the last
   tag (via git-cliff, overridable), bump `pyproject.toml`, regenerate

@@ -15,7 +15,6 @@ nav:
       - update: commands/update.md
       - quality: commands/quality.md
       - docs: commands/docs.md
-      - stats: commands/stats.md
       - release: commands/release.md
   - Repo utilities:
       - status: commands/status.md

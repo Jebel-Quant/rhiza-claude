@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test stats book book-serve clean changelog release
+.PHONY: help install lint test book book-serve clean changelog release
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
 PLUGIN := rhiza@rhiza-claude
@@ -23,19 +23,15 @@ test:  ## Run the script test suite with a 100% coverage gate
 # all run via `make lint` (pre-commit). For a single one, use e.g.
 # `uvx pre-commit run mypy --all-files`.
 
-stats:  ## Print the repo statistics dashboard + write docs/stats.html
-	uv run --python 3.12 --no-project python scripts/stats.py $(ARGS)
-
 book:  ## Build the documentation site into _book/
 	uvx --with mkdocs-material mkdocs build --strict
 
 book-serve:  ## Serve the docs locally with live reload
 	uvx --with mkdocs-material mkdocs serve
 
-clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, docs/stats.html, _book)
+clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, _book)
 	rm -rf .ruff_cache _book
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
-	rm -f docs/stats.html
 
 changelog:  ## Regenerate CHANGELOG.md from conventional commits
 	uvx git-cliff --output CHANGELOG.md

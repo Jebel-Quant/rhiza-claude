@@ -11,7 +11,7 @@ the CLI (or PyYAML) installed. They read `.rhiza/template.yml`,
 and inline (`[a, b]`) sequences, inline (`{source: x, dest: y}`) mappings, block
 scalars (`key: |`), quoted/bare scalars, and `#` comments. When PyYAML *is*
 importable we defer to it (same "stdlib works, third-party enhances" posture as
-stats.py's tomllib/tomli fallback), so hand-authored configs using constructs
+the tomllib/tomli fallback), so hand-authored configs using constructs
 this parser doesn't cover still load correctly.
 
 `dump_yaml` emits the flat top-level scalar/sequence subset the lock file uses,

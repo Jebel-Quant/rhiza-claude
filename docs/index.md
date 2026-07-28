@@ -3,7 +3,7 @@
 A [Claude Code](https://claude.com/claude-code) plugin marketplace providing the
 **`rhiza`** plugin — slash commands for working in
 [rhiza](https://github.com/jebel-quant/rhiza)-managed repos: template sync,
-code-quality scoring, README/doc upkeep, and repo stats.
+code-quality scoring, and README/doc upkeep.
 
 ## Install
 
@@ -31,7 +31,6 @@ These are the AI-driven workflow commands. Each has its own page.
 | [`/rhiza:update`](commands/update.md) | Sync to the latest template release and open a PR with **only** template-owned files. |
 | [`/rhiza:quality`](commands/quality.md) | Run the code-quality gate and score the repo 1–10 across eight categories. |
 | [`/rhiza:docs`](commands/docs.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
-| [`/rhiza:stats`](commands/stats.md) | A read-only statistics dashboard for the repo. |
 | [`/rhiza:release`](commands/release.md) | Prepare a release: derive the next version, bump, changelog, commit, tag (no push). |
 
 ## Repo utilities
