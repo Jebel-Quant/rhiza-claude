@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.5.0] - 2026-07-28
+
+### Bug Fixes
+- *(release)* [**breaking**] Bump every declared version location, and offer a version menu (#55)
+
+### Maintenance
+- [**breaking**] Split commands from internal procedures; 12 commands to 7; fix /update's template-only guarantee (#54)
+
 ## [0.4.2] - 2026-07-19
 
 ### New Features
