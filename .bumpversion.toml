@@ -1,0 +1,46 @@
+# Version locations for this repo, read by `bump-my-version` (see /rhiza:release).
+#
+# Every place the version is stated must be listed here, because a release is only
+# coherent if they all move together. Each entry is an explicit search/replace, so
+# nothing is inferred — a dependency that happens to share the current version number
+# is never rewritten.
+#
+# `bump-my-version` also maintains `current_version` below, so the version is tracked
+# here rather than discovered by scanning.
+
+[tool.bumpversion]
+current_version = "0.4.2"
+tag = false                # /rhiza:release tags explicitly, after the changelog lands
+commit = false             # ... and commits explicitly, so the diff is reviewable first
+allow_dirty = false        # a release is cut from a clean tree
+
+# This plugin's version lives in the two manifests, which must agree —
+# scripts/check_version_parity.py enforces that, and the release workflow re-checks it.
+#
+# `search`/`replace` apply to *every* occurrence in a file, so each pattern must be
+# unambiguous. Both manifests carry exactly one `"version"` key, so the plain form is
+# safe here; a file with a second one would need `regex = true` and an anchored
+# pattern (as a `pyproject.toml` does — see /rhiza:release step 6).
+[[tool.bumpversion.files]]
+filename = ".claude-plugin/plugin.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = ".claude-plugin/marketplace.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
+# The README documents pinning the marketplace to a released tag. Those are examples,
+# so they are deliberately NOT bumped here — rewriting them would churn the docs on
+# every release without making them more correct.
+
+# A repo whose CI stubs point at *itself* (the rhiza template does) must also bump
+# those pins, or the published tag ships workflows calling the previous version's
+# reusable workflows. This repo's `uses:` refs are all third-party, so there is
+# nothing to declare — a template repo would add one entry per stub:
+#
+# [[tool.bumpversion.files]]
+# filename = ".github/workflows/rhiza_ci.yml"
+# search = "OWNER/REPO/.github/workflows/reusable.yml@v{current_version}"
+# replace = "OWNER/REPO/.github/workflows/reusable.yml@v{new_version}"

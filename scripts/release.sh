@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Prepare a release: bump the manifest versions, regenerate CHANGELOG.md,
-# commit, and tag. Does NOT push — review, then push commit + tag yourself.
+# Prepare a release without an agent: bump every declared version location,
+# regenerate CHANGELOG.md, commit, and tag. Does NOT push — review, then push the
+# commit and tag yourself.
+#
+# This is the agent-free twin of `/rhiza:release`, and deliberately shares its two
+# sources of truth so the two paths cannot drift:
+#
+#   [tool.bumpversion]              which files state the version (declarative, so a
+#                                   dependency sharing the version is never rewritten)
+#   scripts/check_version_bump.py   the strictly-increasing guard
 #
 # Usage: scripts/release.sh vX.Y.Z
 set -euo pipefail
@@ -15,27 +23,35 @@ if [[ "$VERSION" != v* ]]; then
   exit 1
 fi
 BARE="${VERSION#v}"
+PY=(uv run --python 3.12 --no-project python)
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "error: working tree is not clean — commit or stash first" >&2
   exit 1
 fi
-if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
-  echo "error: tag $VERSION already exists" >&2
-  exit 1
-fi
 
-echo "==> Bumping manifests to $BARE"
-uv run --python 3.12 --no-project python scripts/bump_version.py "$BARE"
+echo "==> Reading the declared current version"
+CURRENT="$(uvx bump-my-version show current_version)"
+echo "    current: $CURRENT"
+
+# The guard bump-my-version does not provide: it accepts a backwards version and
+# knows nothing about tags. A pushed tag is effectively permanent, so this check is
+# what stops the one unrecoverable mistake in the flow.
+echo "==> Guarding that $VERSION strictly increases"
+"${PY[@]}" scripts/check_version_bump.py "$VERSION" --current "$CURRENT"
+
+echo "==> Bumping every declared version location to $BARE"
+uvx bump-my-version bump --new-version "$BARE" --no-commit --no-tag
 
 echo "==> Verifying manifest version parity"
-uv run --python 3.12 --no-project python scripts/check_version_parity.py
+"${PY[@]}" scripts/check_version_parity.py
 
 echo "==> Regenerating CHANGELOG.md (git-cliff, including $VERSION)"
 uvx git-cliff --tag "$VERSION" --output CHANGELOG.md
 
 echo "==> Committing and tagging"
-git add .claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md
+# Safe because the tree was verified clean above: the only changes are ours.
+git add --all
 git commit -m "chore: release $VERSION"
 git tag "$VERSION"
 
