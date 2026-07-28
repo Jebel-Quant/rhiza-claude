@@ -7,8 +7,9 @@ regenerate the changelog, commit, and tag — then stop so you review before pus
 /rhiza:release [version e.g. v1.4.0]
 ```
 
-With no argument the next version is **derived from the conventional commits** since
-the last tag; pass an explicit `vX.Y.Z` to override.
+With no argument you get a **menu of candidate versions** — what the conventional commits
+imply, plus the patch/minor/major alternatives. Pass an explicit `vX.Y.Z` to skip the menu.
+An argument that isn't semver-shaped is treated as a comment, not a target.
 
 !!! important "The repo declares where its version lives"
     `/release` does not scan for version-shaped strings. It runs
@@ -27,14 +28,17 @@ the last tag; pass an explicit `vX.Y.Z` to override.
 1. **Preconditions** — rhiza-managed, clean tree, `[tool.bumpversion]` present (via
    `bump-my-version show current_version`), on the default branch (asks if not), tags
    fetched.
-2. **Next version** — `git-cliff --bumped-version` computes the bump: `feat` → minor,
-   `fix` → patch, `!`/`BREAKING CHANGE` → major. Note git-cliff applies no pre-1.0
-   special case, so a breaking change at `0.x` derives `v1.0.0`.
-3. **Guards that it strictly increases** — via `scripts/check_version_bump.py`. The
-   floor is the greater of the declared current version *and* the highest existing tag,
-   compared **as semver** (so `v1.10.0` beats `v1.9.0`), and an existing tag is refused
-   outright.
-4. **Confirms with you**, then re-runs the guard on any override.
+2. **Gathers candidates** — `git-cliff --bumped-version` for what the commits imply,
+   plus the `patch`/`minor`/`major` versions computed from the floor by
+   `scripts/check_version_bump.py`, so every option offered is guaranteed legal.
+3. **Offers them as a menu** — a list, not one value with an invitation to override,
+   because the right bump is a judgement the deriver can't make. The derived option is
+   marked recommended and each is labelled with its consequence. See below for why this
+   matters most before 1.0.
+4. **Guards the choice** — via `scripts/check_version_bump.py`. The floor is the greater
+   of the declared current version *and* the highest existing tag, compared **as semver**
+   (so `v1.10.0` beats `v1.9.0`), and an existing tag is refused outright. A hand-typed
+   value is guarded too.
 5. **Previews the release notes** and stops if nothing is unreleased.
 6. **Bumps every declared location** — `bump-my-version bump --new-version`, then shows
    `git diff --stat`.
@@ -42,6 +46,15 @@ the last tag; pass an explicit `vX.Y.Z` to override.
 8. **Commits and tags** locally — `chore: release vX.Y.Z`.
 9. **Stops before pushing** — prints the `git push` commands. Pushing the **tag** is
    what triggers the repo's `Release` workflow.
+
+## The pre-1.0 trap
+
+`git-cliff` applies **no pre-1.0 special case**: a single `feat!:` or `BREAKING CHANGE`
+footer at `0.x` derives `v1.0.0`. But at `0.x`, semver does not *require* that — going to
+1.0 is a deliberate statement of API stability, and spending it by accident is the whole
+reason `/release` presents a menu rather than a single derived value. When the repo is
+pre-1.0 and the derivation says `v1.0.0`, the minor candidate (e.g. `v0.5.0`) is always
+offered alongside, with the trade-off spelled out.
 
 ## Why the guard is a separate script
 

@@ -20,8 +20,9 @@ explicit search/replace patterns listed there. That is what makes it safe to bum
 touching a dependency that happens to share the current version number. Never
 hand-edit a version to "help" — if a location is missing, the fix is a config entry.
 
-Argument (optional): `$ARGUMENTS` — an explicit version like `v1.4.0`. If empty, derive
-it from the conventional commits (step 3).
+Argument (optional): `$ARGUMENTS` — an explicit version like `v1.4.0`, which skips the
+menu. Anything that isn't semver-shaped is **not** a target: note it and offer the menu
+anyway (step 3).
 
 ## 1. Preconditions
 
@@ -44,19 +45,52 @@ it from the conventional commits (step 3).
   forbidden.
 - **Up to date.** `git fetch --tags origin`, so the tag guard sees real history.
 
-## 2. Decide the target version
+## 2. Gather the candidate versions
 
-- **`$ARGUMENTS` given** → use it as `TARGET` (must start with `v` and be
-  semver-shaped).
-- **Otherwise derive it** from the conventional commits since the last tag:
-  ```bash
-  uvx git-cliff --bumped-version
-  ```
-  `feat` → minor, `fix` → patch, a `!` or `BREAKING CHANGE` footer → major. Note that
-  git-cliff applies no pre-1.0 special case: a breaking change at `0.x` derives
-  `v1.0.0`, which may be more than you intend. Say so when you present it.
+Two independent inputs, both needed for the menu in step 3.
 
-## 3. Guard that it strictly increases
+**What the commits imply** — `uvx git-cliff --bumped-version` (`feat` → minor, `fix` →
+patch, a `!` or `BREAKING CHANGE` footer → major). Hold as `DERIVED`. Note git-cliff
+applies **no pre-1.0 special case**: a breaking change at `0.x` derives `v1.0.0`, which
+spends the 1.0 signal whether or not the project is ready for it.
+
+**What each bump kind would be** — computed from the floor, so every option is
+guaranteed to be legal:
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
+  --current "$CURRENT"
+```
+With no target it prints the floor and the `patch`/`minor`/`major` candidates and exits 0.
+
+If `$ARGUMENTS` is a `vX.Y.Z` version, that's an explicit choice — skip the menu, set
+`TARGET`, and go straight to the guard in step 4. **`$ARGUMENTS` that isn't a version**
+(a note, a phrase like "for client repos") is not a target — say you're treating it as a
+comment and continue to the menu.
+
+## 3. Choose the target from a menu
+
+**Never tag without this.** Present the candidates with `AskUserQuestion` — a list, not
+a single value with an invitation to override, because the right bump is a judgement the
+deriver cannot make. Put the **git-cliff-derived one first, marked "(Recommended)"**,
+and label each with what it means:
+
+- `$DERIVED` — *what the commits imply*: name the types that drove it (e.g. "2 breaking
+  changes, 5 feat").
+- the `major` / `minor` / `patch` candidates from step 2 that differ from `$DERIVED`,
+  each with its consequence — a major "signals a breaking API"; a minor "adds features,
+  compatible"; a patch "fixes only".
+- **When the repo is pre-1.0 and `$DERIVED` is `v1.0.0`**, say so explicitly in that
+  option's description and make sure the `minor` candidate is also offered: at `0.x` a
+  breaking change does not *require* 1.0, and going there is a deliberate statement of
+  API stability.
+
+Show `CURRENT` and the floor alongside, so the user can see what each option is
+relative to. The user may also supply their own value.
+
+**Step 4 then guards whatever comes back**, including a hand-typed value — the menu
+offers only legal candidates, but a custom answer hasn't been checked.
+
+## 4. Guard that it strictly increases
 
 **This is the step that prevents the only unrecoverable mistake here** — a pushed tag is
 effectively permanent. `bump-my-version` will happily accept a backwards version and
@@ -73,12 +107,6 @@ the greater of `CURRENT` and the highest existing tag — a repo can carry a ver
 *below* its newest tag after a reverted bump — and refuses a tag that already exists.
 Exit **1** means stop; exit **2** means the version is malformed. Do not proceed past a
 non-zero exit, and never pass `--force` to anything to get around it.
-
-## 4. Confirm with the user
-
-Present `CURRENT`, the floor, `TARGET`, and the one-line rationale (which commit types
-drove the bump). Offer the derived value first, marked recommended, and let them
-override — then **re-run step 3 on the override**. Never tag without this confirmation.
 
 ## 5. Preview the release notes
 

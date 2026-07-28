@@ -111,6 +111,23 @@ def compute_floor(current: str, tags: list[str]) -> str:
     return floor
 
 
+def suggest(floor: str) -> dict[str, str]:
+    """Return the candidate next versions above *floor*, keyed by bump kind.
+
+    Offered as a menu rather than a single derived value, because the right bump is a
+    judgement the deriver can't make. In particular `git-cliff` applies no pre-1.0
+    special case: a breaking change at ``0.x`` derives ``v1.0.0``, which spends the
+    1.0 signal on a project that may not be ready for it. Showing ``v0.5.0`` beside it
+    makes that choice explicit instead of implicit.
+    """
+    major, minor, patch, *_ = parse_semver(floor)
+    return {
+        "patch": f"v{major}.{minor}.{patch + 1}",
+        "minor": f"v{major}.{minor + 1}.0",
+        "major": f"v{major + 1}.0.0",
+    }
+
+
 def check(target_dir: Path, target: str, current: str) -> dict[str, Any]:
     """Evaluate whether *target* is a legal next release; return a summary dict."""
     normalized = f"v{target.lstrip('v')}"
@@ -125,6 +142,7 @@ def check(target_dir: Path, target: str, current: str) -> dict[str, Any]:
         "highest_tag": tags[0] if tags else None,
         "tag_count": len(tags),
         "floor": floor,
+        "suggestions": suggest(floor),
         "ok": True,
         "reason": f"{normalized} > {floor}",
         "exit_code": EXIT_OK,
@@ -153,7 +171,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Guard that a release version strictly increases past every prior release.",
     )
-    parser.add_argument("target", help="Proposed release version (e.g. v1.2.0).")
+    parser.add_argument(
+        "target",
+        nargs="?",
+        help="Proposed release version (e.g. v1.2.0). Omit to only list suggestions.",
+    )
     parser.add_argument(
         "--current",
         required=True,
@@ -165,8 +187,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    target_dir = Path(args.target_dir).resolve()
     try:
-        summary = check(Path(args.target_dir).resolve(), args.target, args.current)
+        if args.target is None:
+            floor = compute_floor(args.current, existing_tags(target_dir))
+            summary = {
+                "target": None,
+                "current": args.current,
+                "floor": floor,
+                "suggestions": suggest(floor),
+                "ok": True,
+                "reason": "no target given — listing suggestions only",
+                "exit_code": EXIT_OK,
+            }
+        else:
+            summary = check(target_dir, args.target, args.current)
     except VersionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_USAGE
@@ -175,9 +210,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary, indent=2))
     else:
         print(f"current  {summary['current']}")
-        print(f"highest  {summary['highest_tag'] or '(no tags)'}")
+        if summary["target"] is not None:
+            print(f"highest  {summary['highest_tag'] or '(no tags)'}")
         print(f"floor    {summary['floor']}")
-        print(f"target   {summary['target']}")
+        for kind, candidate in summary["suggestions"].items():
+            print(f"{kind:<8} {candidate}")
+        if summary["target"] is not None:
+            print(f"target   {summary['target']}")
         sys.stdout.flush()
         label, stream = ("ok", sys.stdout) if summary["ok"] else ("error", sys.stderr)
         print(f"{label}       {summary['reason']}", file=stream)

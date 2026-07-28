@@ -55,7 +55,9 @@ class TestVersionError:
 # --- semver parsing and ordering ---------------------------------------------
 
 
-@pytest.mark.parametrize("raw", ["1.2.3", "v1.2.3", "v0.0.1", "v10.20.30", "v1.0.0-rc1", "1.0.0+b1"])
+@pytest.mark.parametrize(
+    "raw", ["1.2.3", "v1.2.3", "v0.0.1", "v10.20.30", "v1.0.0-rc1", "1.0.0+b1"]
+)
 def test_parse_accepts_semver(raw):
     assert cvb.parse_semver(raw)
 
@@ -120,6 +122,51 @@ def test_floor_prefers_current_when_it_leads_the_tags():
 
 def test_floor_uses_semver_not_string_order():
     assert cvb.compute_floor("0.1.0", ["v0.9.0", "v0.10.0"]) == "v0.10.0"
+
+
+# --- suggestions -------------------------------------------------------------
+
+
+def test_suggestions_are_the_three_bump_kinds():
+    assert cvb.suggest("v1.2.3") == {
+        "patch": "v1.2.4",
+        "minor": "v1.3.0",
+        "major": "v2.0.0",
+    }
+
+
+def test_suggestions_reset_lower_components():
+    """A minor bump zeroes the patch; a major zeroes both."""
+    assert cvb.suggest("v1.9.7")["minor"] == "v1.10.0"
+    assert cvb.suggest("v1.9.7")["major"] == "v2.0.0"
+
+
+def test_suggestions_for_a_pre_1_0_project():
+    """The case that motivated the menu: v0.5.0 must be offered beside v1.0.0."""
+    suggestions = cvb.suggest("v0.4.2")
+    assert suggestions["minor"] == "v0.5.0"
+    assert suggestions["major"] == "v1.0.0"
+
+
+def test_every_suggestion_strictly_increases_past_the_floor(repo):
+    """The menu must never offer an illegal option."""
+    _tag(repo, "v0.4.2")
+    for candidate in cvb.suggest("v0.4.2").values():
+        assert cvb.check(repo, candidate, "0.4.2")["ok"], candidate
+
+
+def test_suggestions_ignore_a_prerelease_on_the_floor():
+    """Bumping from a prerelease offers releases, not more prereleases."""
+    assert cvb.suggest("v1.0.0-rc1") == {
+        "patch": "v1.0.1",
+        "minor": "v1.1.0",
+        "major": "v2.0.0",
+    }
+
+
+def test_check_includes_the_suggestions(repo):
+    _tag(repo, "v0.4.2")
+    assert cvb.check(repo, "v1.0.0", "0.4.2")["suggestions"]["minor"] == "v0.5.0"
 
 
 # --- tag discovery ----------------------------------------------------------
@@ -227,10 +274,40 @@ def test_main_json_output(repo, capsys):
         "highest_tag": "v0.4.2",
         "tag_count": 1,
         "floor": "v0.4.2",
+        "suggestions": {"patch": "v0.4.3", "minor": "v0.5.0", "major": "v1.0.0"},
         "ok": True,
         "reason": "v1.0.0 > v0.4.2",
         "exit_code": 0,
     }
+
+
+def test_main_without_a_target_lists_suggestions(repo, capsys):
+    """/release calls it this way to build its menu."""
+    _tag(repo, "v0.4.2")
+    rc = cvb.main(["--current", "0.4.2", "--target-dir", str(repo)])
+    assert rc == cvb.EXIT_OK
+    out = capsys.readouterr().out
+    assert "floor    v0.4.2" in out
+    assert "patch    v0.4.3" in out
+    assert "minor    v0.5.0" in out
+    assert "major    v1.0.0" in out
+    # Nothing was proposed, so no target line and nothing guarded.
+    assert not any(line.startswith("target ") for line in out.splitlines())
+    assert "listing suggestions only" in out
+
+
+def test_main_without_a_target_json(repo, capsys):
+    rc = cvb.main(["--current", "0.4.2", "--target-dir", str(repo), "--json"])
+    assert rc == cvb.EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["target"] is None
+    assert payload["suggestions"]["major"] == "v1.0.0"
+
+
+def test_main_without_a_target_still_validates_current(repo, capsys):
+    rc = cvb.main(["--current", "not-a-version", "--target-dir", str(repo)])
+    assert rc == cvb.EXIT_USAGE
+    assert "is not a semver version" in capsys.readouterr().err
 
 
 def test_main_exit_2_on_a_malformed_version(repo, capsys):
