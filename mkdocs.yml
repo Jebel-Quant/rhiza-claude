@@ -24,6 +24,8 @@ nav:
       - install-uv: internals/install-uv.md
       - pr-base: internals/pr-base.md
       - skeleton: internals/skeleton.md
+      - design-analysis: internals/design-analysis.md
+      - scorecard: internals/scorecard.md
       - license: internals/license.md
       - python-version: internals/python-version.md
   - Development: development.md

@@ -64,3 +64,5 @@ behaviour is part of what those commands do to your repo.
 | [skeleton](internals/skeleton.md) | `uv init --lib`, then the `[project]` shape the template's gates require. | `init_skeleton.py` |
 | [license](internals/license.md) | SPDX `license`/`license-files` metadata + the `LICENSE` file. | `set_license.py` |
 | [python-version](internals/python-version.md) | Pin `requires-python`, rewrite the Python classifiers, sync `.python-version`. | `set_python_version.py` |
+| [design-analysis](internals/design-analysis.md) | Complexity and architecture evidence that no `make` gate measures. | — |
+| [scorecard](internals/scorecard.md) | The 1–10 rubric, the scoping rule, findings and the issue menu. | — |

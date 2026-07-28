@@ -158,7 +158,18 @@ def test_this_repo_is_wired_correctly():
     assert cw.check_wiring(_ROOT) == []
 
 
-@pytest.mark.parametrize("name", ["install-uv", "pr-base", "skeleton", "license", "python-version"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "install-uv",
+        "pr-base",
+        "skeleton",
+        "license",
+        "python-version",
+        "design-analysis",
+        "scorecard",
+    ],
+)
 def test_the_expected_procedures_exist(name):
     """Pins the current set, so adding or removing one is a deliberate edit here."""
     assert (_ROOT / "prompts" / f"{name}.md").is_file()
@@ -182,6 +193,30 @@ def test_skeleton_reaches_python_version():
 def test_both_entry_points_share_the_pr_base_procedure(command):
     """The 'never push to the default branch' rule lives in one place, not two."""
     assert "prompts/pr-base.md" in (_ROOT / "commands" / command).read_text()
+
+
+@pytest.mark.parametrize("name", ["design-analysis", "scorecard"])
+def test_quality_reads_its_two_procedures(name):
+    """The judgement-heavy halves of /quality live in prompts/, not inline."""
+    assert f"prompts/{name}.md" in (_ROOT / "commands" / "quality.md").read_text()
+
+
+def test_quality_gathers_evidence_before_scoring():
+    """Marks must follow the evidence, so design-analysis is read before scorecard."""
+    text = (_ROOT / "commands" / "quality.md").read_text()
+    assert text.index("prompts/design-analysis.md") < text.index("prompts/scorecard.md")
+
+
+def test_the_scoping_rule_lives_only_in_the_scorecard():
+    """One home for the rule that stops a managed repo being marked down for its template.
+
+    /quality restating it would let the two drift, and a drifted scoping rule silently
+    changes every score.
+    """
+    quality = (_ROOT / "commands" / "quality.md").read_text()
+    scorecard = (_ROOT / "prompts" / "scorecard.md").read_text()
+    assert "In scope:" in scorecard
+    assert "In scope:" not in quality
 
 
 def test_pr_base_is_reached_before_any_commit_is_pushed():

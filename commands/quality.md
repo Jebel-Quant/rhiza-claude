@@ -1,5 +1,5 @@
 ---
-description: Run the Rhiza code-quality gate and score the current repo (lint, types, docs, deps, security, tests, test-layout, complexity, architecture), then optionally file findings as issues. Requires a rhiza-managed AND synced repo — it checks for .rhiza/template.yml and .rhiza/rhiza.mk first and stops otherwise, since every gate is a make target the sync delivers and an unsynced repo would score as broken rather than unsynced. Assesses only; it proposes fixes but does not apply them.
+description: Run the Rhiza code-quality gate and score the current repo (lint, types, docs, deps, security, tests, test-layout, complexity, architecture), then optionally file findings as issues. Delegates the two judgement-heavy halves to internal procedures: prompts/design-analysis.md gathers the complexity and architecture evidence no make gate measures, and prompts/scorecard.md owns the scoping rule, subcategory list, findings format and issue menu. Requires a rhiza-managed AND synced repo — it checks for .rhiza/template.yml and .rhiza/rhiza.mk first and stops otherwise, since every gate is a make target the sync delivers and an unsynced repo would score as broken rather than unsynced. Assesses only; it proposes fixes but does not apply them.
 argument-hint: "[path or topic to scope the assessment to]  (optional; defaults to the whole repo)"
 allowed-tools: Bash(make*), Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(python3*), Bash(grep*), Bash(find*), Bash(wc*), Bash(sed*), Bash(sort*), Bash(uniq*), Grep, Glob, Read, Edit, Write, AskUserQuestion
 ---
@@ -95,13 +95,6 @@ Guidelines:
   instead of the whole repo.
 - End with a concise PASS/FAIL summary per gate.
 
-**Coverage expectation.** `make test` enforces a coverage gate
-(`COVERAGE_FAIL_UNDER`, default 90%; many projects raise it to 100%). Treat
-anything below the configured threshold on locally-owned `src/` as a gap to
-flag, not an acceptable baseline. When scoring the test-coverage subcategory,
-the configured threshold is the bar for a 10; report uncovered lines
-(`file:line`) and the test that would close each.
-
 **`make validate`.** A failure means this repo has drifted from the Rhiza
 template (a synced file edited locally, or a missing/extra file). That is
 in-scope: fix it by re-syncing from Rhiza or by adjusting `.rhiza/template.yml`,
@@ -112,94 +105,32 @@ not by editing the synced artifact in place.
 > (drift); `scripts/validate.py` checks that `template.yml` itself is well-formed.
 > A repo can pass one and fail the other.
 
-**Design analysis (not a `make` gate — gather the evidence yourself, then score).**
-Complexity and architecture are not measured by any gate, so collect the evidence
-directly, scoped to locally-owned `src/` (skip Rhiza-managed files per the scoping
-rule below):
+## 2. Report the gate results
 
-- **Complexity.** Run `uvx radon cc src -a -s` (per-block cyclomatic complexity +
-  average) and `uvx radon mi src -s` (maintainability index). Report every block
-  ranking **C or worse (CC ≥ 11)** as `file:line`, any module below **A** on the
-  maintainability index, and oversized modules
-  (`find src -name '*.py' | xargs wc -l | sort -rn`). If radon is unavailable, fall
-  back to reading the largest modules and estimating by inspection — and say so.
-- **Architecture.** Map the import graph and verify **layering direction**: a lower
-  layer (e.g. `models/`) must not import an upper layer (e.g. `commands/`, `cli`).
-  Hunt for **import cycles — including ones hidden behind deferred (function-local)
-  imports**; god-modules imported by many; misplaced responsibilities (application/
-  orchestration logic living in a model or utility layer); and the composition
-  pattern in use (mixins, Protocols, dependency injection). Note coupling hotspots
-  (a module imported by many, or one importing many).
-- **Other criteria (see the subcategory list below).** Sample the code for each and
-  score only those with enough signal to justify a mark; name the evidence you read.
+Before any scoring, report what the gates said:
 
-Then report:
+- a **PASS / FAIL / unavailable** line per gate;
+- failures grouped by file, with the specific rule or error and the line;
+- a prioritized list of what to fix first — blocking errors before style nits.
 
-- A pass/fail summary per step.
-- Failures grouped by file, with the specific rule/error and line.
-- A prioritized list of what to fix first (blocking errors before style nits).
+## 3. Gather the design evidence
 
-Then analyse the repo and give marks on a scale of 1 to 10 for all relevant
-subcategories. **Always include Code complexity and Overall architecture**, scored
-from the design-analysis evidence above. Then add the gate-derived and additional
-subcategories that fit what you actually observe:
+`Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/design-analysis.md`** and follow it (in a
+source checkout, `prompts/design-analysis.md`). Complexity and architecture are the two
+subcategories `/quality` must *always* score, and **no `make` gate measures either** —
+so that evidence is gathered by hand, or the marks are guesses.
 
-- **Gate-derived:** linting/style, type safety, docstring/API-doc coverage, test
-  pass rate, test coverage & depth, dependency & security hygiene, template
-  fidelity (`make validate` drift).
-- **Design (always score both):** *code complexity* — cyclomatic complexity
-  (average + the worst C-or-worse blocks), maintainability index, and the size of
-  the largest functions/modules; *overall architecture* — layering & dependency
-  direction, coupling/cohesion, module responsibility, composition pattern, and the
-  absence of import cycles.
-- **Additional (score those with signal):** *test design quality* — do tests assert
-  behaviour or mirror the implementation? mock depth/brittleness (a brittle suite
-  can hit 100% coverage yet pin internals); *error handling & CLI UX* — exit codes,
-  actionable messages, failure modes; *security posture & trust boundaries* — input
-  validation of `template.yml`/config, path-traversal in any path remapping,
-  `subprocess` usage; *public API / semver discipline* — stability of the CLI
-  surface and exported models; *cross-platform robustness* — Windows path/symlink
-  behaviour; *idempotency & failure recovery* — repeat-run safety, partial-failure
-  cleanup; *user-facing documentation* — README/usage, not just docstrings.
+## 4. Score, and offer to file findings
 
-For each subcategory: the score, a one-line justification grounded in the evidence
-above (gate output, radon metrics, the import graph, or a targeted code read), and
-what would raise it. Close with an overall score and the single highest-leverage
-improvement.
+`Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/scorecard.md`** and follow it. It owns the
+scoping rule, the subcategory list, the coverage bar, the findings format, and the
+issue-filing menu. Feed it the step-2 gate results and the step-3 evidence; it turns
+them into marks, then findings, then — only with an explicit selection — issues.
 
-**Scope the scorecard to locally-owned items — not what the mother repo (Rhiza)
-owns.** This project syncs its dev infrastructure from `jebel-quant/rhiza`; see
-`CLAUDE.md` for the authoritative split and the `files:` block of
-`.rhiza/template.lock` for the machine-generated list of synced files. Score
-only what this repo actually controls — `src/`, `tests/`, `pyproject.toml`,
-`README.md`, project-specific docs, `.rhiza/template.yml`, and any
-locally-hardened config. Do **not** let Rhiza-managed files (the
-`.github/workflows/*`, `Makefile`, `.pre-commit-config.yaml`, `pytest.ini`,
-`ruff.toml`, the typecheck/mutation/fuzzing targets, etc.) drive the marks — a
-gap there is fixed upstream in Rhiza, not here. If a relevant signal is
-Rhiza-owned, note it as "upstream/out-of-scope" rather than scoring it against
-this repo.
-
-Then, from the scorecard above, identify **actionable issues to improve the
-score** — one per subcategory scoring below 10 (skip any that are maxed). For
-each, give: a concrete title, the subcategory and current→target score it moves,
-the specific file(s)/lines or config to change, and a crisp acceptance criterion
-("done when…"). Keep them in-scope (locally-owned, per the scoping rule above) —
-flag anything Rhiza-owned as upstream rather than listing it as a local action.
-Order them by leverage (biggest score gain for least effort first). This is a
-list of recommendations only — do not change code unless I explicitly ask.
-
-Then offer to file the findings as issues — using a menu, not a free-text prompt.
-Present the actionable findings as a multi-select menu (the AskUserQuestion tool
-with `multiSelect: true`), one option per finding labelled by its title, so I can
-pick exactly which ones to file — including none. Create nothing without an
-explicit selection. For each finding I select, detect the hosting platform from
-the git remote (`git remote get-url origin`) and create one issue with the
-matching CLI — GitHub → `gh issue create`, GitLab → `glab issue create` (skip and
-say so if the relevant CLI is unavailable or unauthenticated). Make each issue
-self-contained: title from the finding, and a body carrying the subcategory, the
-current→target score, the specific file(s)/lines or config to change, and the
-"done when…" acceptance criterion. Report back the created issue URLs.
+Both files are **internal procedures, not slash commands** — deliberately outside
+`commands/` so the user can't invoke them, and `Read` is how you reach them. Don't
+restate their rules here or score from memory: the scoping rule in particular is what
+stops a managed repo being marked down for its own template.
 
 > **`/quality` is the only command that scores.** `/update` used to invoke it and
 > carry a scorecard in its PR; it no longer does — it syncs the template and nothing
@@ -207,6 +138,3 @@ current→target score, the specific file(s)/lines or config to change, and the
 > repo's own files. Run `/quality` yourself, whenever you want a score. Nothing
 > invokes this command on your behalf, so there is no assessment-only mode to
 > switch into.
-
-If everything passes, say so plainly — but still produce the 1–10 subcategory
-marks. Do not fix anything unless I ask — this command only assesses.

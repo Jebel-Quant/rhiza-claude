@@ -129,6 +129,13 @@ stdlib-only script.
   full text (MIT, Apache-2.0, BSD-3-Clause bundled). Overwriting an existing
   `LICENSE` needs `--force`; `none` clears the metadata. Never writes a deprecated
   `License ::` trove classifier.
+- **design-analysis** (`prompts/design-analysis.md`) — the complexity and architecture
+  evidence no `make` gate measures: radon CC/MI, module sizes, the import graph, layering
+  direction, and cycles including ones hidden behind function-local imports. Gathers
+  evidence; doesn't judge.
+- **scorecard** (`prompts/scorecard.md`) — the 1–10 rubric: the subcategory list, the
+  coverage bar, the findings format, the issue menu, and the **scoping rule** that stops
+  a managed repo being marked down for its own template.
 - **python-version** (`prompts/python-version.md` → `scripts/set_python_version.py`)
   — pin `requires-python` and rewrite the `Programming Language :: Python :: X.Y`
   classifiers to the supported range (3.11–3.14; never a bare `:: 3`), and sync
