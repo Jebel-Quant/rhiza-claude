@@ -33,12 +33,20 @@ below is a `make` target that the sync delivers.** Without `.rhiza/rhiza.mk` all
 them fail with "No rule to make target", and the scorecard would report a broken
 repo when the truth is an unsynced one. A misleading score is worse than no score.
 
-**Profiles vary, so probe before running.** `typecheck`, `security` and
-`docs-coverage` come from the *tests* bundle and `deptry`/`fmt` from *core*, so the
-available set depends on the profile in `template.yml`. Check each target cheaply
-with `make -n <target>` first. A target that isn't defined is **"unavailable
-(not in this profile)"** — score that subcategory **out-of-scope**, exactly like the
-Rhiza-owned rule below. Never score it FAIL.
+**Profiles vary, so probe before running** (**keep the quotes**; in a source checkout
+fall back to the repo-relative path):
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_make_targets.py"
+```
+It reads the gate list **out of this file's numbered list below** — so the probe can
+never drift from what you're about to run — and reports each target as `available` or
+`unavailable`, using `make -n` so no recipe executes.
+
+`typecheck`, `security` and `docs-coverage` come from the template's *tests* bundle and
+`deptry`/`fmt` from *core*, so a reduced profile legitimately lacks some. **Run only the
+available gates.** An unavailable one is scored **out-of-scope**, exactly like the
+Rhiza-owned rule below — never FAIL. Exit **1** means no makefile at all, which the
+preconditions above should already have caught.
 
 ## 1. Run the gates
 

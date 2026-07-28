@@ -97,6 +97,82 @@ class Repo:
         return self.git("rev-parse", "HEAD").stdout.strip()
 
 
+# ---------------------------------------------------------------------------
+# Fixture repos for the command-outcome tests (test_check_make_targets.py)
+#
+# The commands are prose a model executes, so their *outcomes* can only be tested
+# against a realistic tree. These build the three states a rhiza command actually
+# meets, which is what the contract tests can't reach: they verify a command refers
+# to things that exist, not that running it does the right thing.
+# ---------------------------------------------------------------------------
+
+# A stand-in for the make API the template sync delivers as .rhiza/rhiza.mk. Only the
+# target names matter for probing — the recipes are never run (`make -n`).
+SYNCED_MAKEFILE = """\
+.PHONY: fmt typecheck docs-coverage deptry security validate test help
+help: ; @echo help
+fmt: ; @echo fmt
+typecheck: ; @echo typecheck
+docs-coverage: ; @echo docs-coverage
+deptry: ; @echo deptry
+security: ; @echo security
+validate: ; @echo validate
+test: ; @echo test
+"""
+
+# A reduced profile: `core` only, so the tests-bundle gates are legitimately absent.
+PARTIAL_MAKEFILE = """\
+.PHONY: fmt deptry help
+help: ; @echo help
+fmt: ; @echo fmt
+deptry: ; @echo deptry
+"""
+
+
+@pytest.fixture
+def unmanaged_repo(tmp_path: Path) -> Path:
+    """A repo that was never rhiza-managed: no `.rhiza/` at all.
+
+    `/quality` and `/update` must refuse this rather than score or sync it.
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.1.0"\n')
+    return tmp_path
+
+
+@pytest.fixture
+def managed_unsynced_repo(unmanaged_repo: Path) -> Path:
+    """Rhiza-managed but never synced — the state `/init` deliberately leaves behind.
+
+    There is a `template.yml` but no `rhiza.mk` and no makefile, so every gate is
+    unavailable. Scoring this repo as broken was the bug the probe exists to prevent.
+    """
+    write_template(unmanaged_repo, 'repository: "jebel-quant/rhiza"\nref: "v1.1.3"\n')
+    return unmanaged_repo
+
+
+@pytest.fixture
+def managed_synced_repo(managed_unsynced_repo: Path) -> Path:
+    """Rhiza-managed *and* synced: the makefile and lock the sync delivers are present."""
+    rhiza = managed_unsynced_repo / ".rhiza"
+    (rhiza / "rhiza.mk").write_text(SYNCED_MAKEFILE)
+    (rhiza / "template.lock").write_text(
+        'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n  - Makefile\n'
+    )
+    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
+    (managed_unsynced_repo / "ruff.toml").write_text('target-version = "py311"\n')
+    return managed_unsynced_repo
+
+
+@pytest.fixture
+def partial_profile_repo(managed_unsynced_repo: Path) -> Path:
+    """A synced repo on a reduced profile, missing the tests-bundle gates."""
+    (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE)
+    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
+    return managed_unsynced_repo
+
+
 @pytest.fixture
 def make_repo(tmp_path: Path, hermetic_git: None) -> Iterator[Callable[[str], Repo]]:
     """Return a factory that creates initialised git repos under the temp dir."""

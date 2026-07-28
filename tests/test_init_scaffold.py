@@ -136,6 +136,7 @@ SKELETON = _SCRIPTS / "init_skeleton.py"
 SYNC = _SCRIPTS / "sync.py"
 SET_LICENSE = _SCRIPTS / "set_license.py"
 SET_PYVER = _SCRIPTS / "set_python_version.py"
+MAKE_TARGETS = _SCRIPTS / "check_make_targets.py"
 
 # Invoke the bundled scripts the way the commands do — under a pinned modern
 # interpreter via uv — so they never run under a stale system python3 (macOS
@@ -252,6 +253,15 @@ def test_pointer_survives_sync_and_gates(tmp_path: Path) -> None:
     assert (repo / ".rhiza" / "rhiza.mk").exists(), "sync did not deliver .rhiza/rhiza.mk"
     assert (repo / "Makefile").exists(), "sync did not deliver a Makefile"
 
-    # 7. The scaffolded project's own tests pass under the coverage gate.
+    # 7. Every gate /quality names must exist in the synced repo.
+    #
+    #    This is the assertion that would have caught /quality being unrunnable: it
+    #    named seven `make` targets and probed none of them. The target list is read
+    #    out of commands/quality.md, so adding a gate to the prose without the template
+    #    providing it fails here rather than in front of a user.
+    probe = _run_cmd([*PY, str(MAKE_TARGETS), "--target-dir", str(repo), "--require"], repo)
+    _assert_ok(probe, f"check_make_targets --require\n{probe.stdout}")
+
+    # 8. The scaffolded project's own tests pass under the coverage gate.
     project_test = _run_cmd(["make", "test"], repo)
     _assert_ok(project_test, "make test")
