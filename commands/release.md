@@ -193,8 +193,16 @@ git push origin HEAD      # the release commit
 git push origin <TARGET>  # the tag — triggers the release workflow
 ```
 Explain that pushing the **tag** is what triggers release CI. If the repo has no such
-workflow, `gh release create <TARGET> --generate-notes` (or `glab release create`) does
-it manually.
+workflow, publish it manually with the bundled mapper — which picks `gh` or `glab` from
+`origin`:
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+  release-create --tag <TARGET> --notes-file <NOTES>
+```
+On GitHub, omitting `--notes-file` falls back to `gh release create --generate-notes`.
+**On GitLab it is required** — `glab` has no `--generate-notes`, so the mapper refuses
+rather than publishing a release with empty notes. Step 4 already rendered the notes
+with `git-cliff`; write them to a file and pass that.
 
 ## 10. Report
 

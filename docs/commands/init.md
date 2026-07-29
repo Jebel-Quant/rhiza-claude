@@ -42,7 +42,10 @@ So a new repo is **two PRs**: **#1 (`/init`)** makes it rhiza-managed; **#2
    installed, and otherwise your prompt to install it.
 2. **Settles platform, owner, and name** — all three are derived from an existing
    `origin` remote when there is one (no questions asked); otherwise it asks GitHub
-   vs GitLab, the owner/namespace, the name, and the visibility.
+   vs GitLab, the owner/namespace, the name, and the visibility. It then checks the
+   platform CLI is logged in with `scripts/platform_cli.py auth-status`, which picks
+   `gh auth status` or `glab auth status` for you; not being logged in doesn't stop the
+   local work, it just defers the remote steps.
 3. **Picks the template repo and ref** — language (`python` or `go`) selects the
    default, `jebel-quant/rhiza` or `jebel-quant/rhiza-go`, overridable with any
    `owner/repo`; it checks the repo is reachable and pins the ref to its latest

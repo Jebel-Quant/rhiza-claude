@@ -90,10 +90,16 @@ Present the findings as an `AskUserQuestion` multi-select (`multiSelect: true`),
 option per finding labelled by its title, so the user picks exactly which to file —
 **including none**. Create nothing without an explicit selection.
 
-For each selected finding, detect the platform from `git remote get-url origin` and
-create one issue with the matching CLI — GitHub → `gh issue create`, GitLab →
-`glab issue create`. If that CLI is missing or unauthenticated, say so and skip; don't
-substitute another mechanism.
+For each selected finding, write its body to a file and create one issue with the
+bundled mapper, which detects the platform and picks the CLI:
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+  issue-create --title <TITLE> --body-file <BODY>
+```
+Don't hand-write `gh issue create` / `glab issue create`: they differ by more than the
+binary name, and `glab issue create` has **no** body-file flag at all — the mapper reads
+the file and passes the text inline. Exit **1** means the CLI is missing or
+unauthenticated; say so and skip, and don't substitute another mechanism.
 
 Each issue must be self-contained: the title from the finding, and a body carrying the
 subcategory, the current→target score, the file(s)/lines or config to change, and the

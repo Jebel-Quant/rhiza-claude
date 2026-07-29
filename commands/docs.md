@@ -29,8 +29,15 @@ reviewable; `Write` is for scaffolding a file that isn't there.
 - **Platform + `OWNER`/`REPO`** from `git remote get-url origin`: `github.com` →
   GitHub; a GitLab host → GitLab. No remote ⇒ ask, or scaffold with
   `OWNER`/`REPO` placeholders and flag them.
-- **Default branch** — `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
-  / `glab repo view`, else `main`.
+- **Default branch + visibility** — one call, both platforms:
+  ```bash
+  uv run --python 3.12 --no-project python \
+    "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" repo-view --json
+  ```
+  It returns `default_branch` and `visibility` **normalised**, which matters: `gh`
+  answers `PUBLIC` and `glab` answers `public`, so comparing the raw value gives a
+  platform-dependent answer. Exit 1 (no CLI, or logged out) ⇒ fall back to `main` and
+  treat visibility as unknown.
 - **Project metadata** — from `pyproject.toml` if present: `project.name`,
   `description`, `requires-python`/classifiers (→ Python versions), `license`. From
   `.rhiza/template.yml`: the template `ref`. Non-Python repo ⇒ skip the
@@ -41,8 +48,9 @@ reviewable; `Write` is for scaffolding a file that isn't there.
 - **License** — a `LICENSE`/`LICENSE.md` file and its SPDX id.
 - **Coverage service** — a `codecov.yml`/`.codecov.yml`, a Codecov step in CI, or an
   existing coverage badge.
-- **Visibility + ruff/uv usage** — `gh repo view --json visibility`; `ruff.toml` or a
-  `[tool.ruff]` table; a `uv.lock` or `uv_build` backend.
+- **ruff/uv usage** — `ruff.toml` or a `[tool.ruff]` table; a `uv.lock` or `uv_build`
+  backend. (Visibility comes from the `repo-view` call above, which — unlike the bare
+  `gh repo view --json visibility` this used to name — also answers on GitLab.)
 
 ## 2. README.md — the badge block
 
