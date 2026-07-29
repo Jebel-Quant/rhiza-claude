@@ -108,16 +108,12 @@ It takes the **upstream (theirs)** side of every `<<<<<<< … ======= … >>>>>>
 a rhiza-managed file is the template's to own, so local divergence in one is drift to
 undo, not work to preserve.
 
-It also deletes a `*.rej` that sits beside a file it just resolved. Those two artifacts
-are the *same* change — `sync.py` tries `git apply -3`, which writes the reject, then
-falls back to `git merge-file`, which writes markers holding that hunk's upstream side.
-Taking the upstream side applies it; applying the reject too would apply it **twice**.
-
 - **0** — every marker resolved, nothing outstanding. Continue.
-- **1** — a `*.rej` remains with no resolved counterpart: a hunk git could not place at
-  all. The script never applies one, because re-deriving where a hunk belongs is exactly
-  the guess that corrupts a file. Show the listed rejects and ask the user how to
-  proceed; do not stage a half-resolved tree.
+- **1** — a `*.rej` file is present. **The sync cannot create these** — `git apply
+  --reject` was the only thing that ever did, and the merge no longer runs `git apply` at
+  all — so one here came from an older sync or a hand-run `git apply`. The script never
+  applies a reject, because re-deriving where a hunk belongs is exactly the guess that
+  corrupts a file. Show it and ask the user; do not stage a half-resolved tree.
 - **2** — a malformed conflict block; **nothing was written**. Stop and report the file.
 
 Then `git add` the resolved files (step 7's script does this from the lock, so you only

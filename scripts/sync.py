@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Sync rhiza template files into this repo using a cruft-style 3-way merge.
+"""Sync rhiza template files into this repo using a 3-way merge.
 
 A stdlib-only port of the `rhiza sync` command, bundled with this plugin so
-`/rhiza:sync` (and `/rhiza:update`) work without the `rhiza` CLI installed. It
-reproduces the CLI's behaviour: clone the upstream template, diff the
-previously-synced snapshot against the new one, and apply that diff onto the
-working tree via `git apply -3` (falling back to `git merge-file`), preserving
-local edits and leaving conflict markers where both sides changed a region.
+`/rhiza:sync` (and `/rhiza:update`) work without the `rhiza` CLI installed:
+clone the upstream template, materialise the previously-synced snapshot beside
+it, and three-way merge the two into the working tree — preserving local edits
+and leaving conflict markers where both sides changed a region.
+
+The merge itself lives in `_rhiza_merge.py`, which compares the two snapshot
+directories directly. It used to render a `git diff --no-index` of one against
+the other, apply it with `git apply -3`, then parse that diff text back into a
+file list to merge each file with `git merge-file` anyway. Since nothing runs
+`git apply` now, **`.rej` files are no longer produced**.
 
 Usage:
   uv run --python 3.12 --no-project python scripts/sync.py [TARGET] [--branch BRANCH]
@@ -19,8 +24,10 @@ Requires `git` on PATH and Python >= 3.11 (uses ``datetime.UTC``); run it under
 ``uv run --python 3.12`` since the system ``python3`` may be older (macOS ships
 3.9). **Mutates the working tree.** Exit codes:
   0  synced cleanly (or already up to date)
-  1  synced with conflicts — resolve `<<<<<<<` markers and `*.rej` files, then
-     commit (this is the expected outcome when local edits collide with upstream)
+  1  synced with conflicts — resolve the `<<<<<<<` markers, then commit (this is
+     the expected outcome when local edits collide with upstream). Also returned
+     when a locally-modified binary file could not be merged, which is reported
+     by name since it leaves no marker behind.
   2  could not sync (dirty tree, invalid template.yml, or a git failure)
 """
 
@@ -39,6 +46,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _rhiza_git as git  # noqa: E402
+import _rhiza_merge as merge  # noqa: E402
 from _rhiza_yaml import dump_yaml, load_yaml  # noqa: E402
 
 _DEFAULT_BUNDLES_PATH = ".rhiza/template-bundles.yml"
@@ -491,7 +499,7 @@ def _merge_with_base(
     excludes: set[str],
     path_map: dict[str, str],
 ) -> bool:
-    """Clone the base snapshot, diff base->upstream, and apply it; return True if clean."""
+    """Materialise the base snapshot and three-way merge base->upstream into *target*."""
     base_clone = Path(tempfile.mkdtemp())
     try:
         git.clone(ctx, git_url, base_clone, include_paths, sha=base_sha)
@@ -501,11 +509,22 @@ def _merge_with_base(
     finally:
         shutil.rmtree(base_clone, ignore_errors=True)
 
-    diff = git.get_diff(ctx, base_snapshot, upstream_snapshot)
-    if not diff.strip():
+    outcome = merge.merge_trees(ctx, target, base_snapshot, upstream_snapshot)
+    if not (outcome.merged or outcome.conflicted or outcome.unmergeable or outcome.deleted):
         _log("Template unchanged since last sync — nothing to apply")
         return True
-    return git.apply_diff(ctx, diff, target, base_snapshot, upstream_snapshot)
+
+    _log(
+        f"Merged {len(outcome.merged)} file(s)"
+        + (f", deleted {len(outcome.deleted)}" if outcome.deleted else "")
+    )
+    for path in outcome.conflicted:
+        _log(f"  conflict: {path} — `<<<<<<<` markers written")
+    for path in outcome.unmergeable:
+        # Named individually because there is no marker to find these by: the file was
+        # left exactly as the user had it, which is the safe choice but an invisible one.
+        _log(f"  cannot merge: {path} — locally modified and not text; left untouched")
+    return outcome.clean
 
 
 def _run_merge(
@@ -598,7 +617,7 @@ def sync(target: Path, branch: str) -> int:
         shutil.rmtree(upstream_dir, ignore_errors=True)
 
     if not clean:
-        _log("Conflicts remain — resolve `<<<<<<<` markers and `.rej` files, then commit.")
+        _log("Conflicts remain — resolve `<<<<<<<` markers, then commit.")
         return EXIT_CONFLICTS
     _log(f"Sync complete — {len(template_files)} file(s) processed")
     return EXIT_OK

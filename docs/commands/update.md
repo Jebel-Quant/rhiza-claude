@@ -35,10 +35,9 @@ template's latest release.
    synced-with-conflicts (expected, not fatal), 2 a real failure that stops the run
    with nothing applied.
 5. **Resolves conflicts** with `scripts/resolve_conflicts.py`, which takes the upstream
-   (template) side of every marker block and deletes the redundant `*.rej` beside each
-   file it resolved — one collision leaves both artifacts describing the same change, so
-   applying the reject as well would apply it twice. A reject with *no* resolved
-   counterpart is reported, never applied, and stops the run for a human.
+   (template) side of every marker block. A `*.rej` file is reported, never applied, and
+   stops the run for a human — though the merge no longer produces one, since nothing
+   runs `git apply --reject` any more.
 6. **Stages only the lock's `files`**, commits, and **opens the PR/MR** through
    `scripts/platform_cli.py`, which maps the operation onto `gh pr create` or
    `glab mr create` — they differ in subcommand, flag names, and whether a body can
