@@ -11,19 +11,19 @@ tracked but the current file set no longer contains is one this sync must delete
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError, log  # noqa: E402
+from _rhiza_common import log  # noqa: E402
 from _rhiza_yaml import as_list  # noqa: E402
 
 # Never removed by orphan cleanup: without it the repo stops being rhiza-managed.
 _PROTECTED = frozenset({Path(".rhiza/template.yml")})
 from _rhiza_template import Template  # noqa: E402
 from _rhiza_yaml import dump_yaml, load_yaml  # noqa: E402
+
 
 def lock_path(target: Path, lock_file: Path | None) -> Path:
     """Return the lock-file path (explicit override or the default under .rhiza)."""

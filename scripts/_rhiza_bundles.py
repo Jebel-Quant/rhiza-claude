@@ -12,14 +12,15 @@ path, a drive letter or a `..` component would write outside the project.
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError, log  # noqa: E402
+from _rhiza_common import SyncError  # noqa: E402
 from _rhiza_template import Template  # noqa: E402
 from _rhiza_yaml import as_list  # noqa: E402
+
 
 def _ensure_safe_bundle_path(value: str) -> None:
     """Reject a bundle path that could escape the project directory.

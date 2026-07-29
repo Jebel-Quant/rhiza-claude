@@ -22,6 +22,8 @@ class TestBundles:
             {"bundles": {"a": {"requires": ["b"]}, "b": {}, "c": {"requires": ["a"]}}}
         )
         assert b._order(["c"], strict=True) == ["b", "a", "c"]
+
+
 @pytest.mark.parametrize("bad", ["/abs/path", "C:/win", "../escape", "a/../../b"])
 def test_ensure_safe_bundle_path_rejects(bad: str) -> None:
     with pytest.raises(SyncError, match="Unsafe bundle path"):
@@ -33,9 +35,7 @@ def test_ensure_safe_bundle_path_allows_relative() -> None:
 
 
 def test_bundle_file_entries_forms() -> None:
-    entries = rb._bundle_file_entries(
-        ["plain.txt", {"source": "s", "dest": "d"}, {"source": "x"}]
-    )
+    entries = rb._bundle_file_entries(["plain.txt", {"source": "s", "dest": "d"}, {"source": "x"}])
     assert entries == [("plain.txt", "plain.txt"), ("s", "d"), ("x", "x")]
 
 

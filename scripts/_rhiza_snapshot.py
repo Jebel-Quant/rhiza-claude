@@ -10,7 +10,6 @@ new one — which is what makes the merge a three-way merge over ordinary direct
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import shutil
 import sys
@@ -18,11 +17,12 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError, log  # noqa: E402
 import _rhiza_git as git  # noqa: E402
 from _rhiza_bundles import Bundles, resolve_bundle_names  # noqa: E402
+from _rhiza_common import log  # noqa: E402
 from _rhiza_template import Template  # noqa: E402
 from _rhiza_yaml import load_yaml  # noqa: E402
+
 
 def clone_template(
     ctx: git.GitContext, template: Template, branch: str

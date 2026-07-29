@@ -13,10 +13,11 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError, log  # noqa: E402
+from _rhiza_common import SyncError  # noqa: E402
 from _rhiza_yaml import as_list, load_yaml  # noqa: E402
 
 _DEFAULT_BUNDLES_PATH = ".rhiza/template-bundles.yml"
+
 
 @dataclass(frozen=True)
 class Template:
