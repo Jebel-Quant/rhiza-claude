@@ -9,7 +9,7 @@
 # here rather than discovered by scanning.
 
 [tool.bumpversion]
-current_version = "0.6.0"
+current_version = "0.6.1"
 tag = false                # /rhiza:release tags explicitly, after the changelog lands
 commit = false             # ... and commits explicitly, so the diff is reviewable first
 allow_dirty = false        # a release is cut from a clean tree

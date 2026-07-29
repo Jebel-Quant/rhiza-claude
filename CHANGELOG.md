@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.6.1] - 2026-07-29
+
+### New Features
+- *(release)* Present version options as a table, never a suggestion (#76)
+
+### Bug Fixes
+- *(release)* Push the release commit and tag atomically (#75)
+
 ## [0.6.0] - 2026-07-29
 
 ### New Features
