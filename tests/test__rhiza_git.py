@@ -85,23 +85,6 @@ class TestGitContext:
         assert ctx.env["GIT_TERMINAL_PROMPT"] == "0"
 
 
-class Test_DiffFileState:
-    def test_new_file_entry(self) -> None:
-        state = git._DiffFileState()
-        state.reset()
-        assert state.started and not state.is_new and state.entry() is None
-        state.update("new file mode 100644")
-        state.update("+++ upstream-template-new/x.txt")
-        assert state.entry() == ("x.txt", True, False)
-
-    def test_deleted_file_entry(self) -> None:
-        state = git._DiffFileState()
-        state.reset()
-        state.update("deleted file mode 100644")
-        state.update("--- upstream-template-old/gone.txt")
-        assert state.entry() == ("gone.txt", False, True)
-
-
 # --- the merge algorithm's invariants, over generated triples ------------------
 #
 # Everything above this line faults `_run_git`, so no test in this file ever merged

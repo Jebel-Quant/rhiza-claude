@@ -24,7 +24,6 @@ import _rhiza_git as git
 import _rhiza_merge as merge
 import pytest
 
-
 # --- the merge algorithm's invariants, over generated triples ------------------
 #
 # Line coverage on a merge algorithm says every branch was *reached*, not that the
@@ -132,8 +131,7 @@ def _merge(tmp_path: Path, *, base: str, local: str, upstream: str) -> dict[str,
         "markers": markers,
         "mine": (target / "mine.txt").read_text(),
         "untouched": not rejects and not markers,
-        "considered": outcome.merged + outcome.conflicted + outcome.unmergeable
-        + outcome.deleted,
+        "considered": outcome.merged + outcome.conflicted + outcome.unmergeable + outcome.deleted,
     }
 
 
