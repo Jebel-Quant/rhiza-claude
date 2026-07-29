@@ -97,9 +97,9 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   prose, and keeps the README's `make help` target list in lockstep with the real
   `Makefile`. Badges are generated with **omit, don't fake** — a badge whose backing
   fact isn't detected is never emitted. Writes files only; no commit, no PR.
-- **`/rhiza:release`** — prepare a release locally: derive the next semantic version
-  from the conventional commits (via git-cliff, overridable), **guard that it strictly
-  increases** past every prior release, then let `bump-my-version` write it into every
+- **`/rhiza:release`** — prepare a release locally: **table up the legal next versions**
+  and let you pick (it never suggests or defaults to one), **guard that the choice
+  strictly increases** past every prior release, then let `bump-my-version` write it into every
   location the repo declares in `[tool.bumpversion]` — `pyproject.toml`, plugin
   manifests, self-referencing CI stub pins — regenerate `CHANGELOG.md`, and commit and
   tag. Because the locations are declared rather than inferred, a dependency that

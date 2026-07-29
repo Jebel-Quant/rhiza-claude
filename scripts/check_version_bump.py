@@ -114,8 +114,8 @@ def compute_floor(current: str, tags: list[str]) -> str:
 def suggest(floor: str) -> dict[str, str]:
     """Return the candidate next versions above *floor*, keyed by bump kind.
 
-    Offered as a menu rather than a single derived value, because the right bump is a
-    judgement the deriver can't make. In particular `git-cliff` applies no pre-1.0
+    All of them are offered as a table, and none as a recommendation, because the right
+    bump is a judgement no deriver can make. In particular `git-cliff` applies no pre-1.0
     special case: a breaking change at ``0.x`` derives ``v1.0.0``, which spends the
     1.0 signal on a project that may not be ready for it. Showing ``v0.5.0`` beside it
     makes that choice explicit instead of implicit.
