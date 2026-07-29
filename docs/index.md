@@ -231,6 +231,7 @@ Thin, **read-only**, stdlib-only commands backed by bundled scripts — they rea
 | Command | What it does |
 | --- | --- |
 | [`/rhiza:status`](commands/status.md) | Report both halves of the repo's rhiza state: is `template.yml` valid, and what did the last sync record. `--files` lists managed files as a tree; `--check` compares the pinned ref against the latest release. |
+| [`/rhiza:maffay`](commands/maffay.md) | Return a bonmot from a random Peter Maffay song. Takes an optional theme keyword. Needs no repo at all. |
 
 ## Destructive
 

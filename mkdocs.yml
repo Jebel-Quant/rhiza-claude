@@ -18,6 +18,7 @@ nav:
       - release: commands/release.md
   - Repo utilities:
       - status: commands/status.md
+      - maffay: commands/maffay.md
   - Destructive:
       - uninstall: commands/uninstall.md
   - Internals:
