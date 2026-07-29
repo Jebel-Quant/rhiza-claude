@@ -8,6 +8,10 @@ gates have something to pass:
 
   src/<pkg>/__init__.py   replace uv's undocumented `hello()` placeholder with a
                           package docstring (interrogate + coverage both fail on it)
+  README.md               uv creates it **empty**, and the template's
+                          test_readme_validation.py asserts it is non-empty
+  [project].authors       uv omits it entirely when git has no configured identity,
+                          and the template's pyproject gate requires a named author
   [project].description   fill in uv's "Add your description here" placeholder
   [project.urls]          Homepage + Repository — the template's .rhiza/tests/
                           test_pyproject.py requires both
@@ -35,6 +39,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any
@@ -91,6 +97,83 @@ def normalize_package_init(target: Path) -> list[str]:
             init.write_text(f'"""{init.parent.name} package."""\n')
             modified.append(str(init.relative_to(target)))
     return modified
+
+
+def seed_readme(target: Path, *, repo: str, description: str | None) -> bool:
+    """Give an empty `README.md` a title and description; return whether it was written.
+
+    `uv init --lib` creates `README.md` **empty** — zero bytes. The template's
+    `.rhiza/tests/test_readme_validation.py` asserts ``len(content) > 0``, so a repo
+    built by the documented `/init` chain failed `make rhiza-test` before it had done
+    anything wrong. Closing that gap is exactly this script's remit.
+
+    Only an empty (or whitespace-only) file is written. `/rhiza:docs` owns the real
+    README and must never find its work overwritten — this is a stub to clear the gate,
+    not a document. Nothing is created if `README.md` is absent, since its absence is a
+    different failure the template reports separately.
+    """
+    readme = target / "README.md"
+    if not readme.is_file() or readme.read_text().strip():
+        return False
+    body = f"# {repo}\n"
+    if description:
+        body += f"\n{description}\n"
+    # No fenced code blocks: the same template test executes any it finds.
+    body += "\nRun `/rhiza:docs` to write this properly.\n"
+    readme.write_text(body)
+    return True
+
+
+def git_identity(target: Path) -> tuple[str | None, str | None]:
+    """Return ``(name, email)`` from git config in *target*, or ``(None, None)``.
+
+    This is where `uv init` gets the authors entry it writes — and when git has no
+    identity configured it writes **no `authors` key at all**, which the template's
+    pyproject gate requires. So the same source is consulted here to fill the gap.
+    """
+    git = shutil.which("git")
+    if git is None:  # pragma: no cover - git is present everywhere this runs
+        return None, None
+
+    def read(key: str) -> str | None:
+        result = subprocess.run(  # nosec B603
+            [git, "config", "--get", key], cwd=str(target), capture_output=True, text=True,
+            check=False,
+        )  # fmt: skip
+        value = result.stdout.strip()
+        return value or None
+
+    return read("user.name"), read("user.email")
+
+
+def set_authors(text: str, *, name: str, email: str | None) -> tuple[str, bool]:
+    """Ensure ``[project].authors`` names at least one author; return ``(text, changed)``.
+
+    `uv init --lib` omits the key entirely when git has no configured identity, and an
+    author already written by hand is never touched. Two of the template's
+    `.rhiza/tests/test_pyproject.py` assertions depend on this — the key existing, and
+    its first entry having a non-empty ``name``.
+    """
+    lines = text.splitlines()
+    header, end = _project_block(lines)
+    entry = f'{{ name = "{name}"' + (f', email = "{email}"' if email else "") + " }"
+    new_line = f"authors = [{entry}]"
+
+    for i in range(header + 1, end):
+        if not re.match(r"^\s*authors\s*=", lines[i]):
+            continue
+        # An empty inline list is uv's placeholder; anything else is the user's.
+        if re.match(r"^\s*authors\s*=\s*\[\s*\]\s*$", lines[i]):
+            lines[i] = new_line
+            break
+        return text, False
+    else:
+        lines.insert(header + 1, new_line)
+
+    new_text = "\n".join(lines)
+    if text.endswith("\n"):
+        new_text += "\n"
+    return new_text, True
 
 
 def set_description(text: str, description: str) -> tuple[str, bool]:
@@ -216,6 +299,10 @@ def finish_skeleton(
     if modified:
         notes.append("normalised uv's placeholder hello() to a package docstring")
 
+    if seed_readme(target, repo=repo, description=description):
+        modified.append("README.md")
+        notes.append("seeded the empty README.md uv left behind — /rhiza:docs owns the real one")
+
     pyproject = target / "pyproject.toml"
     if not pyproject.exists():
         notes.append("pyproject.toml absent — run `uv init --lib` first")
@@ -238,6 +325,12 @@ def finish_skeleton(
         text, changed = set_dependency_groups(text)
         if changed:
             changes.append("dependency-groups")
+        identity_name, identity_email = git_identity(target)
+        # Falls back to the owner: the gate needs a non-empty name, and the owner is the
+        # best fact available when the machine has no git identity at all.
+        text, changed = set_authors(text, name=identity_name or owner, email=identity_email)
+        if changed:
+            changes.append("authors")
     except ValueError as exc:
         notes.append(f"pyproject.toml: {exc}")
         return {"modified": modified, "changes": changes, "notes": notes, "ok": False}
@@ -249,8 +342,6 @@ def finish_skeleton(
     else:
         notes.append("pyproject.toml already rhiza-shaped")
 
-    if not re.search(r"^\s*authors\s*=", original, re.MULTILINE):
-        notes.append("[project].authors is absent — the template's pyproject gate wants one")
     notes.append("license + classifiers are /rhiza:license and /rhiza:python-version's job")
 
     return {"modified": modified, "changes": changes, "notes": notes, "ok": True}

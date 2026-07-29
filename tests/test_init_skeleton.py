@@ -76,6 +76,134 @@ def test_normalize_package_init_without_src(tmp_path):
     assert sk.normalize_package_init(tmp_path) == []
 
 
+# --- seed_readme --------------------------------------------------------------
+
+
+def test_seed_readme_fills_the_empty_file_uv_leaves(tmp_path):
+    """`uv init --lib` writes README.md with zero bytes; the template rejects that."""
+    (tmp_path / "README.md").write_text("")
+
+    assert sk.seed_readme(tmp_path, repo="widget", description="A widget.") is True
+
+    body = (tmp_path / "README.md").read_text()
+    assert body.startswith("# widget\n")
+    assert "A widget." in body
+
+
+def test_seed_readme_never_overwrites_a_real_readme(tmp_path):
+    """/rhiza:docs owns the README; finding its work replaced would be the worst bug."""
+    (tmp_path / "README.md").write_text("# Hand-written\n\nCarefully worded.\n")
+
+    assert sk.seed_readme(tmp_path, repo="widget", description="A widget.") is False
+    assert (tmp_path / "README.md").read_text() == "# Hand-written\n\nCarefully worded.\n"
+
+
+def test_seed_readme_treats_whitespace_only_as_empty(tmp_path):
+    (tmp_path / "README.md").write_text("\n\n   \n")
+    assert sk.seed_readme(tmp_path, repo="widget", description=None) is True
+    assert (tmp_path / "README.md").read_text().startswith("# widget\n")
+
+
+def test_seed_readme_does_not_create_an_absent_readme(tmp_path):
+    """Absence is a different finding, which the template reports on its own."""
+    assert sk.seed_readme(tmp_path, repo="widget", description=None) is False
+    assert not (tmp_path / "README.md").exists()
+
+
+def test_seed_readme_writes_no_code_blocks(tmp_path):
+    """The same template test *executes* fenced blocks it finds in the README."""
+    (tmp_path / "README.md").write_text("")
+    sk.seed_readme(tmp_path, repo="widget", description="A widget.")
+    assert "```" not in (tmp_path / "README.md").read_text()
+
+
+# --- set_authors -------------------------------------------------------------
+
+
+def test_set_authors_inserts_when_uv_omitted_the_key():
+    """`uv init` writes no `authors` at all when git has no configured identity."""
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    out, changed = sk.set_authors(without, name="Ada", email="ada@example.com")
+    assert changed
+    assert 'authors = [{ name = "Ada", email = "ada@example.com" }]' in out
+
+
+def test_set_authors_replaces_uvs_empty_list():
+    empty = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]', "authors = []"
+    )
+    out, changed = sk.set_authors(empty, name="Ada", email=None)
+    assert changed
+    assert 'authors = [{ name = "Ada" }]' in out
+    assert "authors = []" not in out
+
+
+def test_set_authors_leaves_a_real_author_alone():
+    """A hand-written author is the user's; the gate only needs one to exist."""
+    out, changed = sk.set_authors(_UV_PYPROJECT, name="Ada", email="ada@example.com")
+    assert not changed
+    assert out == _UV_PYPROJECT
+    assert "Ada" not in out
+
+
+def test_set_authors_omits_an_absent_email():
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    out, _ = sk.set_authors(without, name="jebel-quant", email=None)
+    assert 'authors = [{ name = "jebel-quant" }]' in out
+    assert "email" not in out.split("authors")[1].split("]")[0]
+
+
+def test_set_authors_preserves_missing_trailing_newline():
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    ).rstrip("\n")
+    out, changed = sk.set_authors(without, name="Ada", email=None)
+    assert changed
+    assert not out.endswith("\n")
+
+
+def test_finish_skeleton_falls_back_to_the_owner_without_a_git_identity(tmp_path, monkeypatch):
+    """No git identity anywhere is the CI case — the gate still needs a named author."""
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    (tmp_path / "pyproject.toml").write_text(without)
+    monkeypatch.setattr(sk, "git_identity", lambda _t: (None, None))
+
+    summary = sk.finish_skeleton(
+        tmp_path, owner="jebel-quant", repo="acme-tool", host="github", description="d"
+    )
+
+    assert "authors" in summary["changes"]
+    assert 'name = "jebel-quant"' in (tmp_path / "pyproject.toml").read_text()
+
+
+def test_finish_skeleton_prefers_the_git_identity(tmp_path, monkeypatch):
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    (tmp_path / "pyproject.toml").write_text(without)
+    monkeypatch.setattr(sk, "git_identity", lambda _t: ("Ada Lovelace", "ada@example.com"))
+
+    sk.finish_skeleton(tmp_path, owner="jebel-quant", repo="r", host="github", description="d")
+
+    text = (tmp_path / "pyproject.toml").read_text()
+    assert 'name = "Ada Lovelace", email = "ada@example.com"' in text
+
+
+def test_git_identity_reads_the_repo_config(tmp_path):
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q", "-b", "main", "."], cwd=tmp_path, check=True)
+    sp.run(["git", "config", "user.name", "Grace"], cwd=tmp_path, check=True)
+    sp.run(["git", "config", "user.email", "grace@example.com"], cwd=tmp_path, check=True)
+    assert sk.git_identity(tmp_path) == ("Grace", "grace@example.com")
+
+
 # --- set_description ---------------------------------------------------------
 
 
@@ -228,6 +356,20 @@ def test_finish_skeleton_completes_a_uv_project(tmp_path):
     assert 'Homepage = "https://github.com/jebel-quant/acme-tool"' in text
     assert "[dependency-groups]" in text
     assert (pkg / "__init__.py").read_text() == '"""acme_tool package."""\n'
+
+
+def test_finish_skeleton_reports_the_seeded_readme(tmp_path):
+    """The README is part of the skeleton's output, so it shows in `modified`."""
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "README.md").write_text("")
+
+    summary = sk.finish_skeleton(
+        tmp_path, owner="jebel-quant", repo="acme-tool", host="github", description="Acme things."
+    )
+
+    assert "README.md" in summary["modified"]
+    assert any("README" in n for n in summary["notes"])
+    assert (tmp_path / "README.md").read_text().startswith("# acme-tool\n")
 
 
 def test_finish_skeleton_is_idempotent(tmp_path):

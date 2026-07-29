@@ -108,6 +108,16 @@ the `[project]` structure gate, docstring coverage, README validation. A failure
 is usually a *local* gap the template is checking for, so it is in scope; a failure in
 the synced test files themselves is upstream.
 
+> **Known upstream failure: `test_license_classifier_present`.** Through template
+> v1.2.1 this asserts a `License :: OSI Approved :: …` trove classifier. PEP 639
+> superseded those with the SPDX `license` field that `/rhiza:license` writes, and the
+> two are not merely redundant — declaring both makes `setuptools>=77` refuse to build
+> the project ("License classifiers have been superseded by license expressions …
+> Please remove"), and `uv_build` warns. The gate is therefore unsatisfiable for a
+> PEP 639 project. Score it **out-of-scope**, not FAIL, and do not "fix" it by adding
+> the classifier — that trades a failing gate for an unbuildable package. Filed
+> upstream as jebel-quant/rhiza#1440.
+
 > **`make validate` is gone.** Up to rhiza v1.1.3 there was a `validate` target that
 > checked the repo for drift from the template. It was removed by v1.2.1, and naming a
 > target the template no longer provides is precisely how this command came to score

@@ -14,6 +14,7 @@ caught it for however long it had been true.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -238,9 +239,58 @@ def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo):
     assert result["available"] == cmt.gate_targets(_QUALITY)
 
 
-def test_e2e_the_gates_run_and_not_just_resolve(synced_repo):
-    """Resolving is not the same as working — run the cheapest real gate."""
-    assert_ok(run_cmd(["make", "fmt"], synced_repo), "make fmt")
+# `make test` is executed by tests/test_init_scaffold.py, which owns the coverage-gate
+# assertion; `make rhiza-test` has its own test below because it is the one gate that
+# does not pass. Everything else in /quality's list runs here.
+_RUNNABLE_GATES = ("fmt", "typecheck", "security", "deptry", "docs-coverage")
+
+
+@pytest.mark.parametrize("gate", _RUNNABLE_GATES)
+def test_e2e_each_gate_actually_passes(gate, synced_repo):
+    """Resolving is not passing.
+
+    `probe` proves the seven gates /quality names *exist*; existing is a much weaker
+    claim. A gate can resolve and still fail on a repo this plugin itself builds — and
+    then /quality reports a bad score for a correctly-scaffolded project, which the user
+    has every reason to believe. These run the gate for real against `synced_repo`.
+    """
+    assert_ok(run_cmd(["make", gate], synced_repo), f"make {gate}")
+
+
+def test_e2e_no_gate_in_the_prose_goes_unrun(synced_repo):
+    """Every gate /quality names is executed by this suite, or excused by name here.
+
+    Without this, adding a gate to `commands/quality.md` silently adds an unrun one —
+    the probe would cover it and nothing would ever execute it.
+    """
+    covered = {*_RUNNABLE_GATES, "test", "rhiza-test"}
+    named = set(cmt.gate_targets(_QUALITY))
+    assert named <= covered, f"named in quality.md but never executed: {sorted(named - covered)}"
+
+
+def test_e2e_rhiza_test_fails_only_on_the_known_upstream_license_gate(synced_repo):
+    """`make rhiza-test` runs the *template's* own `.rhiza/tests/` against our scaffold.
+
+    It fails, and the failure is upstream's: `test_license_classifier_present` demands a
+    ``License :: OSI Approved :: …`` trove classifier, which PEP 639 superseded with the
+    SPDX ``license`` field that `/rhiza:license` writes. That is not a stylistic
+    preference — declaring both makes ``setuptools>=77`` refuse to build the project at
+    all ("License classifiers have been superseded by license expressions … Please
+    remove"). The gate therefore cannot be satisfied by a PEP 639 project, and is filed
+    upstream rather than papered over here.
+
+    Asserting the *exact* failure set, rather than skipping the gate, is the point: a
+    new failure — ours or upstream's — turns this red instead of hiding behind a known
+    one.
+    """
+    result = run_cmd(["make", "rhiza-test"], synced_repo)
+    failed = set(
+        re.findall(r"^FAILED \S+?\.py::(\S+)", result.stdout + result.stderr, re.MULTILINE)
+    )
+
+    assert failed == {"TestProjectClassifiers::test_license_classifier_present"}, (
+        f"rhiza-test's failures changed: {sorted(failed)}\n{result.stdout[-3000:]}"
+    )
 
 
 def test_e2e_quality_gates_exist_on_the_gitlab_profile_too(gitlab_synced_repo):
