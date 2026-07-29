@@ -8,6 +8,8 @@ gates have something to pass:
 
   src/<pkg>/__init__.py   replace uv's undocumented `hello()` placeholder with a
                           package docstring (interrogate + coverage both fail on it)
+  README.md               uv creates it **empty**, and the template's
+                          test_readme_validation.py asserts it is non-empty
   [project].description   fill in uv's "Add your description here" placeholder
   [project.urls]          Homepage + Repository — the template's .rhiza/tests/
                           test_pyproject.py requires both
@@ -91,6 +93,31 @@ def normalize_package_init(target: Path) -> list[str]:
             init.write_text(f'"""{init.parent.name} package."""\n')
             modified.append(str(init.relative_to(target)))
     return modified
+
+
+def seed_readme(target: Path, *, repo: str, description: str | None) -> bool:
+    """Give an empty `README.md` a title and description; return whether it was written.
+
+    `uv init --lib` creates `README.md` **empty** — zero bytes. The template's
+    `.rhiza/tests/test_readme_validation.py` asserts ``len(content) > 0``, so a repo
+    built by the documented `/init` chain failed `make rhiza-test` before it had done
+    anything wrong. Closing that gap is exactly this script's remit.
+
+    Only an empty (or whitespace-only) file is written. `/rhiza:docs` owns the real
+    README and must never find its work overwritten — this is a stub to clear the gate,
+    not a document. Nothing is created if `README.md` is absent, since its absence is a
+    different failure the template reports separately.
+    """
+    readme = target / "README.md"
+    if not readme.is_file() or readme.read_text().strip():
+        return False
+    body = f"# {repo}\n"
+    if description:
+        body += f"\n{description}\n"
+    # No fenced code blocks: the same template test executes any it finds.
+    body += "\nRun `/rhiza:docs` to write this properly.\n"
+    readme.write_text(body)
+    return True
 
 
 def set_description(text: str, description: str) -> tuple[str, bool]:
@@ -215,6 +242,10 @@ def finish_skeleton(
     modified.extend(normalize_package_init(target))
     if modified:
         notes.append("normalised uv's placeholder hello() to a package docstring")
+
+    if seed_readme(target, repo=repo, description=description):
+        modified.append("README.md")
+        notes.append("seeded the empty README.md uv left behind — /rhiza:docs owns the real one")
 
     pyproject = target / "pyproject.toml"
     if not pyproject.exists():

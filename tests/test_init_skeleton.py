@@ -76,6 +76,47 @@ def test_normalize_package_init_without_src(tmp_path):
     assert sk.normalize_package_init(tmp_path) == []
 
 
+# --- seed_readme --------------------------------------------------------------
+
+
+def test_seed_readme_fills_the_empty_file_uv_leaves(tmp_path):
+    """`uv init --lib` writes README.md with zero bytes; the template rejects that."""
+    (tmp_path / "README.md").write_text("")
+
+    assert sk.seed_readme(tmp_path, repo="widget", description="A widget.") is True
+
+    body = (tmp_path / "README.md").read_text()
+    assert body.startswith("# widget\n")
+    assert "A widget." in body
+
+
+def test_seed_readme_never_overwrites_a_real_readme(tmp_path):
+    """/rhiza:docs owns the README; finding its work replaced would be the worst bug."""
+    (tmp_path / "README.md").write_text("# Hand-written\n\nCarefully worded.\n")
+
+    assert sk.seed_readme(tmp_path, repo="widget", description="A widget.") is False
+    assert (tmp_path / "README.md").read_text() == "# Hand-written\n\nCarefully worded.\n"
+
+
+def test_seed_readme_treats_whitespace_only_as_empty(tmp_path):
+    (tmp_path / "README.md").write_text("\n\n   \n")
+    assert sk.seed_readme(tmp_path, repo="widget", description=None) is True
+    assert (tmp_path / "README.md").read_text().startswith("# widget\n")
+
+
+def test_seed_readme_does_not_create_an_absent_readme(tmp_path):
+    """Absence is a different finding, which the template reports on its own."""
+    assert sk.seed_readme(tmp_path, repo="widget", description=None) is False
+    assert not (tmp_path / "README.md").exists()
+
+
+def test_seed_readme_writes_no_code_blocks(tmp_path):
+    """The same template test *executes* fenced blocks it finds in the README."""
+    (tmp_path / "README.md").write_text("")
+    sk.seed_readme(tmp_path, repo="widget", description="A widget.")
+    assert "```" not in (tmp_path / "README.md").read_text()
+
+
 # --- set_description ---------------------------------------------------------
 
 
@@ -228,6 +269,20 @@ def test_finish_skeleton_completes_a_uv_project(tmp_path):
     assert 'Homepage = "https://github.com/jebel-quant/acme-tool"' in text
     assert "[dependency-groups]" in text
     assert (pkg / "__init__.py").read_text() == '"""acme_tool package."""\n'
+
+
+def test_finish_skeleton_reports_the_seeded_readme(tmp_path):
+    """The README is part of the skeleton's output, so it shows in `modified`."""
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "README.md").write_text("")
+
+    summary = sk.finish_skeleton(
+        tmp_path, owner="jebel-quant", repo="acme-tool", host="github", description="Acme things."
+    )
+
+    assert "README.md" in summary["modified"]
+    assert any("README" in n for n in summary["notes"])
+    assert (tmp_path / "README.md").read_text().startswith("# acme-tool\n")
 
 
 def test_finish_skeleton_is_idempotent(tmp_path):
