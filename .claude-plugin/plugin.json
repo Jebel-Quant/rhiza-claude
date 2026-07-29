@@ -2,7 +2,7 @@
   "name": "rhiza",
   "displayName": "Rhiza",
   "version": "0.6.1",
-  "description": "Global slash commands for rhiza-managed repos: update (template sync + quality-scorecard PR), quality gate, README/CLAUDE.md/mkdocs revisit, and a read-only stats dashboard.",
+  "description": "Slash commands for rhiza-managed repos: init and sync from a pinned template release, score code quality, refresh README/CLAUDE.md/mkdocs, prepare releases, and report sync status.",
   "author": {
     "name": "Jebel-Quant",
     "email": "thomas.schmelzer@gmail.com"
