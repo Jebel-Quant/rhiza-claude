@@ -46,8 +46,29 @@ An argument that isn't semver-shaped is treated as a comment, not a target.
    `git diff --stat`.
 7. **Regenerates `CHANGELOG.md`** with the unreleased commits folded under the new tag.
 8. **Commits and tags** locally — `chore: release vX.Y.Z`.
-9. **Stops before pushing** — prints the `git push` commands. Pushing the **tag** is
-   what triggers the repo's `Release` workflow.
+9. **Stops before pushing** — prints a single `git push --atomic origin HEAD <TAG>`.
+   Pushing the **tag** is what triggers the repo's `Release` workflow.
+
+## Why the push is atomic
+
+Two sequential pushes (branch, then tag) open a window in which the branch is published
+but the tag is not. A repo whose workflows reference **their own** tag — the stub-pin case
+`/release` bumps in step 6 — fails every run started in that window, because a cross-repo
+`uses:` resolves at `Set up job`, before checkout:
+
+```
+##[error]Unable to resolve action `owner/repo@vX.Y.Z`, unable to find version `vX.Y.Z`
+```
+
+The failures are indistinguishable from real breakage at a glance, yet nothing in the diff
+is at fault — the jobs never got as far as checking out code. `--atomic` lands both refs
+together so the tag exists before any workflow is queued.
+
+This also makes a release **PR-able**. With sequential pushes and a self-pin, a release PR
+carries refs to a tag that does not exist yet, so its required checks can never go green
+and the release can only land by bypassing branch protection. The durable fix belongs in
+the repo: reference your own action by local path (`uses: ./.github/actions/<name>`), which
+needs no tag and cannot drift.
 
 ## The pre-1.0 trap
 

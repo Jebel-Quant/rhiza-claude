@@ -189,10 +189,30 @@ changes present are the ones steps 6 and 7 made. An annotated tag is fine
 ## 9. Stop — hand the push to the user
 
 ```bash
-git push origin HEAD      # the release commit
-git push origin <TARGET>  # the tag — triggers the release workflow
+git push --atomic origin HEAD <TARGET>  # commit + tag in one push
 ```
-Explain that pushing the **tag** is what triggers release CI. If the repo has no such
+Explain that pushing the **tag** is what triggers release CI.
+
+> **Push both refs in one command.** Two sequential pushes open a window in which the
+> branch is published but the tag is not, and any repo whose workflows reference **their
+> own** tag (`uses: <owner>/<repo>/…@vX.Y.Z`, the stub-pin case from step 6) fails every
+> run started in it — a cross-repo `uses:` resolves at `Set up job`, before checkout, so
+> the job dies before running anything:
+> ```
+> ##[error]Unable to resolve action `owner/repo@vX.Y.Z`, unable to find version `vX.Y.Z`
+> ```
+> `--atomic` lands both refs together, so the tag exists before any workflow is queued.
+> If a push must be split, push the **tag first** — the branch can wait, the tag cannot.
+> Check whether the repo's release workflow requires the tagged commit to be reachable
+> from the default branch before relying on tag-first; most only validate tag format and
+> that the version is newer than the latest release, which tag-first satisfies.
+>
+> The durable fix is on the repo side, not here: a repo consuming its **own** action or
+> reusable workflow should reference it by local path (`uses: ./.github/actions/<name>`),
+> which needs no tag and cannot drift. Suggest that if you see a self-pin, because the
+> pinned form also makes a release PR unmergeable — its checks reference a tag that does
+> not exist yet, so required checks can never pass and the release can only land by
+> bypassing branch protection. If the repo has no such
 workflow, publish it manually with the bundled mapper — which picks `gh` or `glab` from
 `origin`:
 ```bash
