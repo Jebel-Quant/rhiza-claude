@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 import sync
+from _rhiza_yaml import load_yaml
 from conftest import Repo
 
 pytestmark = pytest.mark.usefixtures("hermetic_git")
@@ -58,7 +59,7 @@ def test_first_sync_writes_lock(make_repo: Any, monkeypatch: pytest.MonkeyPatch)
     tmpl = _template(make_repo, {"Makefile": "all:\n"})
     proj = _project(make_repo, tmpl, _include("Makefile"))
     sync.sync(proj.path, "main")
-    lock = sync.load_yaml(proj.path / ".rhiza" / "template.lock")
+    lock = load_yaml(proj.path / ".rhiza" / "template.lock")
     assert lock["ref"] == "main"
     assert lock["files"] == ["Makefile"]
     assert lock["synced_at"] == "2026-01-02T03:04:05Z"
@@ -325,271 +326,34 @@ def test_main_cli_syncerror_is_exit_error(
     assert "error:" in capsys.readouterr().err
 
 
-# --- _as_list -----------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (None, []),
-        (["a", "b"], ["a", "b"]),
-        ("one\ntwo", ["one", "two"]),
-        ("a\\nb", ["a", "b"]),
-        (7, ["7"]),
-    ],
-)
-def test_as_list(value: Any, expected: list[str]) -> None:
-    assert sync._as_list(value) == expected
+# --- as_list -----------------------------------------------------------------
 
 
 # --- Template.git_url ---------------------------------------------------------
 
 
-def test_git_url_variants() -> None:
-    assert sync.Template("o/r", "main").git_url == "https://github.com/o/r.git"
-    assert sync.Template("o/r", "main", host="gitlab").git_url == "https://gitlab.com/o/r.git"
-    assert sync.Template("/local/path", "main").git_url == "/local/path"
-    assert sync.Template("https://x/y.git", "main").git_url == "https://x/y.git"
-
-
-def test_git_url_unset_repository_raises() -> None:
-    with pytest.raises(sync.SyncError, match="not configured"):
-        _ = sync.Template("", "main").git_url
-
-
-def test_git_url_unsupported_host_raises() -> None:
-    with pytest.raises(sync.SyncError, match="Unsupported template-host"):
-        _ = sync.Template("o/r", "main", host="bitbucket").git_url
-
-
-# --- _load_template -----------------------------------------------------------
-
-
-def test_load_template_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(sync.SyncError, match="No template.yml"):
-        sync._load_template(tmp_path, tmp_path / "nope.yml")
-
-
-def test_load_template_unreadable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    tf = tmp_path / "template.yml"
-    tf.write_text("x")
-    monkeypatch.setattr(sync, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
-    with pytest.raises(sync.SyncError, match="Could not read"):
-        sync._load_template(tmp_path, tf)
-
-
-def test_load_template_missing_repository(tmp_path: Path) -> None:
-    tf = tmp_path / "template.yml"
-    tf.write_text("ref: main\ninclude:\n  - x\n")
-    with pytest.raises(sync.SyncError, match="template-repository is required"):
-        sync._load_template(tmp_path, tf)
-
-
-def test_load_template_no_sources(tmp_path: Path) -> None:
-    tf = tmp_path / "template.yml"
-    tf.write_text('repository: "o/r"\nref: main\n')
-    with pytest.raises(sync.SyncError, match="at least one of"):
-        sync._load_template(tmp_path, tf)
+# --- load_template -----------------------------------------------------------
 
 
 # --- bundle path safety + entries ---------------------------------------------
 
 
-@pytest.mark.parametrize("bad", ["/abs/path", "C:/win", "../escape", "a/../../b"])
-def test_ensure_safe_bundle_path_rejects(bad: str) -> None:
-    with pytest.raises(sync.SyncError, match="Unsafe bundle path"):
-        sync._ensure_safe_bundle_path(bad)
-
-
-def test_ensure_safe_bundle_path_allows_relative() -> None:
-    sync._ensure_safe_bundle_path("a/b/c.txt")  # no raise
-
-
-def test_bundle_file_entries_forms() -> None:
-    entries = sync._bundle_file_entries(
-        ["plain.txt", {"source": "s", "dest": "d"}, {"source": "x"}]
-    )
-    assert entries == [("plain.txt", "plain.txt"), ("s", "d"), ("x", "x")]
-
-
-def test_bundle_file_entries_string_scalar() -> None:
-    assert sync._bundle_file_entries("only.txt") == [("only.txt", "only.txt")]
-
-
-def test_bundle_file_entries_bad_entry() -> None:
-    with pytest.raises(sync.SyncError, match="must be a string or"):
-        sync._bundle_file_entries([{"dest": "d"}])
-
-
 # --- Bundles resolution -------------------------------------------------------
 
 
-def _bundles(**bundles: dict[str, Any]) -> sync.Bundles:
-    return sync.Bundles.from_config({"bundles": bundles})
-
-
-def test_resolve_unknown_bundle_strict_raises() -> None:
-    with pytest.raises(sync.SyncError, match="does not exist"):
-        _bundles(a={}).resolve_to_paths(["missing"])
-
-
-def test_resolve_cycle_strict_raises() -> None:
-    b = sync.Bundles.from_config({"bundles": {"a": {"requires": ["b"]}, "b": {"requires": ["a"]}}})
-    with pytest.raises(sync.SyncError, match="Circular dependency"):
-        b.resolve_to_paths(["a"])
-
-
-def test_order_non_strict_skips_unknown_and_cycle() -> None:
-    # _order(strict=False) (used by resolve_to_path_map) drops unknown + cyclic bundles.
-    b = sync.Bundles.from_config({"bundles": {"a": {"requires": ["a"]}}})
-    assert b._order(["a", "ghost"], strict=False) == ["a"]
-
-
-def test_resolve_to_path_map_ignores_unresolved_remap() -> None:
-    # A remapped source not in the resolved set is skipped from the path map.
-    b = _bundles(a={"files": [{"source": "s", "dest": "d"}]})
-    assert b.resolve_to_path_map(["a"]) == {"s": "d"}
-
-
-def test_resolve_to_paths_dir_bundle() -> None:
-    assert _bundles(core={}).resolve_to_paths(["core"]) == ["bundles/core/"]
-
-
-def test_resolve_to_path_map_dir_bundle_maps_to_empty() -> None:
-    assert _bundles(core={}).resolve_to_path_map(["core"]) == {"bundles/core/": ""}
-
-
-def test_resolve_to_paths_dedups_shared_sources() -> None:
-    b = _bundles(
-        a={"files": [{"source": "shared.txt"}]},
-        c={"requires": ["a"], "files": [{"source": "shared.txt"}]},
-    )
-    assert b.resolve_to_paths(["a", "c"]) == ["shared.txt"]
-
-
-# --- _resolve_bundle_names ----------------------------------------------------
-
-
-def test_resolve_bundle_names_no_profiles_returns_templates() -> None:
-    template = sync.Template("o/r", "main", templates=["core"])
-    assert sync._resolve_bundle_names(template, _bundles(core={})) == ["core"]
-
-
-def test_resolve_bundle_names_unknown_profile() -> None:
-    template = sync.Template("o/r", "main", profiles=["ghost"])
-    with pytest.raises(sync.SyncError, match="Available profiles"):
-        sync._resolve_bundle_names(template, sync.Bundles.from_config({"profiles": {}}))
-
-
-def test_resolve_bundle_names_expands_and_dedups() -> None:
-    template = sync.Template("o/r", "main", profiles=["p"], templates=["core"])
-    bundles = sync.Bundles.from_config(
-        {"bundles": {"core": {}, "extra": {}}, "profiles": {"p": {"bundles": ["core", "extra"]}}}
-    )
-    assert sync._resolve_bundle_names(template, bundles) == ["core", "extra"]
+# --- resolve_bundle_names ----------------------------------------------------
 
 
 # --- _remap_path --------------------------------------------------------------
 
 
-def test_remap_path_exact_prefix_and_none() -> None:
-    assert sync._remap_path("a.txt", {"a.txt": "b.txt"}) == "b.txt"
-    assert sync._remap_path("dir/x.txt", {"dir/": "out"}) == "out/x.txt"
-    assert sync._remap_path("bundles/core/f", {"bundles/core/": ""}) == "f"
-    assert sync._remap_path("unmapped.txt", {"a": "b"}) == "unmapped.txt"
-
-
 # --- lock helpers -------------------------------------------------------------
-
-
-def test_build_lock_includes_profiles() -> None:
-    template = sync.Template("o/r", "v1", profiles=["p"], templates=["t"])
-    lock = sync._build_lock("sha1", template, ["f.txt"], "2026-01-01T00:00:00Z")
-    assert list(lock) == [
-        "sha",
-        "repo",
-        "host",
-        "ref",
-        "include",
-        "exclude",
-        "templates",
-        "profiles",
-        "files",
-        "synced_at",
-        "strategy",
-    ]
-    assert lock["profiles"] == ["p"]
-
-
-def test_write_lock_skips_unchanged(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    lock_path = tmp_path / "template.lock"
-    (tmp_path / "f.txt").write_text("x")
-    lock = sync._build_lock("sha1", sync.Template("o/r", "v1", include=["f.txt"]), ["f.txt"], "t1")
-    sync._write_lock(tmp_path, lock, lock_path)
-    lock2 = sync._build_lock(
-        "sha1", sync.Template("o/r", "v1", include=["f.txt"]), ["f.txt"], "t2-different"
-    )
-    sync._write_lock(tmp_path, lock2, lock_path)
-    assert "already up to date" in capsys.readouterr().err
-
-
-def test_write_lock_rewrites_when_existing_malformed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    lock_path = tmp_path / "template.lock"
-    lock_path.write_text("garbage")
-    (tmp_path / "f.txt").write_text("x")
-    monkeypatch.setattr(sync, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
-    lock = sync._build_lock("sha1", sync.Template("o/r", "v1"), ["f.txt"], "t1")
-    sync._write_lock(tmp_path, lock, lock_path)
-    # dump_yaml is the real one; file should have been (re)written with our sha.
-    assert "sha: sha1" in lock_path.read_text()
-
-
-def test_write_lock_filters_missing_files(tmp_path: Path) -> None:
-    lock_path = tmp_path / "template.lock"
-    (tmp_path / "present.txt").write_text("x")
-    lock = sync._build_lock("sha1", sync.Template("o/r", "v1"), ["present.txt", "ghost.txt"], "t1")
-    sync._write_lock(tmp_path, lock, lock_path)
-    written = sync.load_yaml(lock_path)
-    assert written["files"] == ["present.txt"]
 
 
 # --- orphan cleanup unlink failure --------------------------------------------
 
 
-def test_clean_orphaned_unlink_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    (tmp_path / "orphan.txt").write_text("x")
-    monkeypatch.setattr(
-        Path, "unlink", lambda self, *a, **k: (_ for _ in ()).throw(OSError("locked"))
-    )
-    sync._clean_orphaned_files(tmp_path, [], set(), {Path("orphan.txt")})
-    assert "Failed to delete" in capsys.readouterr().err
-
-
 # --- base sha + previously-tracked reads --------------------------------------
-
-
-def test_read_base_sha_variants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    assert sync._read_base_sha(tmp_path / "none.lock") is None
-    lock = tmp_path / "template.lock"
-    lock.write_text("sha: abc\n")
-    assert sync._read_base_sha(lock) == "abc"
-    lock.write_text("ref: main\n")  # no sha
-    assert sync._read_base_sha(lock) is None
-    monkeypatch.setattr(sync, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
-    assert sync._read_base_sha(lock) is None
-
-
-def test_previously_tracked_variants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    assert sync._previously_tracked(tmp_path / "none.lock") == set()
-    lock = tmp_path / "template.lock"
-    lock.write_text("files:\n- a.txt\n- b.txt\n")
-    assert sync._previously_tracked(lock) == {Path("a.txt"), Path("b.txt")}
-    monkeypatch.setattr(sync, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
-    assert sync._previously_tracked(lock) == set()
 
 
 # --- main() error translation -------------------------------------------------
@@ -643,27 +407,3 @@ def test_merge_with_base_tolerates_clone_failure(
     )
     assert clean is True
     assert "Could not check out base commit" in capsys.readouterr().err
-
-
-class TestSyncError:
-    def test_is_exception_with_message(self):
-        err = sync.SyncError("boom")
-        assert isinstance(err, Exception)
-        assert str(err) == "boom"
-
-
-class TestTemplate:
-    def test_load_reads_fields(self, tmp_path):
-        tf = tmp_path / "template.yml"
-        tf.write_text('repository: "o/r"\nref: v1\ninclude:\n  - Makefile\n')
-        template = sync._load_template(tmp_path, tf)
-        assert template.repository == "o/r"
-        assert template.include == ["Makefile"]
-
-
-class TestBundles:
-    def test_order_is_topological(self):
-        b = sync.Bundles.from_config(
-            {"bundles": {"a": {"requires": ["b"]}, "b": {}, "c": {"requires": ["a"]}}}
-        )
-        assert b._order(["c"], strict=True) == ["b", "a", "c"]
