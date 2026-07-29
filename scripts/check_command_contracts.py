@@ -12,7 +12,10 @@ This closes that gap by treating each command as a contract and checking it agai
 the code it actually calls:
 
 1. **Frontmatter** — a command declares ``description``, ``argument-hint`` and
-   ``allowed-tools``; a procedure declares none of them (it isn't invocable).
+   ``allowed-tools``, and the block **parses**. That second half matters: five of seven
+   commands once shipped frontmatter YAML could not read, because a description
+   contained an unquoted ``": "`` — which YAML takes as a nested mapping. The key check
+   was a substring search, so it passed happily on a file no parser would accept.
 2. **Bash blocks parse** — every fenced ``bash`` block is valid shell (``bash -n``),
    with ``<placeholder>`` spans neutralised first since they aren't real syntax.
 3. **Scripts exist** — every ``scripts/<name>.py`` a block invokes is shipped.
@@ -96,8 +99,49 @@ def bash_blocks(text: str) -> list[str]:
     return _BASH_BLOCK.findall(text)
 
 
+def unquoted_mapping_colon(value: str) -> bool:
+    """Does *value* contain a `: ` that YAML would read as a nested mapping?
+
+    A plain (unquoted) YAML scalar may not contain ``": "``. Writing
+    ``description: procedures under prompts/: install-uv`` therefore makes the whole
+    frontmatter unparseable — and five of seven commands shipped exactly that, because
+    the key check below was a substring search that never tried to parse anything.
+    """
+    stripped = value.strip()
+    if not stripped or stripped[0] in "'\"|>":  # quoted or a block scalar: fine
+        return False
+    return ": " in stripped
+
+
+def parse_frontmatter(block: str) -> tuple[dict[str, str], list[str]]:
+    """Parse a simple ``key: value`` frontmatter block; return (mapping, problems).
+
+    Deliberately a strict subset rather than a YAML library: the scripts are
+    stdlib-only, and the failure being guarded against is precisely a value that a real
+    YAML parser would choke on.
+    """
+    mapping: dict[str, str] = {}
+    problems: list[str] = []
+    for number, line in enumerate(block.splitlines(), start=2):
+        if not line.strip() or line.startswith("#"):
+            continue
+        if line[0].isspace():  # a continuation of the previous value
+            continue
+        if ":" not in line:
+            problems.append(f"line {number} is not `key: value`: {line[:60]!r}")
+            continue
+        key, _, value = line.partition(":")
+        mapping[key.strip()] = value.strip()
+        if unquoted_mapping_colon(value):
+            problems.append(
+                f"`{key.strip()}` contains an unquoted `: `, which YAML reads as a "
+                "nested mapping — quote the value or rewrite the colon"
+            )
+    return mapping, problems
+
+
 def check_frontmatter(rel: str, text: str, *, is_command: bool) -> list[str]:
-    """Rule 1: commands declare frontmatter; procedures declare none."""
+    """Rule 1: commands declare parseable frontmatter; procedures declare none."""
     block = frontmatter(text)
     if not is_command:
         if block is not None:
@@ -105,7 +149,13 @@ def check_frontmatter(rel: str, text: str, *, is_command: bool) -> list[str]:
         return []
     if block is None:
         return [f"{rel}: missing frontmatter"]
-    return [f"{rel}: frontmatter has no `{key}`" for key in _FRONTMATTER_KEYS if key not in block]
+
+    mapping, problems = parse_frontmatter(block)
+    violations = [f"{rel}: {problem}" for problem in problems]
+    violations += [
+        f"{rel}: frontmatter has no `{key}`" for key in _FRONTMATTER_KEYS if key not in mapping
+    ]
+    return violations
 
 
 def check_bash_syntax(rel: str, blocks: list[str]) -> list[str]:

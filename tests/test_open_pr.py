@@ -152,9 +152,7 @@ def test_gitlab_update_argv():
 
 def test_the_two_platforms_never_share_a_flag_name_by_accident():
     """A swapped flag is the failure this mapping exists to prevent."""
-    gh = open_pr.build_command(
-        "github", base="m", head="h", title="T", body_file="B", update=False
-    )
+    gh = open_pr.build_command("github", base="m", head="h", title="T", body_file="B", update=False)
     glab = open_pr.build_command(
         "gitlab", base="m", head="h", title="T", body_file="B", update=False
     )
