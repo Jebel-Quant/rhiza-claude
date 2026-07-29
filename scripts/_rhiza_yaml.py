@@ -295,3 +295,15 @@ def _parse_block_scalar(lines: list[str], i: int, parent_indent: int) -> tuple[s
         body.append(line.strip())
         i += 1
     return "\n".join(body).strip(), i
+
+
+def as_list(value: Any) -> list[str]:
+    """Normalise a scalar/None/list config field into a list of strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(x) for x in value]
+    if isinstance(value, str):
+        parts = value.split("\\n") if "\\n" in value and "\n" not in value else value.split("\n")
+        return [p.strip() for p in parts if p.strip()]
+    return [str(value)]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import _rhiza_yaml as y
 import pytest
 
@@ -257,3 +259,17 @@ def test_is_float():
     assert y._is_float("1.5") is True
     assert y._is_float("nan") is True
     assert y._is_float("abc") is False
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, []),
+        (["a", "b"], ["a", "b"]),
+        ("one\ntwo", ["one", "two"]),
+        ("a\\nb", ["a", "b"]),
+        (7, ["7"]),
+    ],
+)
+def test_as_list(value: Any, expected: list[str]) -> None:
+    assert y.as_list(value) == expected

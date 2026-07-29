@@ -1,0 +1,128 @@
+"""Read and write `.rhiza/template.lock`, and remove files that left the template.
+
+The lock records the synced SHA and the exact file list, which two other things depend
+on: the next sync reads the SHA to find its merge base, and `stage_synced.py` reads the
+file list so `/update` can stage template-owned paths only.
+
+Orphan cleanup lives here because it is the lock's inverse — a file the previous lock
+tracked but the current file set no longer contains is one this sync must delete.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_common import log  # noqa: E402
+from _rhiza_yaml import as_list  # noqa: E402
+
+# Never removed by orphan cleanup: without it the repo stops being rhiza-managed.
+_PROTECTED = frozenset({Path(".rhiza/template.yml")})
+from _rhiza_template import Template  # noqa: E402
+from _rhiza_yaml import dump_yaml, load_yaml  # noqa: E402
+
+
+def lock_path(target: Path, lock_file: Path | None) -> Path:
+    """Return the lock-file path (explicit override or the default under .rhiza)."""
+    return lock_file if lock_file is not None else target / ".rhiza" / "template.lock"
+
+
+def previously_tracked(lock_path: Path) -> set[Path]:
+    """Return the file set recorded in an existing lock's ``files`` field."""
+    if not lock_path.exists():
+        return set()
+    try:
+        lock = load_yaml(lock_path)
+    except (OSError, ValueError):
+        return set()
+    return {Path(f) for f in as_list(lock.get("files"))}
+
+
+def clean_orphaned_files(
+    target: Path, template_files: list[Path], excludes: set[str], previously_tracked: set[Path]
+) -> None:
+    """Delete files tracked by the previous sync that the template no longer provides."""
+    orphaned = (
+        previously_tracked - set(template_files) - {Path(e) for e in excludes} - set(_PROTECTED)
+    )
+    for rel in sorted(orphaned):
+        full = target / rel
+        if full.exists():
+            try:
+                full.unlink()
+                log(f"[DEL] {rel}")
+            except OSError as exc:
+                log(f"Failed to delete {rel}: {exc}")
+
+
+def _lock_identity(lock: dict[str, Any]) -> tuple[Any, ...]:
+    """Return the content-comparison key for a lock dict, excluding ``synced_at``."""
+    return (
+        str(lock.get("sha", "")),
+        str(lock.get("repo", "")),
+        str(lock.get("host", "")),
+        str(lock.get("ref", "")),
+        as_list(lock.get("include")),
+        as_list(lock.get("exclude")),
+        as_list(lock.get("templates")),
+        as_list(lock.get("files")),
+        str(lock.get("strategy", "")),
+    )
+
+
+def build_lock(sha: str, template: Template, files: list[str], synced_at: str) -> dict[str, Any]:
+    """Assemble the ordered lock dict (matching the CLI's field order) for serialisation."""
+    lock: dict[str, Any] = {
+        "sha": sha,
+        "repo": template.repository,
+        "host": template.host,
+        "ref": template.ref,
+        "include": template.include,
+        "exclude": template.exclude,
+        "templates": template.templates,
+    }
+    if template.profiles:
+        lock["profiles"] = template.profiles
+    lock["files"] = files
+    lock["synced_at"] = synced_at
+    lock["strategy"] = "merge"
+    return lock
+
+
+def write_lock(target: Path, lock: dict[str, Any], lock_path: Path) -> None:
+    """Write the lock atomically; filter ``files`` to on-disk paths and skip no-op rewrites."""
+    lock = dict(lock)
+    lock["files"] = sorted(f for f in as_list(lock.get("files")) if (target / f).exists())
+
+    if lock_path.exists():
+        try:
+            existing = load_yaml(lock_path)
+        except (OSError, ValueError):
+            existing = None
+        if existing is not None and _lock_identity(existing) == _lock_identity(lock):
+            log(f"{lock_path.name} is already up to date — skipping write")
+            return
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = Path(str(lock_path) + ".tmp")
+    dump_yaml(lock, tmp_path)
+    os.replace(tmp_path, lock_path)
+    log(f"Updated {lock_path.name} -> {str(lock['sha'])[:12]}")
+
+
+# ---------------------------------------------------------------------------
+# Merge orchestration
+# ---------------------------------------------------------------------------
+
+
+def read_base_sha(lock_path: Path) -> str | None:
+    """Return the previously-synced SHA from the lock, or ``None`` for a first sync."""
+    if not lock_path.exists():
+        return None
+    try:
+        return str(load_yaml(lock_path).get("sha") or "") or None
+    except (OSError, ValueError):
+        return None

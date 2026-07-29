@@ -1,0 +1,67 @@
+"""Tests for template.yml parsing and validation (`scripts/_rhiza_template.py`).
+
+The sync's input contract: which repository, at which ref, with which
+profiles/bundles/includes. No git and no filesystem beyond reading that one file, so
+every case here is expressible as a string.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import _rhiza_template as tmpl
+import pytest
+from _rhiza_common import SyncError
+
+
+class TestTemplate:
+    def test_load_reads_fields(self, tmp_path):
+        tf = tmp_path / "template.yml"
+        tf.write_text('repository: "o/r"\nref: v1\ninclude:\n  - Makefile\n')
+        template = tmpl.load_template(tmp_path, tf)
+        assert template.repository == "o/r"
+        assert template.include == ["Makefile"]
+
+
+def test_git_url_variants() -> None:
+    assert tmpl.Template("o/r", "main").git_url == "https://github.com/o/r.git"
+    assert tmpl.Template("o/r", "main", host="gitlab").git_url == "https://gitlab.com/o/r.git"
+    assert tmpl.Template("/local/path", "main").git_url == "/local/path"
+    assert tmpl.Template("https://x/y.git", "main").git_url == "https://x/y.git"
+
+
+def test_git_url_unset_repository_raises() -> None:
+    with pytest.raises(SyncError, match="not configured"):
+        _ = tmpl.Template("", "main").git_url
+
+
+def test_git_url_unsupported_host_raises() -> None:
+    with pytest.raises(SyncError, match="Unsupported template-host"):
+        _ = tmpl.Template("o/r", "main", host="bitbucket").git_url
+
+
+def test_load_template_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(SyncError, match="No template.yml"):
+        tmpl.load_template(tmp_path, tmp_path / "nope.yml")
+
+
+def test_load_template_unreadable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    tf = tmp_path / "template.yml"
+    tf.write_text("x")
+    monkeypatch.setattr(tmpl, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
+    with pytest.raises(SyncError, match="Could not read"):
+        tmpl.load_template(tmp_path, tf)
+
+
+def test_load_template_missing_repository(tmp_path: Path) -> None:
+    tf = tmp_path / "template.yml"
+    tf.write_text("ref: main\ninclude:\n  - x\n")
+    with pytest.raises(SyncError, match="template-repository is required"):
+        tmpl.load_template(tmp_path, tf)
+
+
+def test_load_template_no_sources(tmp_path: Path) -> None:
+    tf = tmp_path / "template.yml"
+    tf.write_text('repository: "o/r"\nref: main\n')
+    with pytest.raises(SyncError, match="at least one of"):
+        tmpl.load_template(tmp_path, tf)
