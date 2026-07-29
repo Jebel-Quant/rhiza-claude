@@ -34,8 +34,11 @@ template's latest release.
 4. **Runs the bundled `scripts/sync.py`** and interprets its exit code: 0 clean, 1
    synced-with-conflicts (expected, not fatal), 2 a real failure that stops the run
    with nothing applied.
-5. **Resolves conflicts** by taking the upstream (template) side everywhere,
-   including `*.rej` fallout, then verifies no markers or `.rej` files remain.
+5. **Resolves conflicts** with `scripts/resolve_conflicts.py`, which takes the upstream
+   (template) side of every marker block and deletes the redundant `*.rej` beside each
+   file it resolved — one collision leaves both artifacts describing the same change, so
+   applying the reject as well would apply it twice. A reject with *no* resolved
+   counterpart is reported, never applied, and stops the run for a human.
 6. **Stages only the lock's `files`**, commits, and **opens the PR/MR** — `gh pr
    create` on GitHub, `glab mr create` on GitLab.
 7. **Reports** and returns to the branch you started on.

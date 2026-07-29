@@ -98,16 +98,30 @@ for this stdlib-only script.)
   **unpushed**, so the user can retry or delete the branch — don't leave that implicit.
 
 ## 6. Resolve conflicts — take upstream
-Only when step 5 exited 1. Take the **upstream (theirs)** side everywhere:
-- For each file with conflict markers, replace every `<<<<<<< … ======= … >>>>>>>`
-  block with just its *theirs* section, then `git add` that file.
-- For each `*.rej`, apply its hunks to the matching target (take the `+`/upstream
-  side), `git add` the target, delete the `.rej`. Delete orphan `.rej` files whose
-  target no longer exists.
+Only when step 5 exited 1. This step rewrites files the user did not author, so it is
+a script, not your text editing — run it and read the exit code:
+```bash
+uv run --python 3.12 --no-project python \
+    "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_conflicts.py" .
+```
+It takes the **upstream (theirs)** side of every `<<<<<<< … ======= … >>>>>>>` block:
+a rhiza-managed file is the template's to own, so local divergence in one is drift to
+undo, not work to preserve.
 
-Verify: `grep -rl '^<<<<<<< ' . --exclude-dir=.git` returns nothing, and
-`find . -name '*.rej' -not -path './.git/*'` is empty. If markers remain, list those
-files and resolve them by hand — still keeping the upstream side.
+It also deletes a `*.rej` that sits beside a file it just resolved. Those two artifacts
+are the *same* change — `sync.py` tries `git apply -3`, which writes the reject, then
+falls back to `git merge-file`, which writes markers holding that hunk's upstream side.
+Taking the upstream side applies it; applying the reject too would apply it **twice**.
+
+- **0** — every marker resolved, nothing outstanding. Continue.
+- **1** — a `*.rej` remains with no resolved counterpart: a hunk git could not place at
+  all. The script never applies one, because re-deriving where a hunk belongs is exactly
+  the guess that corrupts a file. Show the listed rejects and ask the user how to
+  proceed; do not stage a half-resolved tree.
+- **2** — a malformed conflict block; **nothing was written**. Stop and report the file.
+
+Then `git add` the resolved files (step 7's script does this from the lock, so you only
+need to intervene for a file the script listed as outstanding).
 
 ## 7. Stage template-owned files only, then open the PR
 The "template files only" rule is enforced by a script, not by you — don't hand-pick
