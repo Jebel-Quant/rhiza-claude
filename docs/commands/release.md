@@ -7,9 +7,11 @@ regenerate the changelog, commit, and tag — then stop so you review before pus
 /rhiza:release [version e.g. v1.4.0]
 ```
 
-With no argument you get a **menu of candidate versions** — what the conventional commits
-imply, plus the patch/minor/major alternatives. Pass an explicit `vX.Y.Z` to skip the menu.
-An argument that isn't semver-shaped is treated as a comment, not a target.
+With no argument you get a **table of candidate versions** — patch, minor and major,
+each with what it means and which commits point at it. It does **not** suggest one, mark
+one recommended, or default to one: picking the bump is your call. Pass an explicit
+`vX.Y.Z` to skip the table. An argument that isn't semver-shaped is treated as a comment,
+not a target.
 
 !!! important "The repo declares where its version lives"
     `/release` does not scan for version-shaped strings. It runs
@@ -30,13 +32,12 @@ An argument that isn't semver-shaped is treated as a comment, not a target.
    fetched, and the commits being released actually on that branch. It does **not**
    require `.rhiza/`: nothing in the release flow comes from the template, which is why
    this works on the plugin repo too.
-2. **Gathers candidates** — `git-cliff --bumped-version` for what the commits imply,
-   plus the `patch`/`minor`/`major` versions computed from the floor by
-   `scripts/check_version_bump.py`, so every option offered is guaranteed legal.
-3. **Offers them as a menu** — a list, not one value with an invitation to override,
-   because the right bump is a judgement the deriver can't make. The derived option is
-   marked recommended and each is labelled with its consequence. See below for why this
-   matters most before 1.0.
+2. **Gathers candidates** — the `patch`/`minor`/`major` versions computed from the floor
+   by `scripts/check_version_bump.py`, so every option offered is guaranteed legal, plus
+   a count of the unreleased `feat`/`fix`/breaking commits as evidence for the table.
+3. **Prints them as a table** — every legal candidate in ascending order, each labelled
+   with its consequence and the commits pointing at it, then asks you to choose. No
+   recommended row, no default, no ordering that implies one. See below for why.
 4. **Guards the choice** — via `scripts/check_version_bump.py`. The floor is the greater
    of the declared current version *and* the highest existing tag, compared **as semver**
    (so `v1.10.0` beats `v1.9.0`), and an existing tag is refused outright. A hand-typed
@@ -70,14 +71,19 @@ and the release can only land by bypassing branch protection. The durable fix be
 the repo: reference your own action by local path (`uses: ./.github/actions/<name>`), which
 needs no tag and cannot drift.
 
-## The pre-1.0 trap
+## Why it doesn't suggest a version
 
-`git-cliff` applies **no pre-1.0 special case**: a single `feat!:` or `BREAKING CHANGE`
-footer at `0.x` derives `v1.0.0`. But at `0.x`, semver does not *require* that — going to
-1.0 is a deliberate statement of API stability, and spending it by accident is the whole
-reason `/release` presents a menu rather than a single derived value. When the repo is
-pre-1.0 and the derivation says `v1.0.0`, the minor candidate (e.g. `v0.5.0`) is always
-offered alongside, with the trade-off spelled out.
+Deriving the bump from conventional commits looks decidable and isn't. `git-cliff
+--bumped-version` will happily turn a single `feat!:` or `BREAKING CHANGE` footer at `0.x`
+into `v1.0.0` — it applies **no pre-1.0 special case**. But at `0.x` semver does not
+*require* that: going to 1.0 is a deliberate statement of API stability, and it can only
+be spent once. Nothing in the commit log records whether you're ready to spend it.
+
+So `/release` gathers the evidence and stops there. The table shows every legal candidate
+with the commits behind it — including, pre-1.0, both `v1.0.0` and the `minor` candidate
+with the trade-off spelled out — and the choice stays yours. A recommendation here would
+be a guess wearing the clothes of a derivation, and the one that lands as an accidental
+1.0 is not reversible.
 
 ## Why the guard is a separate script
 

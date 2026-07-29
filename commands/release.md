@@ -1,6 +1,6 @@
 ---
-description: Prepare a release locally for any git repo that declares its version locations (no .rhiza/ required, unlike /quality) — derive the next semantic version from the conventional commits via git-cliff, guard that it strictly increases past every previous release, then let bump-my-version write it into every location the repo declares (pyproject.toml, plugin manifests, self-referencing CI stub pins), regenerate CHANGELOG.md, and commit + tag. The version locations live in the repo's own [tool.bumpversion] config, so nothing is inferred and a dependency that happens to share the version number is never rewritten. Stops before pushing — it prints the push commands, and pushing the tag is what triggers the release CI. Never pushes or force-tags.
-argument-hint: "[version e.g. v1.4.0]  (optional; defaults to the git-cliff-derived bump)"
+description: Prepare a release locally for any git repo that declares its version locations (no .rhiza/ required, unlike /quality) — lay out the legal next versions as a table for the user to choose from (it never suggests or defaults to one), guard that the choice strictly increases past every previous release, then let bump-my-version write it into every location the repo declares (pyproject.toml, plugin manifests, self-referencing CI stub pins), regenerate CHANGELOG.md, and commit + tag. The version locations live in the repo's own [tool.bumpversion] config, so nothing is inferred and a dependency that happens to share the version number is never rewritten. Stops before pushing — it prints the push commands, and pushing the tag is what triggers the release CI. Never pushes or force-tags.
+argument-hint: "[version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)"
 allowed-tools: Bash(git*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 ---
 
@@ -56,12 +56,7 @@ anyway (step 3).
 
 ## 2. Gather the candidate versions
 
-Two independent inputs, both needed for the menu in step 3.
-
-**What the commits imply** — `uvx git-cliff --bumped-version` (`feat` → minor, `fix` →
-patch, a `!` or `BREAKING CHANGE` footer → major). Hold as `DERIVED`. Note git-cliff
-applies **no pre-1.0 special case**: a breaking change at `0.x` derives `v1.0.0`, which
-spends the 1.0 signal whether or not the project is ready for it.
+Two independent inputs, both needed for the table in step 3.
 
 **What each bump kind would be** — computed from the floor, so every option is
 guaranteed to be legal:
@@ -71,32 +66,52 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_ve
 ```
 With no target it prints the floor and the `patch`/`minor`/`major` candidates and exits 0.
 
-If `$ARGUMENTS` is a `vX.Y.Z` version, that's an explicit choice — skip the menu, set
+**What the commits contain** — read them, so the table can say which commit types point
+at each row: `git log "$(git describe --tags --abbrev=0)"..HEAD --oneline`. Count the
+`feat`, `fix`, and breaking (`!` / `BREAKING CHANGE`) commits. This is **evidence for the
+table, not a recommendation** — `uvx git-cliff --bumped-version` would collapse the same
+commits into a single answer, and that answer is exactly what this command declines to
+put its thumb on. Do not run it, and do not name one row as the derived or expected one.
+
+If `$ARGUMENTS` is a `vX.Y.Z` version, that's an explicit choice — skip the table, set
 `TARGET`, and go straight to the guard in step 4. **`$ARGUMENTS` that isn't a version**
 (a note, a phrase like "for client repos") is not a target — say you're treating it as a
-comment and continue to the menu.
+comment and continue to the table.
 
-## 3. Choose the target from a menu
+## 3. Present the options as a table and let the user choose
 
-**Never tag without this.** Present the candidates with `AskUserQuestion` — a list, not
-a single value with an invitation to override, because the right bump is a judgement the
-deriver cannot make. Put the **git-cliff-derived one first, marked "(Recommended)"**,
-and label each with what it means:
+**Never tag without this.** The right bump is a judgement you cannot make: it depends on
+API-stability intent that the commit log does not record. So **lay out the options and
+stop** — no recommended row, no default, no ordering that implies one, no "the commits
+suggest X". Print a table, always in ascending version order:
 
-- `$DERIVED` — *what the commits imply*: name the types that drove it (e.g. "2 breaking
-  changes, 5 feat").
-- the `major` / `minor` / `patch` candidates from step 2 that differ from `$DERIVED`,
-  each with its consequence — a major "signals a breaking API"; a minor "adds features,
-  compatible"; a patch "fixes only".
-- **When the repo is pre-1.0 and `$DERIVED` is `v1.0.0`**, say so explicitly in that
-  option's description and make sure the `minor` candidate is also offered: at `0.x` a
-  breaking change does not *require* 1.0, and going there is a deliberate statement of
-  API stability.
+```
+current v0.6.0 · floor v0.6.0 (highest tag v0.6.0) · 7 unreleased commits
 
-Show `CURRENT` and the floor alongside, so the user can see what each option is
-relative to. The user may also supply their own value.
+| Bump  | Version | Means                          | Commits pointing here      |
+|-------|---------|--------------------------------|----------------------------|
+| patch | v0.6.1  | fixes only, no new behaviour   | 2 fix                      |
+| minor | v0.7.0  | adds features, compatible      | 4 feat, 2 fix              |
+| major | v1.0.0  | signals a breaking API, and at | 1 breaking (`feat!:` sync) |
+|       |         | 0.x also declares 1.0 stability|                            |
+```
 
-**Step 4 then guards whatever comes back**, including a hand-typed value — the menu
+Rules for the table:
+
+- **Every legal candidate gets a row** — `patch`, `minor`, `major` from step 2, ascending.
+- The "Commits pointing here" column is a **count of what's in the log**, stated flatly.
+  A row with no commits behind it still appears, with an empty cell.
+- **When the repo is pre-1.0**, the `major` row must spell out that going to `v1.0.0` is a
+  deliberate statement of API stability which `0.x` does not require — a breaking change
+  at `0.x` is a legitimate `minor`. State it as a fact about both rows, not as a nudge
+  toward either.
+- Show `CURRENT`, the floor, and the highest existing tag above the table, so each option
+  is visible relative to what already shipped.
+
+Then collect the choice with `AskUserQuestion`, options in the **same ascending order as
+the table** and none marked "(Recommended)". The user may also supply their own value.
+
+**Step 4 then guards whatever comes back**, including a hand-typed value — the table
 offers only legal candidates, but a custom answer hasn't been checked.
 
 ## 4. Guard that it strictly increases
@@ -226,7 +241,7 @@ with `git-cliff`; write them to a file and pass that.
 
 ## 10. Report
 
-Concisely: `CURRENT` → `TARGET` with the derivation rationale and confirmation that it
+Concisely: `CURRENT` → `TARGET` — the version the user picked, with confirmation that it
 strictly increases past every prior release; every file the bump touched (manifests,
 `pyproject.toml`, any stub pins, the bumpversion config); the changelog diff summary;
 the commit SHA and the tag; and the two push commands. State plainly that **nothing has
