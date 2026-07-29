@@ -182,6 +182,23 @@ def test_lock_unchanged_skips_write(make_repo: Any, capsys: pytest.CaptureFixtur
     assert "already up to date" in capsys.readouterr().err
 
 
+def test_re_syncing_an_unchanged_template_preserves_local_edits(make_repo: Any) -> None:
+    """Re-running /update on an unmoved template must not clobber local work.
+
+    `test_lock_unchanged_skips_write` already covers the re-sync path, but only asserts
+    the lock is skipped — it would still pass if the file had been overwritten. The
+    tree-level property `test_property_re_syncing_the_same_ref_is_a_no_op` covers the
+    merge in isolation; this drives the whole pipeline (clone, snapshot, diff, lock) to
+    confirm the invariant survives it.
+    """
+    _tmpl, proj = _first_synced(make_repo, {"a.txt": "upstream\n"}, ["a.txt"])
+    proj.write("a.txt", "locally edited\n")
+    proj.commit("local edit to a tracked file")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    assert proj.read("a.txt") == "locally edited\n"
+
+
 def test_missing_file_restored(make_repo: Any) -> None:
     tmpl, proj = _first_synced(make_repo, {"a.txt": "a\n"}, ["a.txt"])
     (proj.path / "a.txt").unlink()  # manually delete a tracked file
