@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.6.0] - 2026-07-29
+
+### New Features
+- Move the gh/glab mapping into a script, making GitLab testable (#60)
+- *(ci)* Watch for template drift on a schedule (#64) (#66)
+- *(update)* Execute conflict resolution instead of describing it (#61) (#67)
+- *(platform)* One tested home for the gh/glab mapping (#63) (#69)
+
+### Bug Fixes
+- *(init)* Stop conflating where the repo lives with where the template lives (#59)
+
+### Maintenance
+- Add integration tests for the prose commands (#56)
+- Drive commands against fixture repos, and probe /quality's gates (#57)
+- Always-on end-to-end tests for all seven commands (fixes three live bugs) (#58)
+- *(sync)* Assert the merge algorithm's invariants, not its line coverage (#65) (#70)
+- *(sync)* Merge the snapshots directly, deleting the diff round-trip (#71)
+- *(sync)* Split sync.py into one module per concern (#72)
+- *(quality)* Run the gates end to end instead of probing them (#62) (#68)
+- Remove scripts/release.sh, now that /rhiza:release covers this repo (#73)
+
 ## [0.5.0] - 2026-07-28
 
 ### Bug Fixes
