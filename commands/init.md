@@ -1,5 +1,5 @@
 ---
-description: Make the current folder a rhiza-managed repo. It writes exactly one file itself — `.rhiza/template.yml`, the pointer at a template repository and pinned ref — and delegates everything else to internal procedures under prompts/: install-uv, pr-base (work branch off an untouched default), skeleton (uv init --lib + the pyproject shape the template's gates require, which itself applies python-version), and license. If a `.rhiza/` directory already exists it hands off to /update instead and never touches template.yml. It detects (or asks) GitHub vs GitLab, picks the template repo (default jebel-quant/rhiza, reachability-checked) and its latest release as the initial pin, then opens a PR. It runs no sync and no gates — the template content (CI, Makefile, rhiza.mk, docs base) arrives when the user runs /update after this PR merges. Never pushes to the default branch.
+description: Make the current folder a rhiza-managed repo. It writes exactly one file itself — `.rhiza/template.yml`, the pointer at a template repository and pinned ref — and delegates everything else to internal procedures under prompts/ — install-uv, pr-base (work branch off an untouched default), skeleton (uv init --lib + the pyproject shape the template's gates require, which itself applies python-version), and license. If a `.rhiza/` directory already exists it hands off to /update instead and never touches template.yml. It detects (or asks) GitHub vs GitLab, picks the template repo (default jebel-quant/rhiza, reachability-checked) and its latest release as the initial pin, then opens a PR. It runs no sync and no gates — the template content (CI, Makefile, rhiza.mk, docs base) arrives when the user runs /update after this PR merges. Never pushes to the default branch.
 argument-hint: "[repo name]  (optional; defaults to the current folder name)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(curl*), Bash(brew*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion, Skill
 ---
@@ -139,9 +139,14 @@ Skip both for `go` — they're Python procedures.
 
 ```bash
 git push -u origin "$BRANCH"
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/open_pr.py" \
+  --base "$DEFAULT" --head "$BRANCH" \
+  --title "chore: make repo rhiza-managed" --body-file <BODY>
 ```
-- **GitHub:** `gh pr create --base "$DEFAULT" --head "$BRANCH" --title "chore: make repo rhiza-managed" --body-file <BODY>`
-- **GitLab:** `glab mr create --source-branch "$BRANCH" --target-branch "$DEFAULT" --title "chore: make repo rhiza-managed" --description-file <BODY>`
+It detects the platform from `origin` and issues the right call — `gh pr create` or
+`glab mr create`, which differ in subcommand *and* flag names. Don't hand-write either:
+that mapping lived in prose once, and `/update` shipped calling `gh` on GitLab repos.
+Add `--dry-run` to see the command without creating anything.
 
 Keep the body short: template repo + pinned ref + profile, what the PR contains, and
 that **after merging the user runs `/update`** to pull the template content. If the

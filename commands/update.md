@@ -128,18 +128,22 @@ failure; stop.
 - Otherwise `git commit -m "chore: apply rhiza sync $TARGET"`.
 - `git push --set-upstream origin "$BRANCH"` (this is also what pushes the step-4
   bump commit — until now the branch was local only).
-- Open the PR/MR into `$DEFAULT` **on the platform detected in step 1**:
-  - **GitHub:** `gh pr create --base "$DEFAULT" --head "$BRANCH" --title "chore: update rhiza to $TARGET" --body-file <BODY>`
-  - **GitLab:** `glab mr create --source-branch "$BRANCH" --target-branch "$DEFAULT" --title "chore: update rhiza to $TARGET" --description-file <BODY>`
+- Open the PR/MR into `$DEFAULT`:
+  ```bash
+  uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/open_pr.py" \
+    --base "$DEFAULT" --head "$BRANCH" \
+    --title "chore: update rhiza to $TARGET" --body-file <BODY>
+  ```
+  It detects the platform from `origin` and issues `gh pr create` or `glab mr create`,
+  which differ in subcommand *and* flag names. **This step used to be GitHub-only** —
+  it detected GitLab, offered `gitlab-project`, then called `gh`. Don't hand-write
+  either form; add `--update` to amend an existing request rather than erroring.
   - Body: the template repo + old ref → `$TARGET`, the count of files the sync
     changed, whether conflicts were resolved (taking upstream), anything left
     unstaged in the working tree, and a line noting that **no gates were run — run
     `/rhiza:quality` for a scorecard**.
-  - If the PR/MR already exists, update its body (`gh pr edit "$BRANCH" --body-file
-    <BODY>` / `glab mr update "$BRANCH" --description-file <BODY>`) and report the
-    existing URL rather than erroring.
-- If the platform CLI is missing or unauthenticated, don't fail — the branch is
-  pushed; print it and the compare URL.
+- Exit **1** from the opener means the CLI is missing or failed. Don't treat that as
+  fatal — the branch is already pushed; relay its note and print the compare URL.
 
 ## 8. Report and return
 Short: `$TEMPLATE_REPO`, old ref → `$TARGET`, the branch, how many template files

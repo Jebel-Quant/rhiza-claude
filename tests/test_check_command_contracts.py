@@ -272,3 +272,89 @@ def test_main_reports_each_violation(plugin, capsys):
 def test_this_plugins_commands_are_executable():
     """The assertion that matters: every shipped command's contract holds."""
     assert ccc.check_contracts(_ROOT) == []
+
+
+# --- rule 1b: the frontmatter must actually parse ------------------------------
+
+
+def test_flags_a_description_with_an_unquoted_colon(plugin):
+    """The bug that shipped in five of seven commands.
+
+    `description: procedures under prompts/: install-uv` is not valid YAML — the second
+    `: ` reads as a nested mapping, so the whole block fails to load and the command's
+    metadata is lost. The original key check was a substring search, which passed.
+    """
+    (plugin / "commands" / "demo.md").write_text(
+        "---\n"
+        "description: delegates to internal procedures: install-uv, skeleton\n"
+        'argument-hint: "[x]"\n'
+        "allowed-tools: Read\n"
+        "---\n\nbody\n"
+    )
+    violations = ccc.check_contracts(plugin)
+    assert any("unquoted `: `" in v and "description" in v for v in violations)
+
+
+def test_a_quoted_value_may_contain_a_colon(plugin):
+    """Quoting is the escape hatch, so the rule must not forbid colons outright."""
+    (plugin / "commands" / "demo.md").write_text(
+        "---\n"
+        'description: "delegates to internal procedures: install-uv"\n'
+        'argument-hint: "[x]"\n'
+        "allowed-tools: Read\n"
+        "---\n\nbody\n"
+    )
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_a_block_scalar_may_contain_a_colon(plugin):
+    (plugin / "commands" / "demo.md").write_text(
+        "---\n"
+        "description: >-\n"
+        "  delegates to internal procedures: install-uv\n"
+        'argument-hint: "[x]"\n'
+        "allowed-tools: Read\n"
+        "---\n\nbody\n"
+    )
+    assert ccc.check_contracts(plugin) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "flagged"),
+    [
+        ("plain text", False),
+        ("a url https://example.com/x", False),  # `://` is not `: `
+        ("time 12:30 today", False),  # no space after the colon
+        ("key: value", True),
+        ("trailing colon:", False),  # nothing follows, so no mapping
+        ('"quoted: value"', False),
+        ("'single: quoted'", False),
+        (">-", False),
+    ],
+)
+def test_unquoted_mapping_colon(value, flagged):
+    assert ccc.unquoted_mapping_colon(value) is flagged
+
+
+def test_parse_frontmatter_reports_a_malformed_line(plugin):
+    mapping, problems = ccc.parse_frontmatter("description: ok\nnot-a-pair\n")
+    assert mapping == {"description": "ok"}
+    assert any("not `key: value`" in p for p in problems)
+
+
+def test_parse_frontmatter_ignores_continuations_and_comments():
+    mapping, problems = ccc.parse_frontmatter(
+        "# a comment\ndescription: >-\n  wrapped: continuation\nallowed-tools: Read\n"
+    )
+    assert set(mapping) == {"description", "allowed-tools"}
+    assert problems == []
+
+
+def test_this_plugins_frontmatter_all_parses():
+    """The assertion that would have caught it: every shipped command loads."""
+    for path in sorted((_ROOT / "commands").glob("*.md")):
+        block = ccc.frontmatter(path.read_text())
+        assert block is not None, f"{path.name} has no frontmatter"
+        mapping, problems = ccc.parse_frontmatter(block)
+        assert problems == [], f"{path.name}: {problems}"
+        assert {"description", "argument-hint", "allowed-tools"} <= set(mapping)
