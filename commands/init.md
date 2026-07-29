@@ -139,9 +139,14 @@ Skip both for `go` — they're Python procedures.
 
 ```bash
 git push -u origin "$BRANCH"
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/open_pr.py" \
+  --base "$DEFAULT" --head "$BRANCH" \
+  --title "chore: make repo rhiza-managed" --body-file <BODY>
 ```
-- **GitHub:** `gh pr create --base "$DEFAULT" --head "$BRANCH" --title "chore: make repo rhiza-managed" --body-file <BODY>`
-- **GitLab:** `glab mr create --source-branch "$BRANCH" --target-branch "$DEFAULT" --title "chore: make repo rhiza-managed" --description-file <BODY>`
+It detects the platform from `origin` and issues the right call — `gh pr create` or
+`glab mr create`, which differ in subcommand *and* flag names. Don't hand-write either:
+that mapping lived in prose once, and `/update` shipped calling `gh` on GitLab repos.
+Add `--dry-run` to see the command without creating anything.
 
 Keep the body short: template repo + pinned ref + profile, what the PR contains, and
 that **after merging the user runs `/update`** to pull the template content. If the
