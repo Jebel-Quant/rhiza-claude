@@ -146,9 +146,10 @@ stdlib-only script.
 
 ### Repo utilities
 
-Thin, **read-only**, stdlib-only commands backed by bundled scripts — they read
-`.rhiza/template.lock` / `.rhiza/template.yml` directly and work without the `rhiza`
-CLI installed. Neither writes anything.
+Thin, **read-only**, stdlib-only commands backed by bundled scripts — they work
+without the `rhiza` CLI installed, reading `.rhiza/template.lock` /
+`.rhiza/template.yml` directly where they need a repo at all. None of them writes
+anything.
 
 - **`/rhiza:status`** — report both halves of the repo's rhiza state: whether
   `.rhiza/template.yml` is valid (what you'd sync *from*), and what
@@ -157,6 +158,13 @@ CLI installed. Neither writes anything.
   Add `--files` (alias `--tree`) to list the managed files as a directory tree, or
   `--check` to compare the pinned ref against the latest upstream release.
   Read-only.
+- **`/rhiza:maffay`** — return a bonmot from a random Peter Maffay song, for the middle
+  of a long refactor. Takes an optional theme keyword (`mut`, `sommer`, `nessaja`, …) or
+  part of a song title. The draw lives in `scripts/maffay.py` because a model asked for
+  a random song reaches for the same two hits every time. Quotes the **title line**
+  only, attributed — no lyric bodies — and the `Für uns:` gloss beside it is ours, not
+  Maffay's. Needs no repo, no git and no network.
+
 ### Destructive
 
 - **`/rhiza:uninstall`** — delete every rhiza-managed file listed in
