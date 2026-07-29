@@ -117,6 +117,93 @@ def test_seed_readme_writes_no_code_blocks(tmp_path):
     assert "```" not in (tmp_path / "README.md").read_text()
 
 
+# --- set_authors -------------------------------------------------------------
+
+
+def test_set_authors_inserts_when_uv_omitted_the_key():
+    """`uv init` writes no `authors` at all when git has no configured identity."""
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    out, changed = sk.set_authors(without, name="Ada", email="ada@example.com")
+    assert changed
+    assert 'authors = [{ name = "Ada", email = "ada@example.com" }]' in out
+
+
+def test_set_authors_replaces_uvs_empty_list():
+    empty = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]', "authors = []"
+    )
+    out, changed = sk.set_authors(empty, name="Ada", email=None)
+    assert changed
+    assert 'authors = [{ name = "Ada" }]' in out
+    assert "authors = []" not in out
+
+
+def test_set_authors_leaves_a_real_author_alone():
+    """A hand-written author is the user's; the gate only needs one to exist."""
+    out, changed = sk.set_authors(_UV_PYPROJECT, name="Ada", email="ada@example.com")
+    assert not changed
+    assert out == _UV_PYPROJECT
+    assert "Ada" not in out
+
+
+def test_set_authors_omits_an_absent_email():
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    out, _ = sk.set_authors(without, name="jebel-quant", email=None)
+    assert 'authors = [{ name = "jebel-quant" }]' in out
+    assert "email" not in out.split("authors")[1].split("]")[0]
+
+
+def test_set_authors_preserves_missing_trailing_newline():
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    ).rstrip("\n")
+    out, changed = sk.set_authors(without, name="Ada", email=None)
+    assert changed
+    assert not out.endswith("\n")
+
+
+def test_finish_skeleton_falls_back_to_the_owner_without_a_git_identity(tmp_path, monkeypatch):
+    """No git identity anywhere is the CI case — the gate still needs a named author."""
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    (tmp_path / "pyproject.toml").write_text(without)
+    monkeypatch.setattr(sk, "git_identity", lambda _t: (None, None))
+
+    summary = sk.finish_skeleton(
+        tmp_path, owner="jebel-quant", repo="acme-tool", host="github", description="d"
+    )
+
+    assert "authors" in summary["changes"]
+    assert 'name = "jebel-quant"' in (tmp_path / "pyproject.toml").read_text()
+
+
+def test_finish_skeleton_prefers_the_git_identity(tmp_path, monkeypatch):
+    without = _UV_PYPROJECT.replace(
+        'authors = [\n    { name = "A Dev", email = "dev@example.com" }\n]\n', ""
+    )
+    (tmp_path / "pyproject.toml").write_text(without)
+    monkeypatch.setattr(sk, "git_identity", lambda _t: ("Ada Lovelace", "ada@example.com"))
+
+    sk.finish_skeleton(tmp_path, owner="jebel-quant", repo="r", host="github", description="d")
+
+    text = (tmp_path / "pyproject.toml").read_text()
+    assert 'name = "Ada Lovelace", email = "ada@example.com"' in text
+
+
+def test_git_identity_reads_the_repo_config(tmp_path):
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q", "-b", "main", "."], cwd=tmp_path, check=True)
+    sp.run(["git", "config", "user.name", "Grace"], cwd=tmp_path, check=True)
+    sp.run(["git", "config", "user.email", "grace@example.com"], cwd=tmp_path, check=True)
+    assert sk.git_identity(tmp_path) == ("Grace", "grace@example.com")
+
+
 # --- set_description ---------------------------------------------------------
 
 
