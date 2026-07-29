@@ -1,0 +1,100 @@
+name: Template drift
+
+# Does the CURRENT rhiza template still agree with this plugin?
+#
+# The end-to-end tests pin a template ref (tests/conftest.py) so that PR runs are
+# deterministic — CI must not turn red merely because upstream released. The cost of
+# that is real: `make validate` was removed from the template between v1.1.3 and
+# v1.2.1, /quality named it as a gate and scored the "No rule to make target" failure
+# as FAIL, and it surfaced only because somebody bumped the pin by hand. Nothing was
+# watching.
+#
+# This job watches. It runs the same end-to-end tests against the template's *latest*
+# release, so upstream changes are found on the day they land. It is deliberately a
+# separate workflow with its own name: a red "Template drift" means upstream moved and
+# we no longer agree with it, which is a different fact from a red "CI" on a PR.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: e2e against the latest template
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write  # to raise the finding where it will be seen
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Report the pinned ref against the latest release
+        id: refs
+        run: |
+          pinned=$(grep -oE 'PINNED_TEMPLATE_REF = "[^"]+"' tests/conftest.py | cut -d'"' -f2)
+          latest=$(git ls-remote --tags --sort=-v:refname \
+            https://github.com/jebel-quant/rhiza \
+            | grep -oE 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 | sed 's|refs/tags/||')
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "::notice::pinned=$pinned latest=$latest"
+          if [ "$pinned" != "$latest" ]; then
+            echo "::notice::the pin is behind; this run checks whether that matters"
+          fi
+
+      # Only the end-to-end tests: they are the ones that touch the template. No
+      # coverage gate, since a filtered run cannot meet it and coverage is not the
+      # question being asked here.
+      - name: Run the end-to-end tests against the latest template
+        env:
+          RHIZA_TEMPLATE_REF: latest
+        run: uvx pytest tests/ -k e2e -q
+
+      - name: Raise a finding if the template no longer agrees
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PINNED: ${{ steps.refs.outputs.pinned }}
+          LATEST: ${{ steps.refs.outputs.latest }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Template drift: the plugin no longer agrees with jebel-quant/rhiza@${LATEST}"
+          # Dedupe on the exact title so a weekly failure does not file a weekly issue.
+          existing=$(gh issue list --state open --search "$title in:title" \
+            --json number --jq '.[0].number // empty')
+          body=$(printf '%s\n' \
+            "The end-to-end tests pass against the pinned \`${PINNED}\` but fail against" \
+            "the latest release \`${LATEST}\`." \
+            "" \
+            "That means upstream changed something this plugin depends on — a \`make\`" \
+            "target renamed or removed, a synced file moved, a profile's bundles changed." \
+            "Until it is reconciled, users on a current template hit the failure and the" \
+            "pinned tests stay green, which is exactly the blind spot this job exists for." \
+            "" \
+            "Run: ${RUN_URL}" \
+            "" \
+            "Do not fix this by bumping the pin alone — that hides the finding. Reconcile" \
+            "the plugin with the change, then bump.")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+            echo "::notice::commented on existing issue #${existing}"
+          else
+            gh issue create --title "$title" --label bug --body "$body"
+          fi

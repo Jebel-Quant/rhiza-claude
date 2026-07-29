@@ -7,6 +7,7 @@ package, so put that directory on `sys.path` to import them.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -98,10 +99,39 @@ class Repo:
         return self.git("rev-parse", "HEAD").stdout.strip()
 
 
-# The template the end-to-end tests sync from. Pinned for determinism; bump
-# deliberately when validating a newer rhiza release.
-TEMPLATE_REF = "v1.2.1"
+# The template the end-to-end tests sync from. Pinned for determinism — CI must not
+# turn red merely because upstream released.
+#
+# `RHIZA_TEMPLATE_REF=latest` resolves the newest release instead, which is how the
+# scheduled drift job asks "does the current template still agree with us?". That
+# question needs its own signal: `make validate` was removed upstream between v1.1.3
+# and v1.2.1, /quality scored the missing gate FAIL, and it surfaced only because
+# somebody bumped the pin by hand. Nothing was watching.
 TEMPLATE_REPO = "jebel-quant/rhiza"
+PINNED_TEMPLATE_REF = "v1.2.1"
+
+
+def resolve_template_ref() -> str:
+    """Return the template ref to sync: the pin, an override, or the latest release.
+
+    Reuses `status.py`'s tag helpers rather than adding a second resolver — they are
+    already tested, and `/rhiza:status --check` answers the same question for users.
+    """
+    requested = os.environ.get("RHIZA_TEMPLATE_REF", PINNED_TEMPLATE_REF)
+    if requested != "latest":
+        return requested
+
+    import status
+
+    releases = [t for t in status._remote_tags("github", TEMPLATE_REPO) if status._parse_semver(t)]
+    if not releases:
+        # Skip rather than fall back to the pin: a silent fallback would make the
+        # drift job pass while asking nothing, which is the blind spot it exists for.
+        pytest.skip(f"could not list releases for {TEMPLATE_REPO}")
+    return max(releases, key=lambda t: status._parse_semver(t))  # type: ignore[arg-type]
+
+
+TEMPLATE_REF = resolve_template_ref()
 
 
 # ---------------------------------------------------------------------------

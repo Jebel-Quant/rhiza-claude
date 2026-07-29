@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import status
 from conftest import PY, TEMPLATE_REF, assert_ok, run_cmd
 
@@ -285,3 +286,50 @@ def test_e2e_the_config_half_validates(synced_repo):
     """/status runs validate.py first; a real synced repo must pass its checks."""
     validate = Path(__file__).resolve().parents[1] / "scripts" / "validate.py"
     assert_ok(run_cmd([*PY, str(validate), str(synced_repo)], synced_repo), "validate.py")
+
+
+# --- the drift job's ref resolution -------------------------------------------
+#
+# conftest.resolve_template_ref reuses this module's tag helpers rather than adding a
+# second resolver. Tested here because that is where the helpers live.
+
+
+def test_resolve_template_ref_defaults_to_the_pin(monkeypatch):
+    """PR runs must be deterministic — the pin is the default, not the latest release."""
+    import conftest
+
+    monkeypatch.delenv("RHIZA_TEMPLATE_REF", raising=False)
+    assert conftest.resolve_template_ref() == conftest.PINNED_TEMPLATE_REF
+
+
+def test_resolve_template_ref_honours_an_explicit_override(monkeypatch):
+    import conftest
+
+    monkeypatch.setenv("RHIZA_TEMPLATE_REF", "v9.9.9")
+    assert conftest.resolve_template_ref() == "v9.9.9"
+
+
+def test_resolve_template_ref_latest_picks_the_highest_release(monkeypatch):
+    """`latest` is how the scheduled drift job asks the upstream question."""
+    import conftest
+
+    monkeypatch.setenv("RHIZA_TEMPLATE_REF", "latest")
+    monkeypatch.setattr(
+        status, "_remote_tags", lambda host, repo: ["v1.2.1", "v1.10.0", "v1.9.0", "not-a-tag"]
+    )
+    # Semver, not string order: v1.10.0 beats v1.9.0.
+    assert conftest.resolve_template_ref() == "v1.10.0"
+
+
+def test_resolve_template_ref_latest_skips_when_the_remote_is_unreachable(monkeypatch):
+    """A network failure must skip, not silently fall back to the pin.
+
+    Falling back would make the drift job pass while asking nothing, which is the
+    failure mode the job exists to prevent.
+    """
+    import conftest
+
+    monkeypatch.setenv("RHIZA_TEMPLATE_REF", "latest")
+    monkeypatch.setattr(status, "_remote_tags", lambda host, repo: [])
+    with pytest.raises(BaseException, match="could not list releases"):
+        conftest.resolve_template_ref()
