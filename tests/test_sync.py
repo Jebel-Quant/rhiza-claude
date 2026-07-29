@@ -106,6 +106,26 @@ def test_incremental_conflict_marks_and_exits_one(
     assert "Conflicts remain" in capsys.readouterr().err
 
 
+def test_a_locally_modified_binary_fails_the_sync_by_name(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A binary collision leaves no marker, so the report has to name the file itself.
+
+    `git merge-file` refuses binary input. The file is left exactly as the user had it —
+    overwriting would lose work — but that means `grep '<<<<<<<'` finds nothing, and a
+    silent exit 1 would send the user looking for a conflict that isn't there.
+    """
+    tmpl, proj = _first_synced(make_repo, {"logo.png": "BASE\x00\x01"}, ["logo.png"])
+    tmpl.write("logo.png", "UPSTREAM\x00\x02")
+    tmpl.commit("v2")
+    proj.write("logo.png", "LOCAL\x00\x03")
+    proj.commit("local binary edit")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_CONFLICTS
+    assert proj.read("logo.png") == "LOCAL\x00\x03", "the local binary was clobbered"
+    assert "cannot merge: logo.png" in capsys.readouterr().err
+
+
 def test_upstream_added_file_appears(make_repo: Any) -> None:
     tmpl, proj = _first_synced(make_repo, {"a.txt": "a\n"}, ["a.txt", "b.txt"])
     tmpl.write("b.txt", "brand new\n")
@@ -613,7 +633,8 @@ def test_merge_with_base_tolerates_clone_failure(
         raise subprocess.CalledProcessError(1, ["git", "clone"], b"", b"boom")
 
     monkeypatch.setattr(sync.git, "clone", boom)
-    monkeypatch.setattr(sync.git, "get_diff", lambda *a: "")  # empty diff -> clean
+    # Base and upstream are both the (empty) tmp_path, so the merge finds no changed
+    # files and reports clean without needing real git.
     ctx = sync.git.GitContext(executable="git", env={})
     base_snapshot = tmp_path / "base"
     base_snapshot.mkdir()

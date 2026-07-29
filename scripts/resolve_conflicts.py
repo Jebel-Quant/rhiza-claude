@@ -2,7 +2,7 @@
 """Resolve sync conflicts by taking the upstream side — behind `/rhiza:update` step 6.
 
 `scripts/sync.py` exits **1** when a template change collides with a local edit, leaving
-`<<<<<<< ======= >>>>>>>` markers and possibly `*.rej` files. `/update`'s policy is to
+`<<<<<<< ======= >>>>>>>` markers. `/update`'s policy is to
 take the **upstream** side everywhere: a rhiza-managed file is the template's to own, and
 local divergence in one is drift to be undone, not work to preserve.
 
@@ -17,15 +17,19 @@ Scope, deliberately narrow:
 * **Conflict markers are resolved.** Each ``<<<<<<< … ======= … >>>>>>>`` block is
   replaced by its *theirs* section. Nested or malformed blocks are refused rather than
   guessed at.
-* **A `*.rej` beside a file we just resolved is *superseded*, and is deleted.** This is
-  the case the prose got wrong. `sync.py` tries ``git apply -3`` first and falls back to
-  ``git merge-file``, so a single collision leaves *both* artifacts describing the *same*
-  change: markers holding the upstream side, and a reject holding the identical hunk.
-  Taking the upstream side already applies it — "apply its hunks, then delete the .rej"
-  would apply it twice.
-* **Any other `*.rej` is reported, never applied.** A reject with no resolved counterpart
-  holds a hunk git could not place at all, and re-deriving where it belongs is exactly
-  the judgement that corrupts files. Exiting non-zero keeps the caller honest.
+* **`*.rej` files are reported, never applied.** Re-deriving where an unplaceable hunk
+  belongs is exactly the judgement that corrupts files, so this exits non-zero and leaves
+  it to a human.
+
+  The sync no longer produces rejects at all: ``git apply --reject`` was the only thing
+  that ever created one, and `_rhiza_merge.py` replaced the whole ``git apply`` path. An
+  earlier version of this script *deleted* a reject sitting beside a file it had just
+  resolved, on the sound reasoning that `sync.py` then emitted both artifacts for one
+  collision — markers plus the identical hunk — so applying the reject too would apply
+  the change twice. That cause is gone, and with it the justification: a reject found
+  today came from an older sync or a hand-run ``git apply``, and deleting it because we
+  happened to resolve markers in the same file would be a guess about contents nobody
+  checked.
 
 Usage:
   uv run --python 3.12 --no-project python \
@@ -33,7 +37,7 @@ Usage:
 
 Exit codes:
   0  no conflicts, or every marker resolved and no rejects remain
-  1  `*.rej` files remain — they need a human
+  1  `*.rej` files remain — they need a human (the sync cannot create these)
   2  a malformed conflict block was found and nothing was written
 """
 
@@ -145,7 +149,6 @@ def resolve(target: Path, *, dry_run: bool = False) -> dict[str, Any]:
         except MalformedConflict as exc:
             return {
                 "resolved": [],
-                "superseded": [],
                 "rejects": [str(p.relative_to(target)) for p in rejects],
                 "notes": [f"{path.relative_to(target)}: {exc} — nothing was written"],
                 "exit_code": EXIT_MALFORMED,
@@ -154,41 +157,23 @@ def resolve(target: Path, *, dry_run: bool = False) -> dict[str, Any]:
             path.write_text(new_text)
         resolved.append({"path": str(path.relative_to(target)), "blocks": blocks})
 
-    # A reject beside a file we just resolved describes the same change the upstream
-    # side already carried, because sync.py tries `git apply -3` before falling back to
-    # `git merge-file`. Applying it again would duplicate the hunk.
-    resolved_paths = {entry["path"] for entry in resolved}
-    superseded: list[str] = []
-    outstanding: list[str] = []
-    for path in rejects:
-        rel = str(path.relative_to(target))
-        if rel[: -len(".rej")] in resolved_paths:
-            superseded.append(rel)
-            if not dry_run:
-                path.unlink()
-        else:
-            outstanding.append(rel)
+    outstanding = [str(path.relative_to(target)) for path in rejects]
 
     notes: list[str] = []
-    if dry_run and (resolved or superseded):
-        notes.append("dry run — nothing was written or deleted")
-    if superseded:
-        notes.append(
-            f"{len(superseded)} .rej file(s) superseded by the resolved markers and removed — "
-            "the same hunk, already taken from upstream"
-        )
+    if dry_run and resolved:
+        notes.append("dry run — nothing was written")
     if outstanding:
         notes.append(
-            f"{len(outstanding)} .rej file(s) remain with no resolved counterpart. They hold "
-            "hunks git could not place, and re-deriving where they belong is how files get "
-            "corrupted. Apply them by hand, then delete the .rej."
+            f"{len(outstanding)} .rej file(s) remain. The sync no longer creates these — "
+            "`git apply --reject` was the only thing that ever did, and it is gone — so one "
+            "here came from an older sync or a hand-run `git apply`, and its contents cannot "
+            "be assumed redundant. Apply them by hand, then delete the .rej."
         )
     if not marked and not rejects:
         notes.append("no conflicts found")
 
     return {
         "resolved": resolved,
-        "superseded": superseded,
         "rejects": outstanding,
         "notes": notes,
         "exit_code": EXIT_REJECTS_REMAIN if outstanding else EXIT_OK,
@@ -218,8 +203,6 @@ def main(argv: list[str] | None = None) -> int:
     else:
         for entry in summary["resolved"]:
             print(f"resolved {entry['path']}: {entry['blocks']} block(s) -> upstream")
-        for path in summary["superseded"]:
-            print(f"removed  {path} (superseded by the resolved markers)")
         for path in summary["rejects"]:
             print(f"reject   {path}", file=sys.stderr)
         for note in summary["notes"]:

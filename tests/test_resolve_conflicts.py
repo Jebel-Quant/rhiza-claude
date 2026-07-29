@@ -164,61 +164,25 @@ def test_markers_are_resolved_even_when_a_reject_also_remains(tmp_path):
     assert (tmp_path / "a.txt").read_text() == "before\nupstream edit\nafter\n"
 
 
-def test_a_reject_beside_a_resolved_file_is_superseded_and_removed(tmp_path):
-    """The shape a real sync actually produces — and the one the prose got wrong.
+def test_a_reject_is_reported_and_never_deleted(tmp_path):
+    """The sync cannot create a .rej any more, so one found here has unknown provenance.
 
-    `sync.py` tries `git apply -3` before falling back to `git merge-file`, so one
-    colliding file leaves *both* artifacts describing the *same* change. Taking the
-    upstream side already applies the hunk; the prose's "apply its hunks, then delete
-    the .rej" would apply it a second time.
+    An earlier version deleted a reject sitting beside a file it had just resolved,
+    because `sync.py` emitted both artifacts for a single collision and applying the
+    reject too would have applied the change twice. `git apply --reject` is gone, so
+    that cause is gone — and deleting a reject nobody inspected would now be a guess.
     """
     (tmp_path / "shared.txt").write_text(CONFLICT)
-    (tmp_path / "shared.txt.rej").write_text(
-        "diff a/shared.txt b/shared.txt\t(rejected hunks)\n"
-        "@@ -1,3 +1,3 @@\n before\n-base\n+upstream edit\n after\n"
-    )
-
-    summary = rc.resolve(tmp_path)
-
-    assert summary["exit_code"] == rc.EXIT_OK, "a superseded reject must not block the caller"
-    assert summary["superseded"] == ["shared.txt.rej"]
-    assert summary["rejects"] == []
-    assert not (tmp_path / "shared.txt.rej").exists()
-    # Applied exactly once: the upstream line replaces ours, and does not appear twice.
-    assert (tmp_path / "shared.txt").read_text() == "before\nupstream edit\nafter\n"
-    assert any("superseded" in n for n in summary["notes"])
-
-
-def test_a_superseded_reject_survives_a_dry_run(tmp_path):
-    (tmp_path / "shared.txt").write_text(CONFLICT)
-    (tmp_path / "shared.txt.rej").write_text("hunk\n")
-
-    summary = rc.resolve(tmp_path, dry_run=True)
-
-    assert summary["superseded"] == ["shared.txt.rej"]
-    assert (tmp_path / "shared.txt.rej").exists(), "dry run must delete nothing"
-    assert (tmp_path / "shared.txt").read_text() == CONFLICT
-
-
-def test_a_reject_for_an_unresolved_file_is_still_outstanding(tmp_path):
-    """Only the *same* file's reject is superseded — a neighbour's is not."""
-    (tmp_path / "a.txt").write_text(CONFLICT)
-    (tmp_path / "b.txt.rej").write_text("hunk\n")
+    (tmp_path / "shared.txt.rej").write_text("@@ -1,3 +1,3 @@\n-base\n+upstream\n")
 
     summary = rc.resolve(tmp_path)
 
     assert summary["exit_code"] == rc.EXIT_REJECTS_REMAIN
-    assert summary["superseded"] == []
-    assert summary["rejects"] == ["b.txt.rej"]
-    assert (tmp_path / "b.txt.rej").exists()
-
-
-def test_main_reports_a_superseded_reject(tmp_path, capsys):
-    (tmp_path / "shared.txt").write_text(CONFLICT)
-    (tmp_path / "shared.txt.rej").write_text("hunk\n")
-
-    assert rc.main([str(tmp_path)]) == rc.EXIT_OK
-    assert "removed  shared.txt.rej (superseded" in capsys.readouterr().out
+    assert summary["rejects"] == ["shared.txt.rej"]
+    assert (tmp_path / "shared.txt.rej").exists(), "a reject must survive for a human"
+    # The markers are still resolved — partial progress is progress.
+    assert (tmp_path / "shared.txt").read_text() == "before\nupstream edit\nafter\n"
+    assert any("no longer creates these" in n for n in summary["notes"])
 
 
 def test_a_clean_tree_says_so(tmp_path):
@@ -359,11 +323,11 @@ def test_e2e_a_colliding_sync_exits_1_and_leaves_markers(conflict_scenario):
     )
     marked, rejects = rc.find_conflicts(project)
     assert [p.name for p in marked] == ["shared.txt"]
-    # One collision, two artifacts — `git apply -3` rejects the hunk, then the
-    # `merge-file` fallback writes markers holding that same hunk's upstream side.
-    # This is the shape /update's prose did not account for; pin it here, because if
-    # sync.py ever stops doing it the supersession rule below is dead code.
-    assert [p.name for p in rejects] == ["shared.txt.rej"]
+    # One collision, ONE artifact. The old merge ran `git apply -3` first, which rejected
+    # the hunk into `shared.txt.rej`, and only then fell back to `git merge-file` — so a
+    # single collision left markers *and* a redundant reject describing the same change.
+    # `_rhiza_merge.py` runs no `git apply` at all, so there is nothing to reject.
+    assert rejects == [], f"the merge should no longer produce rejects: {rejects}"
 
 
 def test_e2e_resolving_takes_upstream_and_clears_every_artifact(conflict_scenario):
@@ -373,14 +337,13 @@ def test_e2e_resolving_takes_upstream_and_clears_every_artifact(conflict_scenari
 
     resolved = run_cmd([*PY, str(_SCRIPTS / "resolve_conflicts.py"), "."], project)
     assert resolved.returncode == rc.EXIT_OK, f"{resolved.stdout}{resolved.stderr}"
-    assert "superseded" in resolved.stdout, "the redundant .rej was not recognised as such"
 
     body = (project / "shared.txt").read_text()
     assert body == "line one\nUPSTREAM EDIT\nline three\n"
     assert "LOCAL EDIT" not in body, "the local side must be dropped for a managed file"
     assert "<<<<<<<" not in body
-    # Had the reject been applied as well as the markers resolved, the upstream line
-    # would appear twice. Once is the whole point.
+    # Applied exactly once. This guarded against the old double-apply (markers resolved
+    # *and* the redundant reject applied); it still guards the merge itself.
     assert body.count("UPSTREAM EDIT") == 1
 
     # /update step 6's stated acceptance criteria, verified rather than described.
