@@ -97,8 +97,12 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
 - **Works for this plugin too.** It reads the version from wherever the config points,
   so a repo with no `pyproject.toml` (like this one, whose version lives in the two
   `.claude-plugin/` manifests) is handled the same way.
-- `scripts/release.sh` (`make release VERSION=vX.Y.Z`) is the agent-free twin, sharing
-  the same `[tool.bumpversion]` config and the same guard so the two cannot drift.
+- **This is the only release path.** A `scripts/release.sh` used to duplicate it for
+  agent-free use, from the same `[tool.bumpversion]` config and the same guard. It was
+  removed once this command dropped its `.rhiza/` requirement and moved to
+  `bump-my-version`, because from that point the two did the same work — and the shell
+  copy was the one executable in the repo with no test and no `shellcheck` hook, while
+  every bundled script is gated at 100% coverage.
 - Needs `uvx` for `bump-my-version` and `git-cliff`; no `gh`/`glab` required to prepare.
 - Publishing manually (only needed when the repo has no release workflow) goes through
   `scripts/platform_cli.py release-create`. On GitLab `--notes-file` is **required**:
