@@ -18,7 +18,8 @@ untouched (bumping one is `/rhiza:update`'s job).
 Usage:
   uv run --python 3.12 --no-project python \
       scripts/init_scaffold.py [TARGET] \
-      [--host github|gitlab] [--language python|go] \
+      [--host github|gitlab] [--template-host github|gitlab] \
+      [--language python|go] \
       [--template-repo owner/repo] [--ref TAG] [--json]
 """
 
@@ -38,10 +39,26 @@ def profile_for_host(host: str) -> str:
     return "gitlab-project" if host == "gitlab" else "github-project"
 
 
-def render_template_yml(repo: str, ref: str, host: str, language: str) -> str:
-    """Render `.rhiza/template.yml` (mirrors template.yml.jinja2)."""
+def render_template_yml(
+    repo: str, ref: str, host: str, language: str, template_host: str | None = None
+) -> str:
+    """Render `.rhiza/template.yml` (mirrors template.yml.jinja2).
+
+    Two independent facts, which must not be conflated:
+
+    * *host* — where **this repo** lives. It selects the ``profiles:`` entry, so a
+      GitLab repo gets ``gitlab-project`` and its CI, not GitHub's.
+    * *template_host* — where the **template** lives. It becomes ``template-host:``,
+      which `sync.py` turns into the clone URL.
+
+    They are usually different: a GitLab-hosted project following ``jebel-quant/rhiza``
+    is on GitLab, but the template is on GitHub. Deriving one from the other emitted
+    ``template-host: gitlab`` for every GitLab repo, so the first sync tried to clone
+    the template from gitlab.com and died with "could not read Username". Default
+    *template_host* to GitHub — where the rhiza templates are — not to *host*.
+    """
     lines = [f'repository: "{repo}"', f'ref: "{ref}"']
-    if host == "gitlab":
+    if (template_host or "github") == "gitlab":
         lines.append("template-host: gitlab")
     if language != "python":
         lines.append(f"language: {language}")
@@ -56,6 +73,7 @@ def scaffold(
     language: str,
     template_repo: str,
     ref: str,
+    template_host: str | None = None,
 ) -> dict[str, Any]:
     """Write `.rhiza/template.yml` if absent; return a summary dict."""
     path = target / ".rhiza" / "template.yml"
@@ -66,7 +84,7 @@ def scaffold(
         skipped.append(".rhiza/template.yml")
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(render_template_yml(template_repo, ref, host, language))
+        path.write_text(render_template_yml(template_repo, ref, host, language, template_host))
         created.append(".rhiza/template.yml")
 
     return {
@@ -75,6 +93,7 @@ def scaffold(
         "template_repository": template_repo,
         "ref": ref,
         "profile": profile_for_host(host),
+        "template_host": template_host or "github",
         "created": created,
         "skipped": skipped,
     }
@@ -89,7 +108,17 @@ def main(argv: list[str] | None = None) -> int:
         "target", nargs="?", default=".", help="Repository root (default: current directory)."
     )
     parser.add_argument(
-        "--host", choices=("github", "gitlab"), default="github", help="Git hosting platform."
+        "--host",
+        choices=("github", "gitlab"),
+        default="github",
+        help="Where THIS repo lives; selects the profile (and its CI).",
+    )
+    parser.add_argument(
+        "--template-host",
+        choices=("github", "gitlab"),
+        default="github",
+        help="Where the TEMPLATE lives; sets the clone URL. Usually github, even for "
+        "a GitLab-hosted repo, because the rhiza templates are on GitHub.",
     )
     parser.add_argument(
         "--language", choices=("python", "go"), default="python", help="Project language."
@@ -109,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         language=args.language,
         template_repo=args.template_repo or DEFAULT_TEMPLATE_REPO[args.language],
         ref=args.ref,
+        template_host=args.template_host,
     )
 
     if args.json_output:

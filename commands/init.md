@@ -99,6 +99,13 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_sca
   --host <github|gitlab> --language <python|go> \
   --template-repo "$TEMPLATE_REPO" --ref "$TARGET"
 ```
+
+> **`--host` is about *this* repo, not the template.** It selects the profile, so a
+> GitLab repo gets GitLab's CI. Where the *template* lives is a separate flag,
+> `--template-host`, which defaults to GitHub — where the rhiza templates are. Only
+> pass it when the template itself is GitLab-hosted. Conflating the two emitted
+> `template-host: gitlab` for every GitLab repo, and the first sync then tried to clone
+> `jebel-quant/rhiza` from gitlab.com and failed with "could not read Username".
 Relay its `created`/`skipped` output, then commit it alone:
 ```bash
 git add .rhiza/template.yml
