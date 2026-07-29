@@ -241,3 +241,13 @@ def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo):
 def test_e2e_the_gates_run_and_not_just_resolve(synced_repo):
     """Resolving is not the same as working — run the cheapest real gate."""
     assert_ok(run_cmd(["make", "fmt"], synced_repo), "make fmt")
+
+
+def test_e2e_quality_gates_exist_on_the_gitlab_profile_too(gitlab_synced_repo):
+    """The gates come from `core`/`tests`, which both profiles include.
+
+    Worth asserting rather than assuming: /quality names one gate list, and a
+    GitLab-hosted repo must not be scored against gates it was never given.
+    """
+    result = cmt.probe(gitlab_synced_repo, _QUALITY)
+    assert result["unavailable"] == [], f"gitlab profile lacks: {result['unavailable']}"

@@ -291,6 +291,56 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return repo
 
 
+@pytest.fixture(scope="session")
+def gitlab_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A repo synced on the **gitlab-project** profile, from the same template.
+
+    GitLab coverage was previously zero at the command level, which is how /update
+    shipped with no `glab mr create` path at all. Most of that surface is testable
+    without a GitLab account: `gitlab-project` is a *bundle selection* inside a
+    template hosted on GitHub, so the platform-specific materialisation — `.gitlab-ci.yml`
+    in, `.github/` out — can be verified here.
+
+    What still cannot be covered this way is any `glab` invocation: those live only in
+    command prose, never in a bundled script, so there is nothing for a test to drive.
+    """
+    missing = [t for t in E2E_TOOLS if shutil.which(t) is None]
+    if missing:
+        pytest.skip(f"end-to-end tests need {', '.join(missing)}")
+
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    repo = tmp_path_factory.mktemp("e2e-gitlab") / "widget"
+    repo.mkdir()
+
+    assert_ok(
+        run_cmd(["uv", "init", "--lib", "--name", "widget", "--python", "3.12"], repo), "uv init"
+    )
+    for key, value in (("user.email", "e2e@example.com"), ("user.name", "E2E")):
+        assert_ok(run_cmd(["git", "config", key, value], repo), f"git config {key}")
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_skeleton.py"), str(repo), "--owner", "jebel-quant",
+             "--repo", "widget", "--host", "gitlab", "--description", "GitLab e2e fixture."],
+            repo,
+        ),
+        "init_skeleton",
+    )  # fmt: skip
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_scaffold.py"), str(repo), "--host", "gitlab",
+             "--language", "python", "--template-repo", TEMPLATE_REPO, "--ref", TEMPLATE_REF],
+            repo,
+        ),
+        "init_scaffold --host gitlab",
+    )  # fmt: skip
+    assert_ok(run_cmd(["git", "add", "-A"], repo), "git add")
+    assert_ok(run_cmd(["git", "commit", "-qm", "feat: initial"], repo), "git commit")
+
+    sync = run_cmd([*PY, str(scripts / "sync.py"), "."], repo)
+    assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
+    return repo
+
+
 @pytest.fixture
 def synced_repo_copy(synced_repo: Path, tmp_path: Path) -> Path:
     """A throwaway copy of the synced repo, for tests that mutate it."""

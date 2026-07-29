@@ -33,10 +33,23 @@ def test_template_yml_github():
     assert "  - github-project" in out
 
 
-def test_template_yml_gitlab_and_go():
+def test_template_yml_gitlab_repo_still_clones_the_template_from_github():
+    """`--host gitlab` is about *this* repo, not about where the template lives.
+
+    Deriving `template-host` from it made every GitLab repo try to clone
+    jebel-quant/rhiza from gitlab.com, so the first sync died with "could not read
+    Username". The profile must switch; the clone URL must not.
+    """
     out = scaf.render_template_yml("jebel-quant/rhiza-go", "v2.0.0", "gitlab", "go")
-    assert "template-host: gitlab" in out
+    assert "  - gitlab-project" in out
     assert "language: go" in out
+    assert "template-host" not in out, "the template is on GitHub, not GitLab"
+
+
+def test_template_yml_template_host_is_opt_in():
+    """A genuinely GitLab-hosted template still works — it just has to be asked for."""
+    out = scaf.render_template_yml("grp/tmpl", "v1.0.0", "gitlab", "python", template_host="gitlab")
+    assert "template-host: gitlab" in out
     assert "  - gitlab-project" in out
 
 
@@ -165,3 +178,44 @@ def test_e2e_the_skeleton_satisfies_the_templates_pyproject_gate(synced_repo):
 def test_e2e_the_projects_own_tests_pass_under_the_coverage_gate(synced_repo):
     """`make test` is what /update runs, and it must pass on a freshly built repo."""
     assert_ok(run_cmd(["make", "test"], synced_repo), "make test")
+
+
+# --- end-to-end: the gitlab-project profile -----------------------------------
+#
+# GitLab had no command-level coverage at all, which is how /update shipped with no
+# `glab mr create` path. The profile side is testable from here: `gitlab-project` is a
+# bundle selection inside a template hosted on GitHub, so no GitLab account is needed.
+
+
+def test_e2e_gitlab_profile_is_written_without_redirecting_the_template(gitlab_synced_repo):
+    """The pointer selects GitLab's CI while still cloning the template from GitHub.
+
+    This fixture is what caught the conflation: with `template-host: gitlab` emitted
+    for every GitLab repo, the sync below tried gitlab.com and died with "could not
+    read Username for 'https://gitlab.com'". A GitLab repo on a GitHub-hosted template
+    must have no `template-host` at all.
+    """
+    body = (gitlab_synced_repo / ".rhiza" / "template.yml").read_text()
+    assert "  - gitlab-project" in body
+    assert "template-host" not in body
+
+
+def test_e2e_gitlab_sync_materialises_gitlab_ci_and_not_github(gitlab_synced_repo):
+    """The platform bundles are the only difference between the two profiles.
+
+    Getting this wrong ships a repo with the other platform's CI — inert at best,
+    and confusing at worst.
+    """
+    assert (gitlab_synced_repo / ".gitlab-ci.yml").is_file(), "no .gitlab-ci.yml synced"
+    assert (gitlab_synced_repo / ".gitlab").is_dir(), "no .gitlab/ synced"
+    workflows = gitlab_synced_repo / ".github" / "workflows"
+    assert not workflows.exists() or not list(workflows.glob("*.yml")), (
+        "the gitlab profile must not materialise GitHub workflows"
+    )
+
+
+def test_e2e_gitlab_and_github_profiles_share_the_core_api(gitlab_synced_repo, synced_repo):
+    """Both profiles include `core`, so the make API must be identical across them."""
+    for path in ("Makefile", ".rhiza/rhiza.mk", "ruff.toml"):
+        assert (gitlab_synced_repo / path).is_file(), f"gitlab profile lacks {path}"
+        assert (synced_repo / path).is_file(), f"github profile lacks {path}"
