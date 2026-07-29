@@ -1,7 +1,7 @@
 name: Release
 
 # Publish a GitHub release when a version tag is pushed.
-# Prepare the tag with `make release VERSION=vX.Y.Z`, then push it.
+# Prepare the tag with `/rhiza:release`, then push it.
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
           PLUGIN=$(jq -r '.version' .claude-plugin/plugin.json)
           MKT=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
           if [ "$PLUGIN" != "$VER" ] || [ "$MKT" != "$VER" ]; then
-            echo "::error::Version mismatch — tag=$VER plugin.json=$PLUGIN marketplace.json=$MKT. Run 'make release VERSION=$TAG' and retag."
+            echo "::error::Version mismatch — tag=$VER plugin.json=$PLUGIN marketplace.json=$MKT. Run /rhiza:release and retag."
             exit 1
           fi
           echo "Versions match: $VER"

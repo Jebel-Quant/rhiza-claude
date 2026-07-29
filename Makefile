@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test book book-serve clean changelog release
+.PHONY: help install lint test book book-serve clean changelog
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
 PLUGIN := rhiza@rhiza-claude
@@ -35,7 +35,3 @@ clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, _book
 
 changelog:  ## Regenerate CHANGELOG.md from conventional commits
 	uvx git-cliff --output CHANGELOG.md
-
-release:  ## Prepare a release: make release VERSION=vX.Y.Z
-	@test -n "$(VERSION)" || { echo "usage: make release VERSION=vX.Y.Z"; exit 1; }
-	@bash scripts/release.sh "$(VERSION)"
