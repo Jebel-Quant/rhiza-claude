@@ -25,7 +25,11 @@ The optional argument limits the run to one file; it defaults to all three.
 1. **Detects the repo's facts** — platform and owner/repo from the git remote, the
    default branch, project metadata from `pyproject.toml`, the template `ref` from
    `.rhiza/template.yml`, the CI workflow file, the licence, a coverage service,
-   visibility, and whether the repo uses ruff and uv. Nothing is hardcoded.
+   visibility, and whether the repo uses ruff and uv. Nothing is hardcoded. The
+   default branch and visibility come from `scripts/platform_cli.py repo-view`, which
+   normalises the two CLIs' disagreeing shapes — `gh` answers `PUBLIC`, `glab`
+   `public` — and so answers on GitLab, which the bare `gh repo view` it replaced
+   could not.
 2. **Renders the badge block** via `scripts/render_badges.py`, which enforces **omit,
    don't fake**: a badge whose backing fact wasn't detected is never emitted, and every
    omission comes back with a reason for the report. So a README never advertises a

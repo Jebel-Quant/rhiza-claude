@@ -46,6 +46,21 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      # `gh` is preinstalled on GitHub's runners; `glab` is not. Without it, the half
+      # of tests/test_platform_cli.py that checks our argv against `glab --help` skips
+      # — and skipping is how `glab mr create --description-file` shipped, a flag glab
+      # has never had, past a suite that only ever compared the code with itself.
+      - name: Install glab
+        env:
+          GLAB_VERSION: 1.110.0
+        run: |
+          curl -fsSL -o glab.tar.gz \
+            "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_amd64.tar.gz"
+          tar -xzf glab.tar.gz bin/glab
+          sudo install -m 0755 bin/glab /usr/local/bin/glab
+          rm -rf glab.tar.gz bin
+          glab --version
+
       # The suite includes end-to-end tests that clone the real template
       # (jebel-quant/rhiza, at the ref pinned in tests/conftest.py) and drive each
       # command's script chain against a genuinely synced repo. They always run —

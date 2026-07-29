@@ -100,3 +100,7 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
 - `scripts/release.sh` (`make release VERSION=vX.Y.Z`) is the agent-free twin, sharing
   the same `[tool.bumpversion]` config and the same guard so the two cannot drift.
 - Needs `uvx` for `bump-my-version` and `git-cliff`; no `gh`/`glab` required to prepare.
+- Publishing manually (only needed when the repo has no release workflow) goes through
+  `scripts/platform_cli.py release-create`. On GitLab `--notes-file` is **required**:
+  `glab` has no `--generate-notes`, so the mapper refuses rather than publishing a
+  release with empty notes.

@@ -64,9 +64,14 @@ Otherwise ask (`AskUserQuestion`): **platform** (GitHub first, marked
 "(Recommended)"; GitLab second), **owner/namespace** (no safe default), **repository
 name** (default `NAME`), **visibility** (private recommended).
 
-Verify the platform CLI is authenticated (`gh auth status` / `glab auth status`). If
-not, say how to fix it (`gh auth login` / `glab auth login`) — you may still complete
-the local work and report that the remote steps are pending auth.
+Verify the platform CLI is authenticated — don't pick the binary yourself:
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+  auth-status
+```
+Exit **0** is authenticated. Exit **1** means the CLI is absent or logged out; its note
+says which. Tell the user the fix (`gh auth login` / `glab auth login`) — you may still
+complete the local work and report that the remote steps are pending auth.
 
 ## 3. Template source and version
 
@@ -139,14 +144,15 @@ Skip both for `go` — they're Python procedures.
 
 ```bash
 git push -u origin "$BRANCH"
-uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/open_pr.py" \
-  --base "$DEFAULT" --head "$BRANCH" \
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+  pr-create --base "$DEFAULT" --head "$BRANCH" \
   --title "chore: make repo rhiza-managed" --body-file <BODY>
 ```
 It detects the platform from `origin` and issues the right call — `gh pr create` or
-`glab mr create`, which differ in subcommand *and* flag names. Don't hand-write either:
-that mapping lived in prose once, and `/update` shipped calling `gh` on GitLab repos.
-Add `--dry-run` to see the command without creating anything.
+`glab mr create`, which differ in subcommand, flag names *and* whether a body can come
+from a file at all. Don't hand-write either: that mapping lived in prose once, and
+`/update` shipped calling `gh` on GitLab repos. Add `--dry-run` to see the command
+without creating anything.
 
 Keep the body short: template repo + pinned ref + profile, what the PR contains, and
 that **after merging the user runs `/update`** to pull the template content. If the

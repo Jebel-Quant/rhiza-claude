@@ -36,8 +36,10 @@ never a FAIL.
    title, current→target score, the file(s)/lines to change, a `done when…` criterion,
    and an evidence snippet, ordered by leverage.
 4. **Offers to file them** — via an `AskUserQuestion` multi-select, never free text.
-   Nothing is created without an explicit selection; GitHub uses `gh issue create`,
-   GitLab `glab issue create`.
+   Nothing is created without an explicit selection. Filing goes through
+   `scripts/platform_cli.py issue-create`, which maps to `gh issue create` or
+   `glab issue create` — and matters because `glab issue create` has **no** body-file
+   flag, so the body has to be passed inline.
 
 ## Notes
 

@@ -39,8 +39,10 @@ template's latest release.
    file it resolved — one collision leaves both artifacts describing the same change, so
    applying the reject as well would apply it twice. A reject with *no* resolved
    counterpart is reported, never applied, and stops the run for a human.
-6. **Stages only the lock's `files`**, commits, and **opens the PR/MR** — `gh pr
-   create` on GitHub, `glab mr create` on GitLab.
+6. **Stages only the lock's `files`**, commits, and **opens the PR/MR** through
+   `scripts/platform_cli.py`, which maps the operation onto `gh pr create` or
+   `glab mr create` — they differ in subcommand, flag names, and whether a body can
+   come from a file at all.
 7. **Reports** and returns to the branch you started on.
 
 ## Notes

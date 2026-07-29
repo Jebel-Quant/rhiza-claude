@@ -144,14 +144,15 @@ failure; stop.
   bump commit — until now the branch was local only).
 - Open the PR/MR into `$DEFAULT`:
   ```bash
-  uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/open_pr.py" \
-    --base "$DEFAULT" --head "$BRANCH" \
+  uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+    pr-create --base "$DEFAULT" --head "$BRANCH" \
     --title "chore: update rhiza to $TARGET" --body-file <BODY>
   ```
   It detects the platform from `origin` and issues `gh pr create` or `glab mr create`,
   which differ in subcommand *and* flag names. **This step used to be GitHub-only** —
   it detected GitLab, offered `gitlab-project`, then called `gh`. Don't hand-write
-  either form; add `--update` to amend an existing request rather than erroring.
+  either form; use the `pr-update` action to amend an existing request rather than
+  erroring.
   - Body: the template repo + old ref → `$TARGET`, the count of files the sync
     changed, whether conflicts were resolved (taking upstream), anything left
     unstaged in the working tree, and a line noting that **no gates were run — run
