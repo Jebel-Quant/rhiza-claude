@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test book book-serve clean changelog
+.PHONY: help install lint test book book-serve paper clean changelog
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
 PLUGIN := rhiza@rhiza-claude
@@ -29,8 +29,12 @@ book:  ## Build the documentation site into _book/
 book-serve:  ## Serve the docs locally with live reload
 	uvx --with mkdocs-material mkdocs serve
 
-clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, _book)
+paper:  ## Build paper/rhiza-claude-intro.pdf (needs tectonic or pdflatex)
+	cd paper && (tectonic rhiza-claude-intro.tex || pdflatex -interaction=nonstopmode rhiza-claude-intro.tex)
+
+clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, _book, paper build)
 	rm -rf .ruff_cache _book
+	rm -f paper/*.aux paper/*.log paper/*.out paper/*.pdf
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 
 changelog:  ## Regenerate CHANGELOG.md from conventional commits

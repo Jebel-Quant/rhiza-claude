@@ -10,6 +10,47 @@ sync, code-quality scoring, and README/doc upkeep).
 📖 **Documentation:** <https://jebel-quant.github.io/rhiza-claude/> — a dedicated
 page for every command. Build it locally with `make book`.
 
+## What this is for
+
+Ten repos need the same CI, `Makefile`, gates and docs build — and copied scaffolding
+drifts. [**rhiza**](https://github.com/jebel-quant/rhiza) is that scaffolding kept once,
+in a **template repository**. **rhiza-claude** is how a repo adopts it: sync from a
+pinned template release, then get scored on the result.
+
+**Two repos, one boundary.** The template owns CI, the `Makefile`, `.rhiza/rhiza.mk` and
+the docs base; your repo owns source, tests, `pyproject.toml` and README prose. A sync
+writes **only template-owned paths** — the ones the last sync recorded — so your code
+can't be swept in. There is no blanket `git add --all` in the flow.
+
+**"rhiza-managed" is two files**, answering different questions: `.rhiza/template.yml`
+is a *pointer* (which template, which pinned ref — what we'd sync *from*), and
+`.rhiza/template.lock` is a *record* (repo, ref, SHA, timestamp, strategy, every managed
+file — what actually arrived). They can disagree, which is why `/rhiza:status` reports
+both and `/rhiza:quality` insists on `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`
+before scoring: its gates *are* the synced `make` targets. `/rhiza:release` needs
+neither.
+
+**The order matters** — `/rhiza:init` → merge → `/rhiza:update` → merge →
+`/rhiza:quality`. `/init` writes one file of its own and **syncs nothing**; `/update`
+performs the first sync; `/quality` needs that content to exist. So "`/init` ran and no
+CI appeared" is the expected result of step one.
+
+**Two kinds of markdown, and the difference is enforced.** `commands/` holds the seven
+slash commands you invoke; `prompts/` holds seven **internal procedures** they `Read` —
+kept outside `commands/` so they can't be invoked directly. The procedures are where
+shared behaviour lives, which is why `/init` and `/update` behave identically where they
+overlap.
+
+**Why prose commands at all:** deterministic work belongs in tested code, judgement
+belongs in markdown. The bundled stdlib-only Python does what has one right answer
+(parsing the lock, merging synced files, comparing versions); the markdown does what
+needs a reading of your repo. CI gates the prose too, so a command naming a script or
+flag that no longer exists fails the build instead of failing mid-task in front of you.
+
+👉 **New here?** The [documentation site](https://jebel-quant.github.io/rhiza-claude/)
+has the full introduction and a worked first run — empty directory to synced, scored
+repo.
+
 ## Install
 
 ```
@@ -181,6 +222,7 @@ anything.
 | `commands/` | The plugin's slash commands (one `.md` per command). |
 | `prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
+| `paper/` | A 6-page LaTeX introduction — the long form of the framing above. `make paper`. |
 
 ## Contributing
 
