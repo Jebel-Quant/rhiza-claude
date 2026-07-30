@@ -17,3 +17,6 @@ htmlcov/
 # MkDocs book build + generated dashboard
 _book/
 .cache/
+
+# Paper PDF staged into the docs site by `make paper` — built, not committed
+docs/paper/

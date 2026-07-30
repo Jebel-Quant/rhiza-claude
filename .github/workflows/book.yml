@@ -25,8 +25,21 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      # A pinned release binary rather than a TeX Live install: tectonic fetches
+      # only the packages the document actually uses, so this is seconds, not minutes.
+      - name: Install tectonic
+        env:
+          TECTONIC_VERSION: 0.17.0
+        run: |
+          curl -fsSL \
+            "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin tectonic
+          tectonic --version
+
+      # `make book` builds the paper first and stages it under docs/, so the PDF is
+      # published with the site and every commit proves the .tex still compiles.
       - name: Build the book
-        run: uvx --with mkdocs-material mkdocs build --strict
+        run: make book
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

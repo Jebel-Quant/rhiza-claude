@@ -256,3 +256,16 @@ behaviour is part of what those commands do to your repo.
 | [python-version](internals/python-version.md) | Pin `requires-python`, rewrite the Python classifiers, sync `.python-version`. | `set_python_version.py` |
 | [design-analysis](internals/design-analysis.md) | Complexity and architecture evidence that no `make` gate measures. | — |
 | [scorecard](internals/scorecard.md) | The 1–10 rubric, the scoping rule, findings and the issue menu. | — |
+
+## The long form
+
+Everything above, at length and with worked examples:
+**[An introduction to rhiza-claude](paper/rhiza-claude-intro.pdf)** (PDF).
+
+It covers the two-repository boundary a sync respects, what "rhiza-managed" means on
+disk, installation, a worked first run from an empty directory to a scored repository,
+why the commands are prose rather than code, and how the design compares against
+shipping an MCP server. The figures in it are captured command output, not mock-ups.
+
+The PDF is rebuilt from `paper/rhiza-claude-intro.tex` on every commit, so it never
+lags the plugin it describes.
