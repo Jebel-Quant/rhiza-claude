@@ -30,6 +30,10 @@ from typing import Any
 
 _SHIELDS = "https://img.shields.io"
 
+# What one badge group contributes: the badges it emits, and the reasons it skipped
+# any it couldn't back with a fact. Either list may be empty.
+Section = tuple[list[str], list[str]]
+
 
 def _md(label: str, image: str, link: str) -> str:
     """Render one markdown badge (an image wrapped in a link)."""
@@ -51,95 +55,86 @@ def release_badge(host: str, owner: str, repo: str) -> str:
     )
 
 
-def build_badges(
-    *,
-    host: str,
-    owner: str,
-    repo: str,
-    branch: str,
-    license_id: str | None,
-    python_versions: list[str],
-    ci_workflow: str | None,
-    template_ref: str | None,
-    coverage: str | None,
-    uses_ruff: bool,
-    uses_uv: bool,
-    public: bool,
-    codespaces: bool,
-) -> dict[str, Any]:
-    """Build the ordered badge list plus the reasons any standard badge was skipped."""
-    gitlab = host == "gitlab"
-    slug = f"{owner}/{repo}"
-    badges: list[str] = [release_badge(host, owner, repo)]
-    skipped: list[str] = []
-
-    if template_ref:
-        badges.append(
-            _md(
-                f"rhiza {template_ref}",
-                f"{_SHIELDS}/badge/rhiza-{template_ref}-blue",
-                f"https://github.com/jebel-quant/rhiza/releases/tag/{template_ref}",
-            )
+def _template_section(template_ref: str | None) -> Section:
+    """The rhiza template-version badge."""
+    if not template_ref:
+        return [], ["template version: no ref in .rhiza/template.yml"]
+    return [
+        _md(
+            f"rhiza {template_ref}",
+            f"{_SHIELDS}/badge/rhiza-{template_ref}-blue",
+            f"https://github.com/jebel-quant/rhiza/releases/tag/{template_ref}",
         )
-    else:
-        skipped.append("template version: no ref in .rhiza/template.yml")
+    ], []
 
-    if license_id:
-        badges.append(
-            _md(
-                f"License: {license_id}",
-                f"{_SHIELDS}/badge/License-{license_id}-green.svg",
-                "LICENSE",
-            )
+
+def _license_section(license_id: str | None) -> Section:
+    """The license badge, pointing at the repo's own LICENSE file."""
+    if not license_id:
+        return [], ["license: no LICENSE file detected"]
+    return [
+        _md(
+            f"License: {license_id}",
+            f"{_SHIELDS}/badge/License-{license_id}-green.svg",
+            "LICENSE",
         )
-    else:
-        skipped.append("license: no LICENSE file detected")
+    ], []
 
-    if python_versions:
-        joined = " • ".join(python_versions)
-        badges.append(
-            _md(
-                "Python versions",
-                f"{_SHIELDS}/badge/Python-{joined}-blue?logo=python",
-                "https://www.python.org/",
-            )
+
+def _python_section(python_versions: list[str]) -> Section:
+    """The supported-Python-versions badge."""
+    if not python_versions:
+        return [], ["python versions: not a Python project"]
+    joined = " • ".join(python_versions)
+    return [
+        _md(
+            "Python versions",
+            f"{_SHIELDS}/badge/Python-{joined}-blue?logo=python",
+            "https://www.python.org/",
         )
-    else:
-        skipped.append("python versions: not a Python project")
+    ], []
 
+
+def _ci_section(*, gitlab: bool, slug: str, branch: str, ci_workflow: str | None) -> Section:
+    """The CI badge — a GitLab pipeline, or a named GitHub Actions workflow."""
     if gitlab:
-        badges.append(
+        return [
             _md(
                 "pipeline",
                 f"https://gitlab.com/{slug}/badges/{branch}/pipeline.svg",
                 f"https://gitlab.com/{slug}/-/pipelines",
             )
-        )
-    elif ci_workflow:
-        base = f"https://github.com/{slug}/actions/workflows/{ci_workflow}"
-        badges.append(_md("CI", f"{base}/badge.svg?event=push", base))
-    else:
-        skipped.append("CI: no workflow file found in .github/workflows")
+        ], []
+    if not ci_workflow:
+        return [], ["CI: no workflow file found in .github/workflows"]
+    base = f"https://github.com/{slug}/actions/workflows/{ci_workflow}"
+    return [_md("CI", f"{base}/badge.svg?event=push", base)], []
 
+
+def _coverage_section(*, coverage: str | None, slug: str, branch: str) -> Section:
+    """The coverage badge for whichever service was detected."""
     if coverage == "codecov":
-        badges.append(
+        return [
             _md(
                 "codecov",
                 f"https://codecov.io/gh/{slug}/branch/{branch}/graph/badge.svg",
                 f"https://codecov.io/gh/{slug}",
             )
-        )
-    elif coverage == "gitlab":
-        badges.append(
+        ], []
+    if coverage == "gitlab":
+        return [
             _md(
                 "coverage",
                 f"https://gitlab.com/{slug}/badges/{branch}/coverage.svg",
                 f"https://gitlab.com/{slug}/-/commits/{branch}",
             )
-        )
-    else:
-        skipped.append("coverage: no coverage service detected")
+        ], []
+    return [], ["coverage: no coverage service detected"]
 
+
+def _tooling_section(*, uses_ruff: bool, uses_uv: bool) -> Section:
+    """Badges for the tooling the repo uses. Optional extras — nothing is ever skipped."""
+    badges: list[str] = []
     if uses_ruff:
         badges.append(
             _md(
@@ -157,37 +152,82 @@ def build_badges(
                 "https://github.com/astral-sh/uv",
             )
         )
+    return badges, []
 
-    # GitHub-only services.
+
+def _github_services_section(*, gitlab: bool, slug: str, public: bool, codespaces: bool) -> Section:
+    """Badges for the GitHub-only services — all of them omitted on GitLab."""
     if gitlab:
-        skipped.append("CodeFactor, OpenSSF Scorecard, Codespaces: GitHub-only")
-    else:
+        return [], ["CodeFactor, OpenSSF Scorecard, Codespaces: GitHub-only"]
+
+    badges = [
+        _md(
+            "CodeFactor",
+            f"https://www.codefactor.io/repository/github/{slug}/badge",
+            f"https://www.codefactor.io/repository/github/{slug}",
+        )
+    ]
+    skipped: list[str] = []
+
+    if public:
         badges.append(
             _md(
-                "CodeFactor",
-                f"https://www.codefactor.io/repository/github/{slug}/badge",
-                f"https://www.codefactor.io/repository/github/{slug}",
+                "OpenSSF Scorecard",
+                f"https://api.scorecard.dev/projects/github.com/{slug}/badge",
+                f"https://scorecard.dev/viewer/?uri=github.com/{slug}",
             )
         )
-        if public:
-            badges.append(
-                _md(
-                    "OpenSSF Scorecard",
-                    f"https://api.scorecard.dev/projects/github.com/{slug}/badge",
-                    f"https://scorecard.dev/viewer/?uri=github.com/{slug}",
-                )
-            )
-        else:
-            skipped.append("OpenSSF Scorecard: only meaningful for a public repo")
-        if codespaces:
-            badges.append(
-                _md(
-                    "Open in GitHub Codespaces",
-                    "https://github.com/codespaces/badge.svg",
-                    f"https://codespaces.new/{slug}",
-                )
-            )
+    else:
+        skipped.append("OpenSSF Scorecard: only meaningful for a public repo")
 
+    if codespaces:
+        badges.append(
+            _md(
+                "Open in GitHub Codespaces",
+                "https://github.com/codespaces/badge.svg",
+                f"https://codespaces.new/{slug}",
+            )
+        )
+    return badges, skipped
+
+
+def build_badges(
+    *,
+    host: str,
+    owner: str,
+    repo: str,
+    branch: str,
+    license_id: str | None,
+    python_versions: list[str],
+    ci_workflow: str | None,
+    template_ref: str | None,
+    coverage: str | None,
+    uses_ruff: bool,
+    uses_uv: bool,
+    public: bool,
+    codespaces: bool,
+) -> dict[str, Any]:
+    """Build the ordered badge list plus the reasons any standard badge was skipped.
+
+    Each section decides for itself whether its fact was detected, so the **omit,
+    don't fake** rule lives next to the badge it governs; the order they appear in
+    below is the order they appear in the README.
+    """
+    gitlab = host == "gitlab"
+    slug = f"{owner}/{repo}"
+    sections: list[Section] = [
+        ([release_badge(host, owner, repo)], []),
+        _template_section(template_ref),
+        _license_section(license_id),
+        _python_section(python_versions),
+        _ci_section(gitlab=gitlab, slug=slug, branch=branch, ci_workflow=ci_workflow),
+        _coverage_section(coverage=coverage, slug=slug, branch=branch),
+        _tooling_section(uses_ruff=uses_ruff, uses_uv=uses_uv),
+        _github_services_section(gitlab=gitlab, slug=slug, public=public, codespaces=codespaces),
+    ]
+
+    badges = [badge for section, _ in sections for badge in section]
+    skipped = [reason for _, reasons in sections for reason in reasons]
     return {"badges": badges, "skipped": skipped, "block": render_block(badges)}
 
 
