@@ -18,5 +18,10 @@ htmlcov/
 _book/
 .cache/
 
+# Test reports from `make test` (coverage.xml + browsable HTML), and the copy
+# `make book` stages into the site — measured on every run, never committed
+_tests/
+docs/reports/
+
 # Paper PDF staged into the docs site by `make paper` — built, not committed
 docs/paper/
