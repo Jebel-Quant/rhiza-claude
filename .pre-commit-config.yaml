@@ -77,3 +77,19 @@ repos:
         language: system
         pass_filenames: false
         files: '^(scripts|tests)/.*\.py$'
+      # The prose is the other half of this plugin, and it fails differently: a stale
+      # instruction doesn't halt anything, it gets improvised around mid-task in front
+      # of a user. These two gate it. They also depend on scripts/, since a renamed
+      # flag breaks the prose that passes it.
+      - id: command-contracts
+        name: prose commands are executable (scripts, flags, slash commands exist)
+        entry: uv run --python 3.12 --no-project python scripts/check_command_contracts.py
+        language: system
+        pass_filenames: false
+        files: '^((commands|prompts)/.*\.md|scripts/.*\.py)$'
+      - id: prompt-wiring
+        name: internal procedures under prompts/ stay wired up
+        entry: uv run --python 3.12 --no-project python scripts/check_prompt_wiring.py
+        language: system
+        pass_filenames: false
+        files: '^((commands|prompts)/.*\.md|scripts/.*\.py)$'
