@@ -99,8 +99,7 @@ rather than breaking in front of a user mid-task.
 
 1. Edit `commands/<name>.md`; keep the frontmatter accurate.
 2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/test_<name>.py`.
-3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. (Not yet gated —
-   see issue #89.)
+3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry.
 4. Update `README.md` if it's a headline command.
 
 **Versioning.** The two manifests must agree; `manifest-version-parity` enforces it.
