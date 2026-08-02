@@ -86,7 +86,9 @@ repos:
         entry: uv run --python 3.12 --no-project python scripts/check_command_contracts.py
         language: system
         pass_filenames: false
-        files: '^((commands|prompts)/.*\.md|scripts/.*\.py)$'
+        # Includes the top-of-repo prose and the docs site: a dead script reference in
+        # CONTRIBUTING.md used to survive precisely because no gate read that far.
+        files: '^((commands|prompts)/.*\.md|scripts/.*\.py|docs/.*\.md|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
       - id: prompt-wiring
         name: internal procedures under prompts/ stay wired up
         entry: uv run --python 3.12 --no-project python scripts/check_prompt_wiring.py
