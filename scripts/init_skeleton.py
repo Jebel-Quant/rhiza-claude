@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Finish an `init --lib` skeleton into a rhiza-shaped one — behind `/rhiza:skeleton`.
 
-Two languages, one remit: close the gap between what the language's own initialiser
+Three languages, one remit: close the gap between what the language's own initialiser
 writes and what a rhiza-managed repo needs. ``--language rust`` finishes what
 `cargo init --lib` leaves out — a `//!` crate doc comment (cargo writes none, and
 ``#![warn(missing_docs)]`` fires on its absence), a `README.md` (cargo creates no file
 at all), and the `[package]` metadata crates.io wants: `description`, `repository`,
 `homepage`, `authors`. As on the Python side every key is added **only if missing**.
+
+``--language go`` has the largest gap to close, because `go mod init` writes exactly one
+file — `go.mod`, holding a module path and a Go version and nothing else. There is no
+description, repository, homepage, author or licence field for a manifest step to fill,
+so what is left is a `README.md`, a `doc.go` carrying the package comment revive's
+`exported` rule wants, and the version location below.
 
 `uv init --lib` gets a Python project 90% of the way there: `pyproject.toml`,
 `src/<pkg>/__init__.py`, `README.md`, `.python-version`. This script closes the
@@ -35,6 +41,15 @@ rhiza v1.3.0) fails on its absence, which is how this surfaced. The block is fix
 with one substituted number, so by this plugin's own division of labour — deterministic
 work in tested Python, judgement in markdown — it belongs here.
 
+**Go is the exception: this script writes no version location.** A Go module's version
+*is* its git tag, so there is nothing in a fresh module to anchor to, and the `go-core`
+bundle owns the declaration — a root `.bumpversion.toml` (template-owned, listed in
+`template.lock`) with no `current_version` key, because the current version is read from
+the newest tag, plus the `internal/version/version.go` constant that lets a built binary
+report itself. Writing our own would be clobbered by the first sync and would inject a
+`current_version` upstream deliberately omits. So on Go the version location arrives with
+`/rhiza:update`, and the skeleton says so rather than pre-empting it.
+
 It writes **no** ``classifiers`` — not a ``License ::`` trove classifier (PEP 639
 replaced it with the SPDX ``license`` field, and `/rhiza:license` owns that), and
 not the ``Programming Language :: Python :: X.Y`` entries either (`/rhiza:python-version`
@@ -49,7 +64,7 @@ the result, and reports what's missing when there's nothing to finish.
 Usage:
   uv run --python 3.12 --no-project python \
       scripts/init_skeleton.py [TARGET] --owner OWNER --repo NAME \
-      [--host github|gitlab] [--language python|rust] [--description TEXT] [--json]
+      [--host github|gitlab] [--language python|rust|go] [--description TEXT] [--json]
 """
 
 from __future__ import annotations
@@ -132,6 +147,14 @@ ignore_missing_file = true
 """
 
 
+# Where a Go module's version lives *in the source tree* — the constant `go-core` ships
+# so a built binary can report itself. It is the template's file, not ours: absent until
+# the first sync, and declared to bump-my-version by the template's own
+# root-level `.bumpversion.toml`.
+_GO_VERSION_FILE = Path("internal") / "version" / "version.go"
+_GO_VERSION_CONST = re.compile(r'^\s*const\s+Version\s*=\s*"([^"]+)"', re.MULTILINE)
+
+
 def bumpversion_config(target: Path) -> str | None:
     """Return the discoverable file declaring a bumpversion config, or None."""
     for name in _BUMPVERSION_CONFIGS:
@@ -141,8 +164,46 @@ def bumpversion_config(target: Path) -> str | None:
     return None
 
 
+def go_module_path(target: Path) -> str | None:
+    """Return the `module` path `go.mod` declares, or None."""
+    manifest = target / "go.mod"
+    if not manifest.is_file():
+        return None
+    for line in manifest.read_text(errors="ignore").splitlines():
+        match = re.match(r"^\s*module\s+(\S+)", line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def go_package_name(target: Path) -> str:
+    """Return the package name for the module's root package.
+
+    Go package names are identifiers: lowercase, no hyphens or dots. The convention is
+    the last element of the module path, minus a major-version suffix — a `/v2` is part
+    of the *import* path and never the package name.
+    """
+    path = go_module_path(target) or target.name
+    last = path.rstrip("/").split("/")[-1]
+    if re.fullmatch(r"v[0-9]+", last):
+        parts = path.rstrip("/").split("/")
+        last = parts[-2] if len(parts) > 1 else target.name
+    cleaned = re.sub(r"[^a-z0-9]", "", last.lower())
+    return cleaned or "main"
+
+
 def declared_version(target: Path, language: str) -> str | None:
     """Return the version the manifest declares, or None when it declares none."""
+    if language == "go":
+        # Not `go.mod`: a Go module's version is its git tag, and the only copy in the
+        # source tree is the constant the `go-core` bundle ships — which is absent until
+        # the first sync.
+        version_file = target / _GO_VERSION_FILE
+        if not version_file.is_file():
+            return None
+        match = _GO_VERSION_CONST.search(version_file.read_text(errors="ignore"))
+        return match.group(1) if match else None
+
     manifest = target / ("Cargo.toml" if language == "rust" else "pyproject.toml")
     if not manifest.is_file():
         return None
@@ -159,13 +220,16 @@ def seed_bumpversion_config(target: Path, language: str) -> str | None:
     """Declare where the version lives, for `/rhiza:release`; return the file written.
 
     Returns None when a discoverable config already exists (the user's wins, and this is
-    idempotent) or when the manifest declares no version to anchor to.
+    idempotent) or when there is no version to anchor to.
 
     Python appends to `pyproject.toml`, since that is both discoverable and where the
     version is. Rust gets `.bumpversion.toml`: Cargo has no `[tool]` table convention,
     and `bump-my-version` does not read `Cargo.toml`.
+
+    Go writes nothing: `go-core` owns a root `.bumpversion.toml` of its own, and a copy
+    written here would be overwritten by the first sync — see this module's docstring.
     """
-    if bumpversion_config(target) is not None:
+    if language == "go" or bumpversion_config(target) is not None:
         return None
     version = declared_version(target, language)
     if version is None:
@@ -257,6 +321,37 @@ def seed_readme(target: Path, *, repo: str, description: str | None, create: boo
     body += "\nRun `/rhiza:docs` to write this properly.\n"
     readme.write_text(body)
     return True
+
+
+def seed_package_doc(target: Path, *, description: str | None) -> str | None:
+    """Write `doc.go` with the module's package comment; return the path, or None.
+
+    Go's analogue of `#![warn(missing_docs)]` and interrogate is revive's `exported`
+    rule, which the template runs as `make docs-coverage` — and it wants a package
+    comment. `go mod init` writes no Go file at all, so there is nothing for the rule to
+    find and nothing for `go test ./...` to run.
+
+    `doc.go` is the convention for a package comment with no code attached, which keeps
+    this from inventing API. Written only into a module with no root package yet: a
+    second package comment in a package that already has one is itself a lint finding,
+    so an existing `.go` file at the root means hands off.
+    """
+    if any(target.glob("*.go")):
+        return None
+    package = go_package_name(target)
+    module = go_module_path(target) or package
+    # Go's convention is that the first sentence is a summary beginning "Package <name>",
+    # which a description pasted straight in would not be ("Package widget A widget
+    # library." is a fragment). So the summary is generated and the description, if there
+    # is one, becomes the paragraph under it.
+    body = f"// Package {package} is the root package of {module}.\n"
+    summary = description.strip() if description and description.strip() else None
+    if summary:
+        if not summary.endswith("."):
+            summary += "."
+        body += f"//\n// {summary}\n"
+    (target / "doc.go").write_text(f"{body}package {package}\n")
+    return "doc.go"
 
 
 def git_identity(target: Path) -> tuple[str | None, str | None]:
@@ -585,6 +680,46 @@ def _finish_cargo(
     return {"modified": modified, "changes": added, "notes": notes, "ok": True}
 
 
+def _finish_go(
+    target: Path,
+    *,
+    repo: str,
+    description: str | None,
+    modified: list[str],
+    notes: list[str],
+) -> dict[str, Any]:
+    """Finish what `go mod init` leaves out; return a summary dict.
+
+    Deliberately short, because `go.mod` has nothing to fill in: no description,
+    repository, homepage, author or licence field exists in the format. Everything the
+    other two languages write into a manifest is, for Go, either the git remote's job or
+    the `LICENSE` file's.
+    """
+    if not (target / "go.mod").exists():
+        notes.append("go.mod absent — run `go mod init <module path>` first")
+        return {"modified": modified, "changes": [], "notes": notes, "ok": False}
+
+    module = go_module_path(target)
+    notes.append(f"module {module}" if module else "go.mod declares no module path")
+
+    doc = seed_package_doc(target, description=description)
+    if doc:
+        modified.append(doc)
+        notes.append(
+            "wrote doc.go with the package comment revive's `exported` rule wants — "
+            "`go mod init` creates no Go file at all"
+        )
+    else:
+        notes.append("root package already has Go files — left alone")
+
+    if seed_readme(target, repo=repo, description=description, create=True):
+        modified.append("README.md")
+        notes.append("seeded the README.md go never writes — /rhiza:docs owns the real one")
+
+    notes.append("go.mod holds no metadata to fill in; license is /rhiza:license's job")
+    return {"modified": modified, "changes": [], "notes": notes, "ok": True}
+
+
 def _note_bumpversion(target: Path, language: str, result: dict[str, Any]) -> None:
     """Declare the version location and record what happened in *result*, in place.
 
@@ -592,6 +727,13 @@ def _note_bumpversion(target: Path, language: str, result: dict[str, Any]) -> No
     the manifest declares, so there is nothing to write until that manifest is sound.
     """
     if not result["ok"]:
+        return
+    if language == "go":
+        result["notes"].append(
+            "no version location written: a Go module's version is its git tag, and the "
+            "template's own .bumpversion.toml (plus internal/version/version.go) arrives "
+            "with the first /rhiza:update"
+        )
         return
     existing = bumpversion_config(target)
     written = seed_bumpversion_config(target, language)
@@ -621,11 +763,18 @@ def finish_skeleton(
     description: str | None,
     language: str = "python",
 ) -> dict[str, Any]:
-    """Finish the `uv init --lib` / `cargo init --lib` skeleton; return a summary dict."""
+    """Finish the `uv init` / `cargo init` / `go mod init` skeleton; return a summary."""
     modified: list[str] = []
     notes: list[str] = []
     changes: list[str] = []
     host_domain = _HOSTS.get(host, _HOSTS["github"])
+
+    if language == "go":
+        result = _finish_go(
+            target, repo=repo, description=description, modified=modified, notes=notes
+        )
+        _note_bumpversion(target, "go", result)
+        return result
 
     if language == "rust":
         modified.extend(seed_crate_docs(target))
@@ -714,9 +863,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--language",
-        choices=("python", "rust"),
+        choices=("python", "rust", "go"),
         default="python",
-        help="Which skeleton to finish: uv's pyproject.toml or cargo's Cargo.toml.",
+        help="Which skeleton to finish: uv's pyproject.toml, cargo's Cargo.toml, "
+        "or go mod init's go.mod.",
     )
     parser.add_argument("--description", help="Project description (replaces uv's placeholder).")
     parser.add_argument(

@@ -31,12 +31,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Rust shares `jebel-quant/rhiza` with Python: the template is multi-language, with a
-# per-language toolchain bundle (`python-core` / `rust-core`) layered on a neutral
-# `core`. Go still has its own fork; it predates that split.
+# All three languages share `jebel-quant/rhiza`: the template is multi-language, with a
+# per-language toolchain bundle (`python-core` / `rust-core` / `go-core`) layered on a
+# neutral `core`. There is no per-language template repository; an `owner/repo` override
+# is for a fork of this one.
 DEFAULT_TEMPLATE_REPO = {
     "python": "jebel-quant/rhiza",
-    "go": "jebel-quant/rhiza-go",
+    "go": "jebel-quant/rhiza",
     "rust": "jebel-quant/rhiza",
 }
 
@@ -44,17 +45,21 @@ DEFAULT_TEMPLATE_REPO = {
 # for backwards compatibility — renaming them would break the pointer of every repo
 # already synced.
 #
-# Rust maps both hosts to `rust-local`, because that is the only Rust profile the
-# template currently defines. Hosted-CI Rust profiles are made almost entirely of
+# Rust and Go map both hosts to their `-local` profile, because that is the only profile
+# the template defines for either. Hosted-CI profiles are made almost entirely of
 # workflows, and the template's `github`/`gitlab` bundles still ship Python ones (a
-# release job running `uv build` against PyPI, Dependabot declaring the `uv`
-# ecosystem), so they land together with the Rust workflows. Writing a pointer at a
+# release job running `uv build` against PyPI, Dependabot declaring the `uv` ecosystem),
+# so they land together with each language's workflows. Writing a pointer at a
 # `rust-github-project` that does not exist would fail the first sync with
-# "Profile 'rust-github-project' was not found"; a Rust repo gets working local
+# "Profile 'rust-github-project' was not found"; a Rust or Go repo gets working local
 # tooling now and gains CI when it exists.
+#
+# `scripts/check_template_profile.py` is what keeps this table honest — `/rhiza:init`
+# checks the profile against the ref it is about to pin, because every wrong entry here
+# has cost a user their first `/rhiza:update` rather than failing at `/init`.
 _PROFILES: dict[str, dict[str, str]] = {
     "python": {"github": "github-project", "gitlab": "gitlab-project"},
-    "go": {"github": "github-project", "gitlab": "gitlab-project"},
+    "go": {"github": "go-local", "gitlab": "go-local"},
     "rust": {"github": "rust-local", "gitlab": "rust-local"},
 }
 

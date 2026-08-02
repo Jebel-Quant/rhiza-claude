@@ -56,14 +56,16 @@ adds the site metadata and navigation.
 
 ```bash
 make test                    # the whole suite, with a 100% coverage gate on scripts/
-uvx pytest tests/ -k e2e -q  # just the end-to-end tests (needs network, uv, cargo)
+uvx pytest tests/ -k e2e -q  # the end-to-end tests (needs network, uv, cargo, go)
 ```
 
 **The end-to-end tests are not opt-in.** They scaffold repos with the real `/init`
 script chain, sync them from the real template, and assert the outcomes — a Python
-repo on `github-project`, one on `gitlab-project`, and a Rust crate. They used to be
-opt-in behind `RHIZA_E2E=1`, which is how `/rhiza:quality` shipped unable to run at
-all: a suite nobody runs still reads as coverage.
+repo on `github-project`, one on `gitlab-project`, a Rust crate and a Go module. They
+used to be opt-in behind `RHIZA_E2E=1`, which is how `/rhiza:quality` shipped unable to run at
+all: a suite nobody runs still reads as coverage. The fixtures are parameterised by
+language — `(init command, profile, tools)` per language, with the assertions reading
+their expectations from `scripts/language_profile.py` and from the synced tree.
 
 The template ref they sync from is **pinned** in `tests/conftest.py`
 (`PINNED_TEMPLATE_REF`), so a PR run never goes red merely because upstream released.
@@ -72,10 +74,10 @@ tests weekly against the template's *latest* release and files a finding when th
 disagree. A red **Template drift** means upstream moved; a red **CI** means this repo
 did.
 
-Two things need tools the plugin itself does not: the Rust fixtures need `cargo`
-(`cargo init --lib` builds the crate), and half of `tests/test_platform_cli.py` needs
-`glab`. Both skip when the tool is absent, and CI installs or verifies both so the skip
-never happens there. Nothing else skips: the pin is a rhiza release that defines every
+Two things need tools the plugin itself does not: the Rust and Go fixtures need `cargo`
+and `go` (`cargo init --lib` and `go mod init` build them), and half of
+`tests/test_platform_cli.py` needs `glab`. Each skips when its tool is absent, and CI
+installs or verifies all three so that never happens there. Nothing else skips: the pin is a rhiza release that defines every
 profile `/rhiza:init` writes, so a ref that stops defining one **fails** the suite rather
 than quietly narrowing it.
 

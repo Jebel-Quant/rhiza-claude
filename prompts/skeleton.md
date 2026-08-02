@@ -18,10 +18,11 @@ stdlib-only script finishes it. Every edit is **idempotent and additive** — ru
 it twice changes nothing the second time, and it never overwrites real code or
 metadata a human wrote.
 
-**Two languages.** Steps 1–7 below are the **python** path. For `LANGUAGE=rust`,
-`/init` passes the language in — jump to **[Rust](#rust)** at the end, which is the
-same shape with `cargo init --lib` and `Cargo.toml` in place of uv and
-`pyproject.toml`. `go` doesn't come here at all.
+**Three languages.** Steps 1–7 below are the **python** path. `/init` passes the language
+in: for `LANGUAGE=rust` jump to **[Rust](#rust)**, the same shape with `cargo init --lib`
+and `Cargo.toml` in place of uv and `pyproject.toml`; for `LANGUAGE=go` jump to
+**[Go](#go)**, which is shorter than either, because `go mod init` writes one file and
+`go.mod` has no metadata to fill in.
 
 The project name is `NAME` — whatever `/init` settled, else `basename "$PWD"`.
 
@@ -242,6 +243,90 @@ entry silently does nothing, and the release looks clean while the lockfile is w
 As step 7: whether `cargo init` ran or an existing manifest was kept, which
 `[package]` keys were added or found correct, **that `cargo metadata` passed in R4**,
 and that no MSRV was set.
+
+## Go
+
+The shortest of the three, and short for a reason: `go mod init` writes exactly one file,
+and `go.mod` holds a module path and a Go version — **no description, repository,
+homepage, author or licence field exists in the format**. There is no manifest-filling
+step here because there is nothing to fill. Everything general still holds: the edits are
+idempotent and additive, the licence is `prompts/license.md`'s job, and the gate in G4 is
+not optional.
+
+### G1. Settle the inputs
+
+- **`go`** — `go version`. If absent, tell the user to install a toolchain
+  ([go.dev/dl](https://go.dev/dl/), or `brew install go`) and **stop** — don't install
+  one for them, and don't hand-write a `go.mod` without one.
+- **`MODULE` — the module path, and the one genuinely new question.** Python and Rust
+  take a bare name; a Go module is identified by the path people will `go get`, so it
+  must match where the repo lives: `github.com/$OWNER/$NAME` (or `gitlab.com/…`). Derive
+  it from `git remote get-url origin` when there is one, else from `OWNER`/`NAME` and the
+  host `/init` settled. **Ask only if none of that is available** — and never invent a
+  vanity domain.
+- **Description** — as step 1. Ask; no safe default. Hold as `DESCRIPTION`.
+- **No Go-version question.** `go mod init` writes the toolchain's own version into the
+  `go` directive, and raising it is a real constraint on consumers. Leave it.
+
+### G2. Create the skeleton (only when it's missing)
+
+If there is **no** `go.mod`:
+```bash
+go mod init "$MODULE"
+```
+That is the whole of it — one file, no `src/`, no starter package, no `.gitignore`. If a
+`go.mod` **already exists**, do **not** run `go mod init`: it refuses, and the existing
+module path is the user's.
+
+### G3. Finish it into a rhiza shape
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_skeleton.py" . \
+  --owner "$OWNER" --repo "$REPO" --host <github|gitlab> --language go \
+  --description "$DESCRIPTION"
+```
+(The script is stdlib-only Python — `uv` here is just how the plugin runs its own
+tooling, exactly as on the Rust path. It has nothing to do with the project being Go.)
+
+Two idempotent edits:
+- **`doc.go`** — the package comment. `make docs-coverage` is revive's `exported` rule,
+  Go's analogue of `#![warn(missing_docs)]` and of interrogate, and it wants one; `go mod
+  init` leaves the module with no Go file at all, so `go test ./...` has nothing to run
+  either. Written **only into a module with no root `.go` file**: a second package
+  comment where one already exists is itself a lint finding.
+- **`README.md`** — go creates none, so this writes a stub. `/rhiza:docs` owns the real
+  one, and this never overwrites a non-empty file.
+
+Relay its `modified`/`notes` output.
+
+### G4. Verify `go.mod` exists — this is the gate
+
+```bash
+test -f go.mod && go list -m && go vet ./...
+```
+`go list -m` prints the module path and fails on a malformed `go.mod`, which `test -f`
+cannot; `go vet` proves the package the script wrote actually compiles. If any of them
+fails, **stop and report** — don't hand-write a `go.mod`, and don't let `/init` commit or
+open a PR.
+
+### G5. The version location is *not* written here
+
+Unlike python and rust, **nothing to do** — say so and move on. A Go module's version is
+its git tag, so a fresh module has no version anywhere to anchor a config to, and
+`go-core` owns the declaration: the sync delivers a root `.bumpversion.toml` (with no
+`current_version` key, deliberately) plus the `internal/version/version.go` constant a
+built binary reports. Writing our own would be overwritten by that first `/rhiza:update`.
+
+Tell the user the consequence, because it is surprising: **`/rhiza:release` will not work
+until after the first `/update`**, and its first run has no tag to derive a version from,
+so it starts from `0.0.0` — which `/release` handles, provided nobody hand-writes a
+competing config in the meantime.
+
+### G6. Report
+
+As step 7: whether `go mod init` ran or an existing module was kept, the module path,
+whether `doc.go` and the README were written or already present, **that `go list -m` and
+`go vet` passed in G4**, and that the version location arrives with the first sync.
 
 ## Notes
 

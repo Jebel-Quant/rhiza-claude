@@ -77,17 +77,18 @@ complete the local work and report that the remote steps are pending auth.
 
 - **Language** — ask (`AskUserQuestion`, default **python**): `python`, `rust` or `go`.
   It picks the default template repo, the `language:` key in the pointer, and the
-  profile: `python`/`go` get `github-project`/`gitlab-project`, `rust` gets
-  `rust-local` on either host.
-- **`TEMPLATE_REPO`** — default `jebel-quant/rhiza` (python **and rust** — that
-  template is multi-language, layering a `rust-core` toolchain bundle on a neutral
-  `core`) or `jebel-quant/rhiza-go` (go, a separate fork); offer to override with any
-  `owner/repo`, or to pick from `gh search repos --topic rhiza --json fullName`.
-- **Rust gets no hosted CI yet.** There is deliberately no `rust-github-project`: those
-  profiles are almost entirely CI workflows, and rhiza's `github`/`gitlab` bundles still
-  ship Python ones. **Say this to the user** when they pick rust, so no one waits for CI
-  that was never configured: they get the full local toolchain (cargo, clippy, nextest,
-  llvm-cov, cargo-deny) and add hosted CI when the Rust workflows land.
+  profile: `python` gets `github-project`/`gitlab-project`, `rust` gets `rust-local` and
+  `go` gets `go-local`, on either host.
+- **`TEMPLATE_REPO`** — default `jebel-quant/rhiza` for **all three languages**: that
+  template is multi-language, layering a per-language toolchain bundle (`python-core`,
+  `rust-core`, `go-core`) on a neutral `core`. Offer to override with any `owner/repo`
+  (a fork), or to pick from `gh search repos --topic rhiza --json fullName`.
+- **Rust and Go get no hosted CI yet.** There is deliberately no `rust-github-project`
+  or `go-github-project`: those profiles are almost entirely CI workflows, and rhiza's
+  `github`/`gitlab` bundles still ship Python ones. **Say this to the user** when they
+  pick either, so no one waits for CI that was never configured: they get the full local
+  toolchain (cargo/clippy/nextest/llvm-cov/cargo-deny, or go test/golangci-lint/
+  govulncheck/revive) and add hosted CI when those workflows land.
 - **Reachability** — `git ls-remote --exit-code https://<host>/$TEMPLATE_REPO`. If
   unreachable, **stop** — don't write a pointer at a repo that isn't there. (If `git`
   can't check, warn and continue.)
@@ -146,20 +147,18 @@ git commit -m "chore: point repo at $TEMPLATE_REPO@$TARGET"
 
 ## 6. Skeleton, then license
 
-Skip both for `go` — `prompts/skeleton.md` covers python and rust only, and
-`rhiza-go` has its own scaffolding.
-
-- `Read` `prompts/skeleton.md` and follow it, telling it the language. **Not
-  optional:** the template never ships a manifest, so without one `/update`'s gates
-  fail outright — on python `make test` depends on `install` (a `uv sync`) and the
-  synced `.rhiza/tests/test_pyproject.py` asserts a specific `[project]` shape; on
-  rust every `cargo` target needs a `Cargo.toml`. Carry `OWNER`/`NAME`/host in from
-  step 2 so nothing is re-asked; let it ask for the description (and, on python, the
-  Python version), which are its own to own.
-- **Verify the manifest exists** — `test -f pyproject.toml` (python) or
-  `test -f Cargo.toml` (rust). The procedure checks too, but check again: if it's
-  missing, **stop and report**. Don't hand-write one, and don't commit or open a PR
-  on a repo whose skeleton step failed.
+- `Read` `prompts/skeleton.md` and follow it, telling it the language — it covers
+  python, rust and go. **Not optional:** the template never ships a manifest, so without
+  one `/update`'s gates fail outright — on python `make test` depends on `install` (a
+  `uv sync`) and the synced `.rhiza/tests/test_pyproject.py` asserts a specific
+  `[project]` shape; on rust every `cargo` target needs a `Cargo.toml`; on go every `go`
+  target needs a `go.mod`. Carry `OWNER`/`NAME`/host in from step 2 so nothing is
+  re-asked; let it ask for the description (and, on python, the Python version, or on
+  go, the module path), which are its own to own.
+- **Verify the manifest exists** — `test -f pyproject.toml` (python), `test -f
+  Cargo.toml` (rust) or `test -f go.mod` (go). The procedure checks too, but check
+  again: if it's missing, **stop and report**. Don't hand-write one, and don't commit or
+  open a PR on a repo whose skeleton step failed.
 - `Read` `prompts/license.md` and follow it. Skip only if the user wants the repo
   unlicensed.
 - Commit what they produced:

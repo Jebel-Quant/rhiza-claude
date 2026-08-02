@@ -553,3 +553,36 @@ def test_e2e_the_rust_repo_reuses_the_shared_gate_names(rust_synced_repo):
     summary = cmt.probe(rust_synced_repo, _QUALITY)
     assert "test" in summary["available"]
     assert {"install", "all"} <= set(summary["undeclared"] + summary["available"])
+
+
+# --- end-to-end: discovery against a synced Go repo ---------------------------
+
+
+def _go_make_targets(repo: Path) -> set[str]:
+    """Return the documented targets the synced Go make include really defines."""
+    includes = [p for p in (repo / ".rhiza" / "make.d").glob("*.mk") if "go" in p.name]
+    assert includes, "no Go make include in the synced repo"
+    documented = re.compile(r"^([a-z][a-z0-9_-]*)::?.*?##\s*(.+)$", re.MULTILINE)
+    return {m[0] for p in includes for m in documented.findall(p.read_text())}
+
+
+def test_e2e_the_go_templates_own_targets_are_all_discovered(go_synced_repo):
+    """Read from `.rhiza/make.d/go.mk`, not listed here: the template owns its gate names."""
+    discovered = cmt.documented_targets(go_synced_repo)
+    missing = sorted(_go_make_targets(go_synced_repo) - set(discovered))
+    assert missing == [], f"the Go layer defines targets discovery missed: {missing}"
+
+
+def test_e2e_the_go_gates_resolve_for_make(go_synced_repo):
+    for target in sorted(_go_make_targets(go_synced_repo)):
+        assert cmt.target_exists(go_synced_repo, target), f"make cannot resolve {target}"
+
+
+def test_e2e_a_go_repo_is_never_reported_as_having_nothing_to_check(go_synced_repo):
+    """The same guarantee as for Rust, on the language the discovery hint names."""
+    summary = cmt.probe(go_synced_repo, _QUALITY)
+    assert summary["undeclared"], "a synced Go repo documents targets beyond the prose's list"
+    assert summary["available"], summary["notes"]
+    assert "deptry" in summary["unavailable"], "deptry is Python's; Go's analogue is `deps`"
+    assert "deps" in summary["undeclared"]
+    assert summary["exit_code"] == cmt.EXIT_OK

@@ -49,6 +49,18 @@ anyway (step 3).
   guessing is exactly what this command refuses to do. Report what's needed: a
   `.bumpversion.toml` with `current_version` and one `[[tool.bumpversion.files]]` entry
   per location (see step 6 for the stub-pin case). Hold the value as `CURRENT`.
+- **Unless the config is tag-derived, which is how Go declares it.** `go-core` ships a
+  `.bumpversion.toml` that deliberately omits `current_version`, because a Go module's
+  version *is* its git tag. On a repo that has not been tagged yet the command above
+  therefore fails with "Unable to determine the current version" — a **declared** version
+  location with nothing to read yet, which is not the same fact as no config at all and
+  must not be reported as one. Tell them apart:
+```bash
+grep -lq '^\[tool\.bumpversion\]' .bumpversion.toml pyproject.toml 2>/dev/null
+```
+  A config that exists and no tags → this is the repo's **first** release: hold
+  `CURRENT=0.0.0` (what `internal/version/version.go` ships) and pass it explicitly in
+  step 6. No config → stop, as above.
 - **On the default branch.** Compare `git branch --show-current` against the remote
   default (`gh repo view --json defaultBranchRef`, else `git remote show origin`). If
   not, warn and ask (`AskUserQuestion`) — releasing off a side branch is unusual, not
@@ -148,6 +160,12 @@ uvx bump-my-version bump --new-version "${TARGET#v}" --no-commit --no-tag
 `--no-commit --no-tag` because step 7 regenerates the changelog *before* committing, so
 the release commit contains the version bump and the changelog together. This updates
 every `[[tool.bumpversion.files]]` entry plus `current_version` in the config itself.
+
+**On a tag-derived config (Go), add `--current-version "$CURRENT"`.** With no
+`current_version` key and no tag to derive one from, the bump fails exactly as step 1's
+`show` did — and with a tag that disagrees with `internal/version/version.go`, it fails
+differently and more confusingly ("Did not find 'const Version = …'"). Passing the value
+step 1 settled makes both cases deterministic.
 
 Then **show `git diff --stat`** so the user sees exactly which files moved.
 

@@ -1,5 +1,5 @@
 ---
-description: Sync the current rhiza-managed repo to the latest (or a given) template release — bump the `ref` in .rhiza/template.yml, run the bundled stdlib-only sync, resolve any conflicts by taking the upstream side, and open a PR containing **only template-owned files** (the paths .rhiza/template.lock records, never a blanket `git add --all`). The template repository is read from template.yml, so forks and rhiza-go work too. It runs no quality gates, produces no scorecard, and files no issues — run /rhiza:quality for that. Always branches off the up-to-date default branch and restores the branch you started on.
+description: Sync the current rhiza-managed repo to the latest (or a given) template release — bump the `ref` in .rhiza/template.yml, run the bundled stdlib-only sync, resolve any conflicts by taking the upstream side, and open a PR containing **only template-owned files** (the paths .rhiza/template.lock records, never a blanket `git add --all`). The template repository is read from template.yml, so a fork works too. It runs no quality gates, produces no scorecard, and files no issues — run /rhiza:quality for that. Always branches off the up-to-date default branch and restores the branch you started on.
 argument-hint: "[version e.g. v1.2.0]  (optional; defaults to the template's latest release)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 ---
@@ -47,9 +47,9 @@ Work through these steps. Stop and report if a precondition fails.
 ## 2. Resolve the target ref
 - Read `repository` and the current `ref` (or `template-branch`, whichever key is
   present) from `.rhiza/template.yml`. Hold the repo as `TEMPLATE_REPO` — **this, not
-  a hardcoded `jebel-quant/rhiza`**, is what to query. A repo may follow
-  `jebel-quant/rhiza-go` or a fork, and bumping it to another project's tag would
-  point the sync at a ref that doesn't exist there.
+  a hardcoded `jebel-quant/rhiza`**, is what to query. A repo may follow a fork, and
+  bumping it to another project's tag would point the sync at a ref that doesn't
+  exist there.
 - `TARGET`:
   - `$ARGUMENTS` if non-empty, verbatim (ensure it starts with `v`);
   - else the latest release of `$TEMPLATE_REPO`:

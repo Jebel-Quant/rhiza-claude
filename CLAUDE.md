@@ -121,12 +121,16 @@ off `main` and open a PR — never push to the default branch.
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
 - **The end-to-end tests are part of `make test`, not an opt-in extra.** They sync real
   repos from `jebel-quant/rhiza` at the ref pinned in `tests/conftest.py`, so the suite
-  needs network, `uv` and (for the Rust fixtures) `cargo`. Anything tool-shaped skips
-  when the tool is absent, which is why CI verifies `cargo` explicitly rather than
-  letting a whole language axis vanish quietly.
-- **The pinned template ref decides which profiles the suite can exercise.** `rust-local`
-  arrived in rhiza **v1.3.0**, which is what `PINNED_TEMPLATE_REF` names and why the Rust
-  sync runs on every PR. Before bumping it, check the new ref still defines what `/init`
-  writes: `scripts/check_template_profile.py rust-local github-project gitlab-project
-  --template-repo jebel-quant/rhiza --ref <tag>`. A ref that doesn't now **fails** the
-  Rust fixtures rather than skipping them — see `require_rust_profile`.
+  needs network, `uv`, and `cargo`/`go` for the Rust and Go fixtures. Anything tool-shaped
+  skips when the tool is absent, which is why CI verifies both toolchains explicitly
+  rather than letting a whole language axis vanish quietly.
+- **The pinned template ref decides which profiles the suite can exercise.**
+  `rust-local` and `go-local` arrived in rhiza **v1.3.0**, which is what
+  `PINNED_TEMPLATE_REF` names and why both syncs run on every PR. Before bumping it, check
+  the new ref still defines what `/init` writes: `scripts/check_template_profile.py
+  rust-local go-local github-project gitlab-project --template-repo jebel-quant/rhiza
+  --ref <tag>`. A ref that doesn't now **fails** those fixtures rather than skipping them
+  — see `require_language_profile`.
+- **One template, three languages.** `jebel-quant/rhiza` is the default for python, rust
+  and go alike; the language selects the *profile* (`github-project`, `rust-local`,
+  `go-local`), never a different repository.

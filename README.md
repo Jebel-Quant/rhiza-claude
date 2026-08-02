@@ -119,8 +119,9 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   delegates the rest to the internal procedures (see [Internals](#internals)):
   install-uv, then skeleton, then license. It detects platform/owner/name from an
   existing `origin` (or asks), picks the language (Python, Go or Rust) and template
-  repo (`jebel-quant/rhiza` for Python and Rust — the template is multi-language —
-  `rhiza-go` for Go, or a custom one) plus its latest release as the initial pin —
+  repo (`jebel-quant/rhiza` for all three — the template is multi-language, layering
+  a `python-core`/`rust-core`/`go-core` bundle on a neutral `core` — or a fork) plus
+  its latest release as the initial pin —
   checking that ref actually defines the profile it's about to name, since an
   unsatisfiable pointer merges cleanly and then fails the *first* `/rhiza:update` — and
   opens a PR on a `rhiza_init_<date>` branch — never pushing to the
@@ -131,8 +132,8 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   bump the `ref` in `.rhiza/template.yml`, run the bundled sync, resolve conflicts by
   taking the upstream side, and open a PR containing **only template-owned files** —
   the paths `.rhiza/template.lock` records, never a blanket `git add --all`, so your
-  own source is never swept in. The template repo is read from `template.yml`, so
-  forks and `rhiza-go` work too. Runs no gates and files no issues: use
+  own source is never swept in. The template repo is read from `template.yml`, so a
+  fork works too. Runs no gates and files no issues: use
   `/rhiza:quality` for a scorecard.
 - **`/rhiza:quality`** — run the rhiza code-quality gate (lint, types, docs,
   deps, security, tests, complexity, architecture) and score the repo.

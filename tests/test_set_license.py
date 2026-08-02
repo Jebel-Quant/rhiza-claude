@@ -371,3 +371,14 @@ def test_e2e_both_manifests_are_visited_so_they_cannot_disagree(rust_crate, tmp_
     cargo, pyproject = (repo / "Cargo.toml").read_text(), (repo / "pyproject.toml").read_text()
     assert 'license = "MIT"' in cargo and "license-file" not in cargo
     assert 'license = "MIT"' in pyproject and "Apache-2.0" not in pyproject
+
+
+def test_e2e_a_go_module_gets_a_license_file_and_no_manifest_change(go_module):
+    """`go.mod` has nowhere to put a licence, so the file is the whole declaration.
+
+    Asserted as an absence on purpose: without it, someone reads the Python and Rust
+    paths, notices Go writes no manifest key, and "fixes" it by inventing one.
+    """
+    assert (go_module / "LICENSE").read_text().startswith("MIT License")
+    body = (go_module / "go.mod").read_text()
+    assert "license" not in body.lower()

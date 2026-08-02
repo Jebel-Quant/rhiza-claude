@@ -316,3 +316,30 @@ def test_e2e_a_crate_with_no_ci_gets_no_ci_badge(rust_crate):
     summary = rb.build_badges(**{**_BASE, "language": "rust", "language_versions": ["2024"]})
     assert not any("actions/workflows" in badge for badge in summary["badges"])
     assert "CI: no workflow file found in .github/workflows" in summary["skipped"]
+
+
+def test_e2e_a_real_module_gets_a_go_badge_carrying_its_own_directive(go_module):
+    """`/rhiza:docs` reads the `go` directive out of `go.mod` and passes it here.
+
+    Read from the module the fixture built rather than written as a literal, so the
+    assertion keeps holding when the toolchain moves on.
+    """
+    import re as _re
+
+    directive = _re.search(r"^go\s+(\S+)", (go_module / "go.mod").read_text(), _re.MULTILINE)
+    assert directive, "go mod init wrote no go directive"
+
+    summary = rb.build_badges(
+        **{
+            **_BASE,
+            "owner": "jebel-quant",
+            "language": "go",
+            "language_versions": [directive.group(1)],
+            "license_id": "MIT",
+        }
+    )
+    go_badges = [b for b in summary["badges"] if "Go-" in b]
+    assert len(go_badges) == 1, summary["badges"]
+    assert directive.group(1) in go_badges[0]
+    assert "logo=go" in go_badges[0]
+    assert not any("Python" in badge or "Rust" in badge for badge in summary["badges"])

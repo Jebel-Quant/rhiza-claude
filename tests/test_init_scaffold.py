@@ -40,8 +40,8 @@ def test_template_yml_gitlab_repo_still_clones_the_template_from_github():
     jebel-quant/rhiza from gitlab.com, so the first sync died with "could not read
     Username". The profile must switch; the clone URL must not.
     """
-    out = scaf.render_template_yml("jebel-quant/rhiza-go", "v2.0.0", "gitlab", "go")
-    assert "  - gitlab-project" in out
+    out = scaf.render_template_yml("jebel-quant/rhiza", "v2.0.0", "gitlab", "go")
+    assert "  - go-local" in out
     assert "language: go" in out
     assert "template-host" not in out, "the template is on GitHub, not GitLab"
 
@@ -123,17 +123,19 @@ def test_python_profiles_stay_unprefixed():
 
 
 def test_scaffold_go_defaults(tmp_path):
+    """Go follows the same multi-language template as python and rust."""
     summary = scaf.scaffold(
         tmp_path,
         host="github",
         language="go",
-        template_repo="jebel-quant/rhiza-go",
+        template_repo=scaf.DEFAULT_TEMPLATE_REPO["go"],
         ref="main",
     )
     assert summary["created"] == [".rhiza/template.yml"]
+    assert summary["profile"] == "go-local"
     tpl = (tmp_path / ".rhiza" / "template.yml").read_text()
     assert "language: go" in tpl
-    assert "jebel-quant/rhiza-go" in tpl
+    assert 'repository: "jebel-quant/rhiza"' in tpl
 
 
 # --- main() / CLI -----------------------------------------------------------
@@ -149,11 +151,13 @@ def test_main_json_output(tmp_path, capsys):
     assert payload["created"] == [".rhiza/template.yml"]
 
 
-def test_main_language_selects_default_template_repo(tmp_path, capsys):
+def test_main_language_selects_the_profile_not_a_separate_template(tmp_path, capsys):
+    """One template, three languages: the language picks the profile, not the repo."""
     rc = scaf.main([str(tmp_path), "--language", "go", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["template_repository"] == "jebel-quant/rhiza-go"
+    assert payload["template_repository"] == "jebel-quant/rhiza"
+    assert payload["profile"] == "go-local"
 
 
 def test_main_text_output(tmp_path, capsys):
@@ -268,22 +272,22 @@ def test_e2e_the_rust_pointer_names_the_language_and_its_profile(rust_crate):
     prefers it over sniffing the manifest), and the profile is the Rust one rather than
     the Python default.
     """
-    from conftest import rust_profile
+    from conftest import language_profile_name
 
     body = (rust_crate / ".rhiza" / "template.yml").read_text()
     assert 'repository: "jebel-quant/rhiza"' in body, "Rust shares the Python template"
     assert "language: rust" in body
-    assert f"  - {rust_profile('github')}" in body
+    assert f"  - {language_profile_name('rust')}" in body
     assert "template-host" not in body, "the template is GitHub-hosted; nothing to redirect"
 
 
 def test_e2e_the_rust_sync_writes_a_lock_recording_the_profile(rust_synced_repo):
     """The sync is what /update runs; the lock is the record of what it did."""
     import _rhiza_yaml
-    from conftest import rust_profile
+    from conftest import language_profile_name
 
     lock = _rhiza_yaml.load_yaml(rust_synced_repo / ".rhiza" / "template.lock")
-    assert lock["profiles"] == [rust_profile("github")]
+    assert lock["profiles"] == [language_profile_name("rust")]
     assert lock["sha"], "the lock records no upstream SHA"
     assert lock["files"], "the lock records no files"
 
@@ -318,3 +322,48 @@ def test_e2e_the_rust_profile_ships_no_hosted_ci_and_that_is_deliberate(rust_syn
     assert not workflows.exists() or not list(workflows.glob("*.yml")), (
         "the Rust profile is local-only; hosted CI arrives with the Rust workflows"
     )
+
+
+# --- end-to-end: the Go axis --------------------------------------------------
+
+
+def test_e2e_the_go_pointer_names_the_shared_template_and_go_local(go_module):
+    """Go follows `jebel-quant/rhiza` like the other two — one multi-language template."""
+    from conftest import language_profile_name
+
+    body = (go_module / ".rhiza" / "template.yml").read_text()
+    assert 'repository: "jebel-quant/rhiza"' in body
+    assert "language: go" in body
+    assert f"  - {language_profile_name('go')}" in body
+
+
+def test_e2e_the_go_sync_writes_a_lock_recording_the_profile(go_synced_repo):
+    import _rhiza_yaml
+    from conftest import language_profile_name
+
+    lock = _rhiza_yaml.load_yaml(go_synced_repo / ".rhiza" / "template.lock")
+    assert lock["profiles"] == [language_profile_name("go")]
+    assert lock["files"], "the lock records no files"
+    missing = [f for f in lock["files"] if not (go_synced_repo / f).exists()]
+    assert missing == [], f"the lock records files the sync did not deliver: {missing}"
+
+
+def test_e2e_the_go_sync_delivers_the_go_toolchain_layer(go_synced_repo):
+    """`go-core`'s own files, read from the lock rather than listed here."""
+    import _rhiza_yaml
+
+    lock = _rhiza_yaml.load_yaml(go_synced_repo / ".rhiza" / "template.lock")
+    go_mk = [f for f in lock["files"] if f.startswith(".rhiza/make.d/") and "go" in f]
+    assert go_mk, f"no Go make include in the synced files: {lock['files']}"
+    assert (go_synced_repo / "Makefile").is_file()
+    assert (go_synced_repo / ".rhiza" / "rhiza.mk").is_file()
+
+
+def test_e2e_the_go_profile_ships_no_hosted_ci_and_that_is_deliberate(go_synced_repo):
+    """`go-local` is local tooling only, for the same reason `rust-local` is.
+
+    The template's `github`/`gitlab` bundles still ship *Python* workflows, so a Go
+    profile including them would deliver CI that fails on its first run.
+    """
+    workflows = go_synced_repo / ".github" / "workflows"
+    assert not workflows.exists() or not list(workflows.glob("*.yml"))

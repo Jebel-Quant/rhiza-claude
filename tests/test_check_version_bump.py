@@ -412,3 +412,56 @@ def test_e2e_release_bumps_every_declared_location(synced_repo_copy):
     # `[` never matched a repo this plugin actually produces.
     before_version = body.split('version = "0.2.0"')[0]
     assert "classifiers = [" in before_version, "fixture no longer exercises the hard case"
+
+
+# --- end-to-end: where a Go module's version lives ----------------------------
+
+
+def test_e2e_a_synced_go_module_has_a_discoverable_version_location(go_synced_repo):
+    """The assertion #98 asked for, and it is about the *template's* file, not ours.
+
+    `bump-my-version` auto-discovers exactly four filenames; a config anywhere else is
+    silently ignored and the tool falls back to `git describe`. `go-core` therefore ships
+    `.bumpversion.toml` at the root, and `/rhiza:release` — which passes no
+    `--config-file` — depends on that being true.
+    """
+    import init_skeleton
+
+    assert init_skeleton.bumpversion_config(go_synced_repo) == ".bumpversion.toml"
+
+    body = (go_synced_repo / ".bumpversion.toml").read_text()
+    assert 'filename = "internal/version/version.go"' in body
+    assert (go_synced_repo / "internal" / "version" / "version.go").is_file()
+    # No `current_version` *assignment* — the mentions inside `search`/`replace` are the
+    # tool's own placeholders. Deliberately absent: a Go module's version is its git tag,
+    # so a synced value would be reset by the next /rhiza:update.
+    assignments = [ln for ln in body.splitlines() if ln.strip().startswith("current_version")]
+    assert assignments == [], f"go-core now pins a version it cannot own: {assignments}"
+
+
+def test_e2e_the_first_go_release_needs_an_explicit_current_version(go_synced_repo):
+    """A tagless Go module has a declared version location and no readable version.
+
+    `/rhiza:release` step 1 distinguishes those, because the failure text is identical to
+    "no config at all" and stopping on it would be the wrong diagnosis. Its answer is
+    `CURRENT=0.0.0` — what `internal/version/version.go` ships — passed to the bump.
+    """
+    from conftest import assert_ok, run_cmd
+
+    assert run_cmd(["git", "tag", "--list"], go_synced_repo).stdout.strip() == ""
+    show = run_cmd(["uvx", "bump-my-version", "show", "current_version"], go_synced_repo)
+    assert show.returncode != 0, "a tagless Go module cannot report a current version"
+
+    constant = (go_synced_repo / "internal" / "version" / "version.go").read_text()
+    assert 'const Version = "0.0.0"' in constant, "the documented starting point moved"
+
+    bump = run_cmd(
+        ["uvx", "bump-my-version", "bump", "--current-version", "0.0.0",
+         "--new-version", "0.1.0", "--no-commit", "--no-tag", "--allow-dirty"],
+        go_synced_repo,
+    )  # fmt: skip
+    assert_ok(bump, "bump-my-version bump --current-version 0.0.0")
+    assert (
+        'const Version = "0.1.0"'
+        in (go_synced_repo / "internal" / "version" / "version.go").read_text()
+    )
