@@ -228,3 +228,84 @@ def test_main_text_output_reports_notes(tmp_path, capsys):
     (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
     assert sl.main([str(tmp_path), "--license", "none"]) == 0
     assert "note" in capsys.readouterr().err
+
+
+# --- Cargo.toml (rust) ------------------------------------------------------
+
+_CARGO = """\
+[package]
+name = "widget"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+"""
+
+
+def test_set_cargo_license_metadata_applies_and_replaces():
+    out, changed = sl.set_cargo_license_metadata(_CARGO, "MIT")
+    assert changed
+    assert 'license = "MIT"' in out
+    lines = [line for line in out.splitlines() if line.strip()]
+    assert (
+        lines.index('name = "widget"')
+        < lines.index('license = "MIT"')
+        < lines.index("[dependencies]")
+    )
+
+    again, changed_again = sl.set_cargo_license_metadata(out, "Apache-2.0")
+    assert changed_again
+    assert 'license = "Apache-2.0"' in again
+    assert "MIT" not in again
+
+
+def test_set_cargo_license_metadata_is_idempotent():
+    once, _ = sl.set_cargo_license_metadata(_CARGO, "MIT")
+    twice, changed = sl.set_cargo_license_metadata(once, "MIT")
+    assert twice == once
+    assert not changed
+
+
+def test_set_cargo_license_metadata_clears_license_file_too():
+    """A stale `license-file` would make `cargo publish` state the wrong terms."""
+    manifest = _CARGO.replace("edition", 'license-file = "COPYING"\nedition')
+    out, _ = sl.set_cargo_license_metadata(manifest, "MIT")
+    assert "license-file" not in out
+    assert 'license = "MIT"' in out
+
+
+def test_set_cargo_license_metadata_none_clears():
+    once, _ = sl.set_cargo_license_metadata(_CARGO, "MIT")
+    cleared, changed = sl.set_cargo_license_metadata(once, "none")
+    assert changed
+    assert "license" not in cleared
+
+
+def test_set_cargo_license_metadata_requires_package_table():
+    with pytest.raises(ValueError, match=r"\[package\]"):
+        sl.set_cargo_license_metadata("[workspace]\nmembers = []\n", "MIT")
+
+
+def test_set_license_writes_cargo_metadata_and_the_file(tmp_path):
+    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
+    assert summary["created"] == ["LICENSE"]
+    assert summary["modified"] == ["Cargo.toml"]
+    assert 'license = "MIT"' in (tmp_path / "Cargo.toml").read_text()
+
+
+def test_set_license_covers_both_manifests_in_a_mixed_repo(tmp_path):
+    """A pyo3/maturin repo has both manifests; the licence must not disagree."""
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
+    assert summary["modified"] == ["pyproject.toml", "Cargo.toml"]
+    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text()
+    assert 'license = "MIT"' in (tmp_path / "Cargo.toml").read_text()
+
+
+def test_set_license_notes_a_cargo_toml_without_a_package_table(tmp_path):
+    (tmp_path / "Cargo.toml").write_text("[workspace]\nmembers = []\n")
+    summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
+    assert any("Cargo.toml" in note for note in summary["notes"])
+    assert summary["created"] == ["LICENSE"]

@@ -5,7 +5,7 @@
 > are reading this because `/init` sent you here, carry on — you already have
 > `OWNER`, `NAME`, and the host from `/init`'s step 2, so don't re-ask for them.
 
-**Why this procedure exists.** The rhiza template never ships a `pyproject.toml` —
+**Why this procedure exists.** The rhiza template never ships a project manifest —
 the sync delivers `Makefile`, `.rhiza/rhiza.mk`, `ruff.toml`, `pytest.ini`, CI and
 the rest, but the project metadata is always the repo's own. So `/update`'s gates
 can't run at all without one: `make test` depends on `install` (a `uv sync`), and
@@ -17,6 +17,11 @@ This produces that shape.
 stdlib-only script finishes it. Every edit is **idempotent and additive** — running
 it twice changes nothing the second time, and it never overwrites real code or
 metadata a human wrote.
+
+**Two languages.** Steps 1–7 below are the **python** path. For `LANGUAGE=rust`,
+`/init` passes the language in — jump to **[Rust](#rust)** at the end, which is the
+same shape with `cargo init --lib` and `Cargo.toml` in place of uv and
+`pyproject.toml`. `go` doesn't come here at all.
 
 The project name is `NAME` — whatever `/init` settled, else `basename "$PWD"`.
 
@@ -151,6 +156,111 @@ added or filled in (and which it found already correct), **that `pyproject.toml`
 verified in step 4**, and the `$PYTHON_VERSION` applied. Flag anything the script
 noted as still missing — notably `[project].authors`, which the template's gate wants
 and which `uv init` only populates from `git config`.
+
+## Rust
+
+The python path above, with cargo in uv's place. Everything general still holds — the
+edits are idempotent and additive, the license is `prompts/license.md`'s job, and the
+gate in step 4 is not optional.
+
+### R1. Settle the inputs
+
+- **`cargo`** — `cargo --version`. If absent, tell the user to install the toolchain
+  via [rustup](https://rustup.rs) (`curl --proto '=https' --tlsv1.2 -sSf
+  https://sh.rustup.rs | sh`) and **stop** — don't try to install a toolchain for
+  them, and don't fake a `Cargo.toml` without one.
+- **Owner / repo** — exactly as step 1: use what `/init` passed, else derive from
+  `git remote get-url origin`, else ask. These become `[package].repository` and
+  `[package].homepage`.
+- **Description** — as step 1. Ask; no safe default. Skip when `[package].description`
+  already has a real value. Hold as `DESCRIPTION`.
+- **No Rust-version question.** The edition comes from `cargo init`, and an MSRV
+  (`[package].rust-version`) is a real constraint on downstream consumers — leave it
+  unset rather than inventing one.
+
+### R2. Create the skeleton (only when it's missing)
+
+If there is **no** `Cargo.toml`:
+```bash
+cargo init --lib --name "$NAME"
+```
+This writes `Cargo.toml`, `src/lib.rs` (a placeholder `add` plus its test), and
+`.gitignore`, and initialises a git repo if there isn't one. If a `Cargo.toml`
+**already exists**, do **not** run `cargo init` — it refuses, and the existing
+manifest is the user's.
+
+### R3. Finish it into a rhiza shape
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_skeleton.py" . \
+  --owner "$OWNER" --repo "$REPO" --host <github|gitlab> --language rust \
+  --description "$DESCRIPTION"
+```
+(The script is stdlib-only Python — `uv` here is just how the plugin runs its own
+tooling. It has nothing to do with the project being a Rust one.)
+
+Three idempotent edits:
+- **`src/lib.rs`** (or `main.rs`) — **prepends** a `//!` crate doc comment when there
+  is none. `#![warn(missing_docs)]` fires on an undocumented crate root, and `cargo
+  init` writes no docs. Unlike the python path this never *replaces* the placeholder:
+  cargo's stub carries the project's only test.
+- **`README.md`** — cargo creates no README at all, so this writes a stub.
+  `/rhiza:docs` owns the real one and this never overwrites a non-empty file.
+- **`[package]`** — adds `description`, `repository`, `homepage` and `authors` when
+  absent, appended below `name`/`version`/`edition` where cargo put them. A value
+  already in the manifest wins.
+
+Relay its `modified`/`notes` output.
+
+### R4. Verify `Cargo.toml` exists — this is the gate
+
+```bash
+test -f Cargo.toml && cargo metadata --no-deps --format-version 1 >/dev/null && head -20 Cargo.toml
+```
+`cargo metadata` is the real check — it parses the manifest and fails loudly on a
+malformed one, which `test -f` cannot. If either fails, **stop and report**; do not
+hand-write a `Cargo.toml`, and do not let `/init` commit or open a PR.
+
+A **virtual workspace root** (`[workspace]` and no `[package]`) is the one case where
+the script exits 1 legitimately: there's no package table to fill in. Say so, and
+apply this procedure to the member crate instead.
+
+### R5. Declare where the version lives, for `/rhiza:release`
+
+Same rule as step 5 — `/release` reads `[tool.bumpversion]` and refuses to guess.
+Rust has no `[tool]` table convention, so write **`.bumpversion.toml`**:
+
+```toml
+[tool.bumpversion]
+current_version = "0.1.0"   # match [package].version
+tag = false
+commit = false
+allow_dirty = false
+
+[[tool.bumpversion.files]]
+filename = "Cargo.toml"
+regex = true
+search = '(?ms)^\[package\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
+replace = '[package]\1version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = 'name = "{name}"\nversion = "{current_version}"'
+ignore_missing_file = true
+```
+
+**The `[package]` anchor matters more here than in python.** An unanchored
+`version = "{current_version}"` would rewrite every dependency in `Cargo.lock` that
+happens to share the number. And `Cargo.lock` records the crate's own version, so a
+release that bumps only `Cargo.toml` leaves the lockfile stale and the next `cargo
+build` dirties the tree — hence the second entry (`{name}` is the crate name; fill it
+in literally).
+
+### R6. Report
+
+As step 7: whether `cargo init` ran or an existing manifest was kept, which
+`[package]` keys were added or found correct, **that `cargo metadata` passed in R4**,
+and that no MSRV was set.
 
 ## Notes
 

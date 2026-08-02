@@ -85,6 +85,33 @@ def test_scaffold_skips_an_existing_pointer(tmp_path):
     assert (tmp_path / ".rhiza" / "template.yml").read_text() == "hand-written\n"  # untouched
 
 
+def test_scaffold_rust_uses_the_shared_template_and_a_rust_profile(tmp_path):
+    """Rust rides on jebel-quant/rhiza — only the profile is namespaced."""
+    summary = scaf.scaffold(
+        tmp_path,
+        host="github",
+        language="rust",
+        template_repo=scaf.DEFAULT_TEMPLATE_REPO["rust"],
+        ref="main",
+    )
+    assert summary["profile"] == "rust-github-project"
+    tpl = (tmp_path / ".rhiza" / "template.yml").read_text()
+    assert "jebel-quant/rhiza" in tpl
+    assert "language: rust" in tpl
+    assert "  - rust-github-project" in tpl
+
+
+def test_rust_profile_follows_the_host(tmp_path):
+    assert scaf.profile_for_host("gitlab", "rust") == "rust-gitlab-project"
+    assert scaf.profile_for_host("github", "rust") == "rust-github-project"
+
+
+def test_python_profiles_stay_unprefixed():
+    """Renaming python's profiles would break the pointer of every synced repo."""
+    assert scaf.profile_for_host("github", "python") == "github-project"
+    assert scaf.profile_for_host("gitlab") == "gitlab-project"
+
+
 def test_scaffold_go_defaults(tmp_path):
     summary = scaf.scaffold(
         tmp_path,

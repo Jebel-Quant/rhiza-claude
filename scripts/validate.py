@@ -140,8 +140,46 @@ def _validate_go_structure(log: Log, target: Path) -> bool:
     return passed
 
 
+def _validate_rust_structure(log: Log, target: Path) -> bool:
+    """Rust needs Cargo.toml (required); a src/ crate root is a warning.
+
+    Cargo puts both library and binary crates under ``src/`` — ``src/lib.rs`` for a
+    library, ``src/main.rs`` for a binary, and a workspace root may legitimately have
+    neither. So the crate root is checked as a warning, not an error, and a virtual
+    workspace (``[workspace]`` with no ``[package]``) is recognised rather than
+    reported as a malformed crate.
+    """
+    passed = True
+    manifest = target / "Cargo.toml"
+    if not manifest.exists():
+        log.error(f"Cargo.toml not found: {manifest}")
+        log.error("Cargo.toml is required for Rust projects")
+        log.info("Run /rhiza:init to set the repo up, which creates a Cargo.toml")
+        return False
+
+    log.success(f"Cargo.toml exists: {manifest}")
+    is_workspace_root = "[workspace]" in manifest.read_text(encoding="utf-8")
+
+    crate_roots = [target / "src" / name for name in ("lib.rs", "main.rs")]
+    found = [p for p in crate_roots if p.exists()]
+    if found:
+        for path in found:
+            log.success(f"crate root exists: {path}")
+    elif is_workspace_root:
+        log.success("no src/ crate root, but Cargo.toml declares a [workspace] — fine")
+    else:
+        log.warning(f"Neither 'src/lib.rs' nor 'src/main.rs' found under {target / 'src'}")
+        log.warning("Consider creating 'src/lib.rs' for a library or 'src/main.rs' for a binary")
+
+    return passed
+
+
 # Registry of language -> structure validator; extend here to add a language.
-_VALIDATORS = {"python": _validate_python_structure, "go": _validate_go_structure}
+_VALIDATORS = {
+    "python": _validate_python_structure,
+    "go": _validate_go_structure,
+    "rust": _validate_rust_structure,
+}
 
 
 def _check_project_structure(log: Log, target: Path, language: str) -> bool:
@@ -376,7 +414,7 @@ def _validate_language_field(log: Log, config: dict[str, Any]) -> None:
     language = config["language"]
     if not isinstance(language, str):
         log.warning(f"language should be a string, got {type(language).__name__}: {language}")
-        log.warning("Example: 'python', 'go'")
+        log.warning("Example: 'python', 'go', 'rust'")
     elif language.lower() not in _VALIDATORS:
         log.warning(f"language '{language}' is not recognized")
         log.warning(f"Supported languages: {', '.join(_VALIDATORS)}")

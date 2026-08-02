@@ -445,3 +445,157 @@ def test_main_exits_1_without_a_pyproject(tmp_path, capsys):
     rc = sk.main([str(tmp_path), "--owner", "o", "--repo", "r"])
     assert rc == 1
     assert "uv init --lib" in capsys.readouterr().err
+
+
+# --- rust ------------------------------------------------------------------
+
+# `Cargo.toml` exactly as `cargo init --lib` leaves it.
+_CARGO = """\
+[package]
+name = "acme-tool"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+"""
+
+# `src/lib.rs` exactly as `cargo init --lib` leaves it.
+_CARGO_LIB = """\
+pub fn add(left: u64, right: u64) -> u64 {
+    left + right
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
+    }
+}
+"""
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (_CARGO_LIB, True),
+        ("", False),
+        (_CARGO_LIB + "\npub fn mine() {}\n", False),
+        ("//! docs\n" + _CARGO_LIB, False),
+    ],
+)
+def test_is_cargo_placeholder_lib(text, expected):
+    assert sk.is_cargo_placeholder_lib(text) is expected
+
+
+def test_seed_crate_docs_prepends_and_keeps_the_placeholder_test(tmp_path):
+    """The crate doc is prepended, never substituted — cargo's stub holds the only test."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+
+    assert sk.seed_crate_docs(tmp_path) == ["src/lib.rs"]
+
+    text = (tmp_path / "src" / "lib.rs").read_text()
+    assert text.startswith("//! ")
+    assert "fn it_works()" in text, "cargo's placeholder test must survive"
+
+
+def test_seed_crate_docs_leaves_a_documented_crate_alone(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text("//! Mine.\n\npub fn f() {}\n")
+    assert sk.seed_crate_docs(tmp_path) == []
+
+
+def test_seed_crate_docs_handles_a_binary_crate(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.rs").write_text("fn main() {}\n")
+    assert sk.seed_crate_docs(tmp_path) == ["src/main.rs"]
+
+
+def test_set_cargo_keys_appends_below_name_and_version():
+    out, added = sk.set_cargo_keys(_CARGO, {"description": '"d"'})
+    assert added == ["description"]
+    lines = [line for line in out.splitlines() if line.strip()]
+    assert lines.index('name = "acme-tool"') < lines.index('description = "d"')
+    assert lines.index('description = "d"') < lines.index("[dependencies]")
+
+
+def test_set_cargo_keys_adds_only_missing_keys_and_is_idempotent():
+    wanted = {"description": '"d"', "repository": '"u"'}
+    once, added = sk.set_cargo_keys(_CARGO, wanted)
+    assert set(added) == {"description", "repository"}
+    twice, added_again = sk.set_cargo_keys(once, wanted)
+    assert added_again == []
+    assert twice == once
+
+
+def test_set_cargo_keys_never_overwrites_a_hand_written_value():
+    manifest = _CARGO.replace("edition", 'description = "mine"\nedition')
+    out, added = sk.set_cargo_keys(manifest, {"description": '"theirs"'})
+    assert added == []
+    assert '"mine"' in out and '"theirs"' not in out
+
+
+def test_set_cargo_keys_requires_a_package_table():
+    with pytest.raises(ValueError, match=r"\[package\]"):
+        sk.set_cargo_keys("[workspace]\nmembers = []\n", {"description": '"d"'})
+
+
+def test_finish_skeleton_rust_fills_the_manifest_and_writes_a_readme(tmp_path, monkeypatch):
+    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+    monkeypatch.setattr(sk, "git_identity", lambda _t: ("Ada Lovelace", "ada@example.com"))
+
+    summary = sk.finish_skeleton(
+        tmp_path,
+        owner="jebel-quant",
+        repo="acme-tool",
+        host="github",
+        description="A crate.",
+        language="rust",
+    )
+
+    assert summary["ok"]
+    manifest = (tmp_path / "Cargo.toml").read_text()
+    assert 'authors = ["Ada Lovelace <ada@example.com>"]' in manifest
+    assert 'repository = "https://github.com/jebel-quant/acme-tool"' in manifest
+    assert 'description = "A crate."' in manifest
+    # cargo writes no README at all, so unlike the uv path this one creates it.
+    assert (tmp_path / "README.md").read_text().startswith("# acme-tool")
+
+
+def test_finish_skeleton_rust_is_idempotent(tmp_path, monkeypatch):
+    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    monkeypatch.setattr(sk, "git_identity", lambda _t: ("A", None))
+    kwargs = {
+        "owner": "o",
+        "repo": "r",
+        "host": "github",
+        "description": "d",
+        "language": "rust",
+    }
+    sk.finish_skeleton(tmp_path, **kwargs)
+    once = (tmp_path / "Cargo.toml").read_text()
+    summary = sk.finish_skeleton(tmp_path, **kwargs)
+    assert (tmp_path / "Cargo.toml").read_text() == once
+    assert "already rhiza-shaped" in " ".join(summary["notes"])
+
+
+def test_finish_skeleton_rust_exits_1_without_a_manifest(tmp_path, capsys):
+    rc = sk.main([str(tmp_path), "--owner", "o", "--repo", "r", "--language", "rust"])
+    assert rc == 1
+    assert "cargo init --lib" in capsys.readouterr().err
+
+
+def test_finish_skeleton_rust_reports_a_workspace_root_manifest(tmp_path):
+    """A virtual workspace has no [package] to fill in — say so instead of crashing."""
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    summary = sk.finish_skeleton(
+        tmp_path, owner="o", repo="r", host="github", description="d", language="rust"
+    )
+    assert summary["ok"] is False
+    assert any("[package]" in note for note in summary["notes"])

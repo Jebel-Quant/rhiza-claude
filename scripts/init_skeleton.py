@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Finish a `uv init --lib` skeleton into a rhiza-shaped one — behind `/rhiza:skeleton`.
+"""Finish an `init --lib` skeleton into a rhiza-shaped one — behind `/rhiza:skeleton`.
+
+Two languages, one remit: close the gap between what the language's own initialiser
+writes and what a rhiza-managed repo needs. ``--language rust`` finishes what
+`cargo init --lib` leaves out — a `//!` crate doc comment (cargo writes none, and
+``#![warn(missing_docs)]`` fires on its absence), a `README.md` (cargo creates no file
+at all), and the `[package]` metadata crates.io wants: `description`, `repository`,
+`homepage`, `authors`. As on the Python side every key is added **only if missing**.
 
 `uv init --lib` gets a Python project 90% of the way there: `pyproject.toml`,
 `src/<pkg>/__init__.py`, `README.md`, `.python-version`. This script closes the
@@ -31,7 +38,7 @@ the result, and reports what's missing when there's nothing to finish.
 Usage:
   uv run --python 3.12 --no-project python \
       scripts/init_skeleton.py [TARGET] --owner OWNER --repo NAME \
-      [--host github|gitlab] [--description TEXT] [--json]
+      [--host github|gitlab] [--language python|rust] [--description TEXT] [--json]
 """
 
 from __future__ import annotations
@@ -99,7 +106,7 @@ def normalize_package_init(target: Path) -> list[str]:
     return modified
 
 
-def seed_readme(target: Path, *, repo: str, description: str | None) -> bool:
+def seed_readme(target: Path, *, repo: str, description: str | None, create: bool = False) -> bool:
     """Give an empty `README.md` a title and description; return whether it was written.
 
     `uv init --lib` creates `README.md` **empty** — zero bytes. The template's
@@ -109,11 +116,16 @@ def seed_readme(target: Path, *, repo: str, description: str | None) -> bool:
 
     Only an empty (or whitespace-only) file is written. `/rhiza:docs` owns the real
     README and must never find its work overwritten — this is a stub to clear the gate,
-    not a document. Nothing is created if `README.md` is absent, since its absence is a
-    different failure the template reports separately.
+    not a document. Nothing is created if `README.md` is absent, since for uv its
+    absence is a different failure the template reports separately — pass *create* for
+    an initialiser that writes no README at all (`cargo init`), where the file being
+    missing is the normal case rather than a signal.
     """
     readme = target / "README.md"
-    if not readme.is_file() or readme.read_text().strip():
+    if readme.is_file():
+        if readme.read_text().strip():
+            return False
+    elif not create:
         return False
     body = f"# {repo}\n"
     if description:
@@ -202,6 +214,96 @@ def set_description(text: str, description: str) -> tuple[str, bool]:
     return new_text, True
 
 
+def is_cargo_placeholder_lib(text: str) -> bool:
+    """Is *text* still `cargo init --lib`'s untouched `add`/`it_works` skeleton?
+
+    Conservative in the same way as :func:`is_uv_placeholder_init`: the whole file must
+    consist of cargo's own lines, so anything the user has added makes this False and
+    real code is never touched. Only used to decide whether the crate doc comment is
+    worth adding — the placeholder code itself is left alone either way, since deleting
+    it would take the project's only test with it.
+    """
+    body = [line.strip() for line in text.splitlines() if line.strip()]
+    allowed = {
+        "pub fn add(left: u64, right: u64) -> u64 {",
+        "left + right",
+        "}",
+        "#[cfg(test)]",
+        "mod tests {",
+        "use super::*;",
+        "#[test]",
+        "fn it_works() {",
+        "let result = add(2, 2);",
+        "assert_eq!(result, 4);",
+    }
+    return bool(body) and all(line in allowed for line in body)
+
+
+def seed_crate_docs(target: Path) -> list[str]:
+    """Prepend a `//!` crate doc comment to a crate root that has none.
+
+    Rust's answer to the docstring gate is ``#![warn(missing_docs)]``, which fires on a
+    crate root with no module documentation — and `cargo init` writes none. Unlike the
+    Python path this only *prepends*: cargo's placeholder carries the project's only
+    test, so rewriting the file would silently delete it.
+
+    Returns the relative paths modified (empty when both roots already have docs).
+    """
+    modified: list[str] = []
+    for name in ("lib.rs", "main.rs"):
+        root = target / "src" / name
+        if not root.is_file():
+            continue
+        text = root.read_text()
+        if text.lstrip().startswith("//!"):
+            continue
+        crate = target.name.replace("-", "_")
+        root.write_text(
+            f"//! {crate} crate.\n\n{text}" if text.strip() else f"//! {crate} crate.\n"
+        )
+        modified.append(str(root.relative_to(target)))
+    return modified
+
+
+def set_cargo_keys(text: str, wanted: dict[str, str]) -> tuple[str, list[str]]:
+    """Insert absent ``[package]`` keys from *wanted*; return ``(new_text, added)``.
+
+    Only missing keys are written — a value already in the manifest is the user's and
+    wins. Keys are inserted directly under the ``[package]`` header, which is valid
+    wherever the table sits in the file.
+    """
+    lines = text.splitlines()
+    header, end = _table_block(lines, "package", "Cargo.toml")
+    present = {
+        match.group(1)
+        for line in lines[header + 1 : end]
+        if (match := re.match(r"^\s*([A-Za-z0-9_-]+)\s*=", line))
+    }
+    added = [key for key in wanted if key not in present]
+    # Append to the end of the table, not under the header: cargo puts `name` and
+    # `version` first and readers expect them there.
+    while end > header + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = [f"{key} = {wanted[key]}" for key in added]
+    new_text = "\n".join(lines)
+    if text.endswith("\n"):
+        new_text += "\n"
+    return new_text, added
+
+
+def _table_block(lines: list[str], table: str, filename: str) -> tuple[int, int]:
+    """Return ``(header_idx, end_idx)`` bounding a top-level ``[table]`` body."""
+    header = next((i for i, line in enumerate(lines) if line.strip() == f"[{table}]"), None)
+    if header is None:
+        raise ValueError(f"{filename} has no [{table}] table")
+    end = len(lines)
+    for i in range(header + 1, len(lines)):
+        if lines[i].lstrip().startswith("["):
+            end = i
+            break
+    return header, end
+
+
 def _table_span(lines: list[str], name: str) -> tuple[int, int] | None:
     """Return ``(header_idx, end_idx)`` of a top-level ``[name]`` table, or None."""
     header = next((i for i, line in enumerate(lines) if line.strip() == f"[{name}]"), None)
@@ -282,6 +384,59 @@ def set_dependency_groups(text: str) -> tuple[str, bool]:
     return new_text, changed
 
 
+def _finish_cargo(
+    target: Path,
+    *,
+    owner: str,
+    repo: str,
+    host_domain: str,
+    description: str | None,
+    modified: list[str],
+    notes: list[str],
+) -> dict[str, Any]:
+    """Fill in the `[package]` metadata `cargo init` omits; return a summary dict.
+
+    `cargo init --lib` writes only ``name``/``version``/``edition``. Everything
+    crates.io and the template's docs gates want — a description, the repository and
+    homepage URLs, an author — is absent, and every one of them is *added only if
+    missing*, so a hand-written manifest is never rewritten.
+    """
+    manifest = target / "Cargo.toml"
+    if not manifest.exists():
+        notes.append("Cargo.toml absent — run `cargo init --lib` first")
+        return {"modified": modified, "changes": [], "notes": notes, "ok": False}
+
+    url = f"https://{host_domain}/{owner}/{repo}"
+    identity_name, identity_email = git_identity(target)
+    author = identity_name or owner
+    if identity_email:
+        author += f" <{identity_email}>"
+    wanted = {
+        "repository": json.dumps(url),
+        "homepage": json.dumps(url),
+        "authors": json.dumps([author]),
+    }
+    if description:
+        wanted["description"] = json.dumps(description)
+
+    original = manifest.read_text()
+    try:
+        text, added = set_cargo_keys(original, wanted)
+    except ValueError as exc:
+        notes.append(f"Cargo.toml: {exc}")
+        return {"modified": modified, "changes": [], "notes": notes, "ok": False}
+
+    if text != original:
+        manifest.write_text(text)
+        modified.append("Cargo.toml")
+        notes.append("Cargo.toml: " + ", ".join(added))
+    else:
+        notes.append("Cargo.toml already rhiza-shaped")
+
+    notes.append("license is /rhiza:license's job")
+    return {"modified": modified, "changes": added, "notes": notes, "ok": True}
+
+
 def finish_skeleton(
     target: Path,
     *,
@@ -289,11 +444,30 @@ def finish_skeleton(
     repo: str,
     host: str,
     description: str | None,
+    language: str = "python",
 ) -> dict[str, Any]:
-    """Finish the `uv init --lib` skeleton at *target*; return a summary dict."""
+    """Finish the `uv init --lib` / `cargo init --lib` skeleton; return a summary dict."""
     modified: list[str] = []
     notes: list[str] = []
     changes: list[str] = []
+    host_domain = _HOSTS.get(host, _HOSTS["github"])
+
+    if language == "rust":
+        modified.extend(seed_crate_docs(target))
+        if modified:
+            notes.append("added the //! crate doc comment cargo omits (missing_docs wants one)")
+        if seed_readme(target, repo=repo, description=description, create=True):
+            modified.append("README.md")
+            notes.append("seeded the README.md cargo never writes — /rhiza:docs owns the real one")
+        return _finish_cargo(
+            target,
+            owner=owner,
+            repo=repo,
+            host_domain=host_domain,
+            description=description,
+            modified=modified,
+            notes=notes,
+        )
 
     modified.extend(normalize_package_init(target))
     if modified:
@@ -308,7 +482,6 @@ def finish_skeleton(
         notes.append("pyproject.toml absent — run `uv init --lib` first")
         return {"modified": modified, "changes": changes, "notes": notes, "ok": False}
 
-    host_domain = _HOSTS.get(host, _HOSTS["github"])
     text = original = pyproject.read_text()
     try:
         if description:
@@ -350,7 +523,7 @@ def finish_skeleton(
 def main(argv: list[str] | None = None) -> int:
     """Entry point: parse args, finish the skeleton, return an exit code."""
     parser = argparse.ArgumentParser(
-        description="Finish a `uv init --lib` skeleton into a rhiza-shaped one.",
+        description="Finish a `uv init` / `cargo init` skeleton into a rhiza-shaped one.",
     )
     parser.add_argument(
         "target", nargs="?", default=".", help="Repository root (default: current directory)."
@@ -359,6 +532,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", required=True, help="Repository name (for the project URLs).")
     parser.add_argument(
         "--host", choices=("github", "gitlab"), default="github", help="Git hosting platform."
+    )
+    parser.add_argument(
+        "--language",
+        choices=("python", "rust"),
+        default="python",
+        help="Which skeleton to finish: uv's pyproject.toml or cargo's Cargo.toml.",
     )
     parser.add_argument("--description", help="Project description (replaces uv's placeholder).")
     parser.add_argument(
@@ -372,6 +551,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=args.repo,
         host=args.host,
         description=args.description,
+        language=args.language,
     )
 
     if args.json_output:
