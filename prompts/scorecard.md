@@ -14,8 +14,11 @@ number is missing, that subcategory is unscored, not guessed.
 from `jebel-quant/rhiza`; `CLAUDE.md` holds the authoritative split and the `files:`
 block of `.rhiza/template.lock` is the machine-generated list of synced paths.
 
-- **In scope:** `src/`, `tests/`, `pyproject.toml`, `README.md`, project-specific docs,
-  `.rhiza/template.yml`, and any locally-hardened config.
+- **In scope:** the repo's source root, its tests, its **manifest**, `README.md`,
+  project-specific docs, `.rhiza/template.yml`, and any locally-hardened config. The
+  source root and manifest are language-dependent — `src/` + `pyproject.toml` for
+  Python, `.` + `go.mod` for Go, `src/` + `Cargo.toml` for Rust — and
+  `scripts/language_profile.py` reports which apply, so don't assume the Python pair.
 - **Out of scope:** `.github/workflows/*`, `Makefile`, `.pre-commit-config.yaml`,
   `pytest.ini`, `ruff.toml`, the typecheck/mutation/fuzzing targets — everything the
   template delivers.
@@ -27,6 +30,12 @@ score meaningless and identical everywhere.
 
 Likewise, a gate that was **unavailable** (not in this profile — see `/quality`'s
 step 0) is out-of-scope, never a FAIL.
+
+**And a check that doesn't apply to the language is out-of-scope too.** Test-layout
+parity is the clearest case: `check_test_layout.py` is built on Python module and class
+naming, so it says nothing about a Go or Rust repo. `language_profile.py` reports
+`test_layout_applies` for exactly this reason. Scoring a Rust crate down for failing a
+Python convention is the same mistake as scoring a managed repo down for its template.
 
 ## 2. Subcategories
 

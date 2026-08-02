@@ -17,6 +17,13 @@ Two things make that hard to catch by hand, and this script addresses both:
   reduced profile legitimately lacks some. An absent target is reported as
   **unavailable**, which `/quality` scores as out-of-scope — never as a failure.
 
+It also **discovers** what the repo documents beyond that list. The prose names the
+Python profile's gates; a Go or Rust repo synced from a sibling template has different
+ones, and hard-coding those would mean asserting targets for templates this plugin has
+never seen. Instead every `target: ## description` in the makefile is read, and the
+ones the prose didn't name come back as `undeclared` — so a non-Python repo yields real
+gates to run rather than a report that nothing is available.
+
 Probing uses `make -n`, which resolves the target without running any recipe.
 
 Usage:
@@ -45,6 +52,10 @@ from typing import Any
 # The numbered gate list in commands/quality.md: "1. `make fmt` — …".
 _GATE = re.compile(r"^\s*\d+\.\s+`make ([a-z][a-z0-9-]*)`", re.MULTILINE)
 _MAKEFILES = ("Makefile", "makefile", "GNUmakefile")
+# A self-documenting target — `test:  ## Run the suite` — the convention every rhiza
+# Makefile uses for `make help`. Undocumented internal targets are deliberately not
+# matched: they are not gates anyone meant to expose.
+_DOCUMENTED = re.compile(r"^([a-z][a-z0-9_-]*):.*?##\s*(.+)$", re.MULTILINE)
 
 EXIT_OK = 0
 EXIT_UNAVAILABLE = 1
@@ -69,6 +80,27 @@ def gate_targets(command_file: Path) -> list[str]:
 def find_makefile(target_dir: Path) -> Path | None:
     """Return the repo's makefile, or None when there isn't one."""
     return next((target_dir / n for n in _MAKEFILES if (target_dir / n).is_file()), None)
+
+
+def documented_targets(target_dir: Path) -> dict[str, str]:
+    """Return the repo's self-documenting `make` targets, mapped to their descriptions.
+
+    The gate list in the prose is the **Python** profile. A Go or Rust repo synced from
+    a sibling template offers a different set, and naming those from a table here would
+    mean asserting targets for templates this plugin has never seen — the failure mode
+    that had `/quality` scoring repos against gates that did not exist.
+
+    So they are discovered instead, from the ``target: ## description`` convention every
+    rhiza Makefile uses to build ``make help``. What comes back is what the repo really
+    offers, whatever language it is.
+    """
+    makefile = find_makefile(target_dir)
+    if makefile is None:
+        return {}
+    return {
+        name: description.strip()
+        for name, description in _DOCUMENTED.findall(makefile.read_text(errors="ignore"))
+    }
 
 
 def target_exists(target_dir: Path, target: str) -> bool:
@@ -101,6 +133,8 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
             "targets": [],
             "available": [],
             "unavailable": [],
+            "undeclared": [],
+            "documented": {},
             "notes": [f"no `make <target>` gate list found in {command_file.name}"],
             "exit_code": EXIT_NO_GATES,
         }
@@ -110,6 +144,8 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
             "targets": targets,
             "available": [],
             "unavailable": targets,
+            "undeclared": [],
+            "documented": {},
             "notes": [
                 "no makefile — the repo is not synced, so every gate is unavailable. "
                 "Run /rhiza:update before scoring."
@@ -119,6 +155,11 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
 
     available = [t for t in targets if target_exists(target_dir, t)]
     unavailable = [t for t in targets if t not in available]
+    documented = documented_targets(target_dir)
+    # Targets the repo documents that the prose never named. On a Python repo this is
+    # usually noise (`book`, `clean`); on a Go or Rust one it is where the real gates
+    # are, because the prose list describes a template this repo isn't using.
+    undeclared = sorted(name for name in documented if name not in targets)
     notes: list[str] = []
     if unavailable:
         notes.append(
@@ -127,11 +168,23 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
         )
     if not available:
         notes.append("no gate is available — check that the template sync completed")
+    # Deliberately "most missing" rather than "all missing": a Go or Rust template will
+    # almost certainly define `test`, so requiring zero matches would keep the hint
+    # hidden from exactly the repos it exists for.
+    if undeclared and len(unavailable) > len(available):
+        notes.append(
+            f"most named gates are absent, but this repo documents {len(undeclared)} "
+            "other target(s). If this is a Go, Rust or non-standard template, those are "
+            "its real gates — run the relevant ones from `undeclared` and score them, "
+            "rather than reporting that nothing could be checked."
+        )
 
     return {
         "targets": targets,
         "available": available,
         "unavailable": unavailable,
+        "undeclared": undeclared,
+        "documented": documented,
         "notes": notes,
         "exit_code": EXIT_OK,
     }
@@ -174,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
         for target in summary["targets"]:
             state = "available" if target in summary["available"] else "unavailable"
             print(f"{state:<12} make {target}")
+        for target in summary["undeclared"]:
+            print(f"{'discovered':<12} make {target}  # {summary['documented'][target]}")
         for note in summary["notes"]:
             print(f"note         {note}", file=sys.stderr)
     return int(summary["exit_code"])

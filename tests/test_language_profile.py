@@ -1,0 +1,218 @@
+"""Tests for the language registry (`scripts/language_profile.py`).
+
+The registry exists because "what this language looks like" used to be written down
+independently wherever it was needed, and the copies disagreed. So the tests that
+matter most are the ones asserting the *registry itself* stays coherent — every
+language complete, and every language `validate.py` can validate also profiled here.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import language_profile as lp
+import pytest
+import validate
+
+_ROOT = Path(__file__).resolve().parents[1]
+
+
+class TestLanguage:
+    """The dataclass itself: a frozen record of one ecosystem's facts."""
+
+    def test_a_profile_is_immutable(self):
+        """Frozen on purpose — a consumer must not be able to edit the shared registry."""
+        language = lp.resolve("python")
+        with pytest.raises(AttributeError):
+            language.source_root = "lib"  # type: ignore[misc]
+
+    def test_the_same_object_is_returned_every_time(self):
+        assert lp.resolve("go") is lp.resolve("go")
+
+    def test_optional_fields_default_to_empty(self):
+        bare = lp.Language(
+            name="x", manifest="m", source_root=".", lockfile=None, toolchain_pin=None
+        )
+        assert bare.complexity == () and bare.graph == () and bare.aliases == ()
+        assert bare.test_layout is False
+
+
+# --- the registry is coherent -------------------------------------------------
+
+
+def test_every_known_language_has_the_facts_the_consumers_read():
+    for name in lp.languages():
+        language = lp.resolve(name)
+        assert language is not None
+        assert language.manifest and language.source_root
+        assert language.complexity, f"{name} has no complexity tooling"
+
+
+def test_the_registry_covers_every_language_validate_can_validate():
+    """The drift this module exists to prevent, asserted directly.
+
+    `validate.py` decides which languages `/rhiza:init` accepts. A language it
+    validates but this registry has never heard of is exactly the half-taught axis
+    that made a Go repo score as broken.
+    """
+    assert set(validate._VALIDATORS) <= set(lp.languages())
+
+
+def test_resolve_is_case_insensitive_and_accepts_aliases():
+    assert lp.resolve("Python") is lp.resolve("python")
+    assert lp.resolve("  GO  ") is lp.resolve("go")
+    assert lp.resolve("golang") is lp.resolve("go")
+
+
+def test_resolve_returns_none_for_a_language_we_do_not_know():
+    assert lp.resolve("cobol") is None
+
+
+# --- detection ----------------------------------------------------------------
+
+
+def test_an_explicit_language_wins(tmp_path):
+    (tmp_path / "go.mod").write_text("module x\n")
+    language, reason = lp.detect(tmp_path, "rust")
+    assert language is not None and language.name == "rust"
+    assert "--language rust" in reason
+
+
+def test_the_pointer_is_preferred_over_what_is_on_disk(tmp_path):
+    """A repo mid-migration has both; the declaration is the intent."""
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("repository: o/r\nlanguage: go\n")
+    language, reason = lp.detect(tmp_path)
+    assert language is not None and language.name == "go"
+    assert "template.yml" in reason
+
+
+@pytest.mark.parametrize(
+    ("manifest", "expected"),
+    [("pyproject.toml", "python"), ("go.mod", "go"), ("Cargo.toml", "rust")],
+)
+def test_falls_back_to_the_manifest_on_disk(tmp_path, manifest, expected):
+    (tmp_path / manifest).write_text("x\n")
+    language, reason = lp.detect(tmp_path)
+    assert language is not None and language.name == expected
+    assert manifest in reason
+
+
+def test_a_crate_with_python_bindings_resolves_to_rust(tmp_path):
+    """pyo3/maturin repos carry both manifests; Cargo.toml is what makes it a crate."""
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "Cargo.toml").write_text("[package]\n")
+    language, _ = lp.detect(tmp_path)
+    assert language is not None and language.name == "rust"
+
+
+def test_an_unrecognisable_repo_is_unknown_rather_than_guessed(tmp_path):
+    """A wrong language scores the wrong things confidently; absent is safer."""
+    language, reason = lp.detect(tmp_path)
+    assert language is None
+    assert "no recognised manifest" in reason
+
+
+def test_an_explicit_language_we_do_not_know_is_not_silently_ignored(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    language, _ = lp.detect(tmp_path, "cobol")
+    assert language is None
+
+
+# --- reading the pointer ------------------------------------------------------
+
+
+def test_declared_language_returns_none_without_a_pointer(tmp_path):
+    assert lp.declared_language(tmp_path) is None
+
+
+def test_declared_language_returns_none_when_the_key_is_absent(tmp_path):
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("repository: o/r\n")
+    assert lp.declared_language(tmp_path) is None
+
+
+def test_declared_language_strips_quotes(tmp_path):
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text('language: "rust"\n')
+    assert lp.declared_language(tmp_path) == "rust"
+
+
+def test_an_empty_language_value_reads_as_absent(tmp_path):
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("language:\n")
+    assert lp.declared_language(tmp_path) is None
+
+
+def test_a_malformed_pointer_still_yields_the_language(tmp_path):
+    """A broken `exclude:` block elsewhere must not hide the language."""
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("language: go\nexclude: [unclosed\n")
+    assert lp.declared_language(tmp_path) == "go"
+
+
+# --- facts --------------------------------------------------------------------
+
+
+def test_facts_fill_the_source_root_into_the_commands(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    data = lp.facts(lp.resolve("python"), tmp_path)
+    assert data["manifest_present"] is True
+    assert all("{src}" not in command for command in data["complexity"])
+    assert any("radon cc src" in command for command in data["complexity"])
+
+
+def test_facts_report_a_missing_manifest(tmp_path):
+    data = lp.facts(lp.resolve("go"), tmp_path)
+    assert data["manifest_present"] is False
+    assert data["toolchain_pin"] is None  # go pins inside go.mod
+
+
+def test_only_python_claims_the_test_layout_rule():
+    """`check_test_layout.py` is built on Python module/class naming."""
+    applies = {n for n in lp.languages() if lp.resolve(n).test_layout}
+    assert applies == {"python"}
+
+
+# --- main() / CLI -------------------------------------------------------------
+
+
+def test_main_reports_a_detected_language(tmp_path, capsys):
+    (tmp_path / "Cargo.toml").write_text("[package]\n")
+    assert lp.main([str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "language: rust" in out
+    assert "Cargo.toml" in out
+
+
+def test_main_emits_json(tmp_path, capsys):
+    (tmp_path / "go.mod").write_text("module x\n")
+    assert lp.main([str(tmp_path), "--json"]) == 0
+    assert '"language": "go"' in capsys.readouterr().out
+
+
+def test_main_exits_one_when_the_language_is_undetermined(tmp_path, capsys):
+    assert lp.main([str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert "could not determine the language" in err
+    assert "known languages" in err
+
+
+def test_main_reports_an_undetermined_language_as_json_too(tmp_path, capsys):
+    assert lp.main([str(tmp_path), "--json"]) == 1
+    assert '"language": null' in capsys.readouterr().out
+
+
+def test_main_honours_an_explicit_language(tmp_path, capsys):
+    assert lp.main([str(tmp_path), "--language", "python"]) == 0
+    assert "language: python" in capsys.readouterr().out
+
+
+# --- the real repo ------------------------------------------------------------
+
+
+def test_this_repo_is_not_detected_as_managed():
+    """rhiza-claude has no .rhiza/ and no manifest — it must not claim a language."""
+    language, _ = lp.detect(_ROOT)
+    assert language is None

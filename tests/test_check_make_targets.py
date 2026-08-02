@@ -301,3 +301,83 @@ def test_e2e_quality_gates_exist_on_the_gitlab_profile_too(gitlab_synced_repo):
     """
     result = cmt.probe(gitlab_synced_repo, _QUALITY)
     assert result["unavailable"] == [], f"gitlab profile lacks: {result['unavailable']}"
+
+
+# --- discovery: what the repo documents beyond the prose's list ---------------
+
+
+def test_documented_targets_reads_the_help_convention(tmp_path):
+    (tmp_path / "Makefile").write_text(
+        "help:  ## Show this help\n\ttrue\n"
+        "build:  ## Compile the crate\n\ttrue\n"
+        "internal-thing:\n\ttrue\n"  # undocumented: deliberately not discovered
+    )
+    found = cmt.documented_targets(tmp_path)
+    assert found == {"help": "Show this help", "build": "Compile the crate"}
+
+
+def test_documented_targets_without_a_makefile_is_empty(tmp_path):
+    assert cmt.documented_targets(tmp_path) == {}
+
+
+def test_a_non_python_repo_yields_discovered_targets_instead_of_nothing(managed_unsynced_repo):
+    """The whole point: a Go/Rust template's gates are found, not reported as absent.
+
+    None of the prose's Python gate names exist here, which before this would have
+    produced "no gate is available" and a scorecard with nothing in it.
+    """
+    (managed_unsynced_repo / "Makefile").write_text(
+        "test:  ## go test ./...\n\ttrue\n"
+        "vet:  ## go vet ./...\n\ttrue\n"
+        "lint:  ## golangci-lint run\n\ttrue\n"
+    )
+    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+    assert summary["undeclared"] == ["lint", "vet"]  # `test` is a named gate already
+    assert summary["documented"]["vet"] == "go vet ./..."
+    assert any("its real gates" in note for note in summary["notes"])
+
+
+def test_the_discovery_hint_fires_even_though_test_is_a_named_gate(managed_unsynced_repo):
+    """A Go or Rust template will define `test`, so "all gates missing" is too strict.
+
+    Requiring zero matches would hide the hint from exactly the repos it exists for.
+    """
+    (managed_unsynced_repo / "Makefile").write_text(
+        "test:  ## go test ./...\n\ttrue\nvet:  ## go vet ./...\n\ttrue\n"
+    )
+    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+    assert summary["available"] == ["test"]
+    assert any("its real gates" in note for note in summary["notes"])
+
+
+def test_the_discovery_hint_is_silent_on_a_fully_synced_python_repo(managed_synced_repo):
+    """Every named gate resolves, so there is nothing to redirect the model toward."""
+    summary = cmt.probe(managed_synced_repo, _QUALITY)
+    assert not any("its real gates" in note for note in summary["notes"])
+
+
+def test_an_unsynced_repo_reports_no_discovered_targets(managed_unsynced_repo):
+    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+    assert summary["undeclared"] == []
+    assert summary["documented"] == {}
+
+
+def test_a_command_without_a_gate_list_still_returns_the_discovery_keys(tmp_path):
+    empty = tmp_path / "empty.md"
+    empty.write_text("# no gates here\n")
+    summary = cmt.probe(tmp_path, empty)
+    assert summary["undeclared"] == [] and summary["documented"] == {}
+
+
+def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
+    (managed_unsynced_repo / "Makefile").write_text("vet:  ## go vet ./...\n\ttrue\n")
+    cmt.main(["--target-dir", str(managed_unsynced_repo)])
+    out = capsys.readouterr().out
+    assert "discovered   make vet  # go vet ./..." in out
+
+
+def test_this_repo_discovers_its_own_documented_targets():
+    """rhiza-claude's own Makefile uses the convention, so this is a live check."""
+    found = cmt.documented_targets(_ROOT)
+    assert {"lint", "test", "book", "clean"} <= set(found)
+    assert found["lint"] == "Run all pre-commit hooks against every file"
