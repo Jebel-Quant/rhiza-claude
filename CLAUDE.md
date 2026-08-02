@@ -124,9 +124,9 @@ off `main` and open a PR — never push to the default branch.
   needs network, `uv` and (for the Rust fixtures) `cargo`. Anything tool-shaped skips
   when the tool is absent, which is why CI verifies `cargo` explicitly rather than
   letting a whole language axis vanish quietly.
-- **The Rust *sync* tests skip on a release ref, and that is not a bug.** `rust-local`
-  and `rust-core` exist only on the template's default branch; `RHIZA_RUST_TEMPLATE_REF`
-  (which the drift job sets to `main`) is how they run. Everything about the Rust axis
-  that needs no sync runs unconditionally. Don't "fix" the skip by bumping
-  `PINNED_TEMPLATE_REF` — check first, with
-  `scripts/check_template_profile.py rust-local --template-repo jebel-quant/rhiza --ref <tag>`.
+- **The pinned template ref decides which profiles the suite can exercise.** `rust-local`
+  arrived in rhiza **v1.3.0**, which is what `PINNED_TEMPLATE_REF` names and why the Rust
+  sync runs on every PR. Before bumping it, check the new ref still defines what `/init`
+  writes: `scripts/check_template_profile.py rust-local github-project gitlab-project
+  --template-repo jebel-quant/rhiza --ref <tag>`. A ref that doesn't now **fails** the
+  Rust fixtures rather than skipping them — see `require_rust_profile`.

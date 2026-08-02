@@ -242,22 +242,19 @@ def test_e2e_the_template_defines_every_profile_init_writes_for_python():
     assert summary["exit_code"] == ctp.EXIT_OK, summary
 
 
-def test_e2e_the_rust_profile_is_reported_honestly():
-    """Rust's profile is either defined at the pinned ref or reported as missing.
+def test_e2e_the_template_defines_the_profile_a_rust_pointer_names():
+    """Rust's profile exists at the pinned ref, since v1.3.0 shipped it.
 
-    Not an assertion that `rust-local` exists — at the time of writing it exists only
-    on `jebel-quant/rhiza`'s default branch, in no release, which is exactly why this
-    check was added. What is asserted is that the preflight answers the question with
-    evidence rather than guessing, so `/init` can refuse to write a pointer that would
-    fail at the first `/update`.
+    Was written as "either defined or reported missing" while `rust-local` lived only on
+    the template's default branch. It is a release fact now, so this asserts it: every
+    Rust pointer `/init` writes names this profile, and a ref that does not define it
+    cannot serve a Rust repo.
     """
     import init_scaffold
 
     profile = init_scaffold.profile_for_host("github", "rust")
     summary = ctp.check(TEMPLATE_REPO, TEMPLATE_REF, [profile])
-    assert summary["exit_code"] in (ctp.EXIT_OK, ctp.EXIT_MISSING), summary
-    assert profile in summary["defined"] + summary["missing"]
-    assert summary["available"], "the template defines no profiles at all — read it again"
+    assert summary["exit_code"] == ctp.EXIT_OK, summary
 
 
 def test_e2e_a_profile_no_template_defines_is_caught():

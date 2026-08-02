@@ -268,35 +268,29 @@ def test_e2e_no_gate_in_the_prose_goes_unrun(synced_repo):
     assert named <= covered, f"named in quality.md but never executed: {sorted(named - covered)}"
 
 
-def test_e2e_rhiza_test_fails_only_on_the_known_upstream_license_gate(synced_repo):
+def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
     """`make rhiza-test` runs the *template's* own `.rhiza/tests/` against our scaffold.
 
-    It fails, and the failure is upstream's: `test_license_classifier_present` demands a
-    ``License :: OSI Approved :: …`` trove classifier, which PEP 639 superseded with the
-    SPDX ``license`` field that `/rhiza:license` writes. That is not a stylistic
-    preference — declaring both makes ``setuptools>=77`` refuse to build the project at
-    all ("License classifiers have been superseded by license expressions … Please
-    remove"). The gate therefore cannot be satisfied by a PEP 639 project, and is filed
-    upstream rather than papered over here.
+    The strongest single statement about `/rhiza:init`: the template's own opinion of a
+    repo this plugin built, asserted with no exemptions.
 
-    Enumerating the tolerated failure, rather than skipping the gate, is the point: a
-    *new* failure — ours or upstream's — turns this red instead of hiding behind a known
-    one.
-
-    Tolerated, not required. Upstream fixing its own gate must not fail this test: it
-    already has, between the pinned ref and the current release, and asserting the exact
-    set turned the (non-blocking, weekly) drift job red to report good news. When the pin
-    moves past the fix, drop the name below and this becomes "rhiza-test passes".
+    It has not always been clean, and the history is worth keeping because both failures
+    were informative. `test_license_classifier_present` demanded a
+    ``License :: OSI Approved :: …`` trove classifier that PEP 639 superseded — upstream's
+    bug, tolerated by name until upstream fixed it. Then v1.3.0 added
+    `test_a_discoverable_config_exists`, and that one was **ours**: the `[tool.bumpversion]`
+    table was written by procedure prose rather than by `init_skeleton.py`, so a repo built
+    from the scripts alone had no version location and `/rhiza:release` would have fallen
+    back to `git describe`. Both are fixed, so this asserts a clean run — a tolerated
+    failure that nobody re-examines becomes a permanent hole.
     """
-    known = {"TestProjectClassifiers::test_license_classifier_present"}
     result = run_cmd(["make", "rhiza-test"], synced_repo)
-    failed = set(
-        re.findall(r"^FAILED \S+?\.py::(\S+)", result.stdout + result.stderr, re.MULTILINE)
+    failed = sorted(
+        set(re.findall(r"^FAILED \S+?\.py::(\S+)", result.stdout + result.stderr, re.MULTILINE))
     )
 
-    assert failed <= known, (
-        f"rhiza-test grew a failure beyond the known upstream one: {sorted(failed - known)}\n"
-        f"{result.stdout[-3000:]}"
+    assert failed == [], (
+        f"the template's own tests reject our scaffold: {failed}\n{result.stdout[-3000:]}"
     )
 
 

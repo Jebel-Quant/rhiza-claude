@@ -108,7 +108,10 @@ class Repo:
 # and v1.2.1, /quality scored the missing gate FAIL, and it surfaced only because
 # somebody bumped the pin by hand. Nothing was watching.
 TEMPLATE_REPO = "jebel-quant/rhiza"
-PINNED_TEMPLATE_REF = "v1.2.1"
+# v1.3.0 is the first release carrying the language layers (`python-core`, `rust-core`,
+# `go-core`) and the `rust-local`/`go-local` profiles. Pinning it is what lets the Rust
+# end-to-end sync run on every PR instead of skipping for want of a released profile.
+PINNED_TEMPLATE_REF = "v1.3.0"
 
 
 def resolve_template_ref() -> str:
@@ -412,23 +415,26 @@ def rust_profile(host: str = "github") -> str:
 def rust_template_ref() -> str:
     """Return the template ref the Rust fixtures sync from.
 
-    `RHIZA_RUST_TEMPLATE_REF` overrides; otherwise it is the same ref as everything else
-    syncs from. The override exists because the Rust layer's availability and the Python
-    pin are separate facts: `rust-local` and `rust-core` live on `jebel-quant/rhiza`'s
-    default branch and, at the time of writing, in no release — so the drift job sets
-    `RHIZA_RUST_TEMPLATE_REF=main` to exercise the Rust path weekly against the branch
-    that has it, while PR runs stay on the pinned release.
+    The same ref as everything else, unless `RHIZA_RUST_TEMPLATE_REF` overrides it. The
+    override is left in place for exercising an unreleased Rust layer against a branch —
+    it was how the Rust sync ran at all before v1.3.0 shipped `rust-local` — and is set
+    by nothing now.
     """
     return os.environ.get("RHIZA_RUST_TEMPLATE_REF", TEMPLATE_REF)
 
 
 def require_rust_profile(ref: str) -> None:
-    """Skip unless the template at *ref* defines the profile a Rust pointer names.
+    """Fail unless the template at *ref* defines the profile a Rust pointer names.
 
-    Deliberately a skip with the evidence in it, not a failure: the template not having
-    shipped a Rust profile yet is upstream's state, not this plugin's bug, and a suite
-    that goes red for somebody else's reasons stops being read. The blocking half of the
-    Rust axis — everything that needs no sync — runs regardless.
+    A **failure**, not a skip, since v1.3.0: the pinned ref defines `rust-local`, so its
+    absence means either the pin names a ref that cannot serve a Rust repo (ours to fix)
+    or upstream withdrew the profile (news the drift job exists to deliver, and files an
+    issue about). Skipping either of those is how a language axis stops being covered
+    while the suite still reads green — which is precisely what this pair of fixtures was
+    added to prevent.
+
+    Only an unreadable template still skips: nothing was learned, so there is nothing to
+    report.
     """
     import check_template_profile as ctp
 
@@ -436,13 +442,12 @@ def require_rust_profile(ref: str) -> None:
     summary = ctp.check(TEMPLATE_REPO, ref, [profile])
     if summary["exit_code"] == ctp.EXIT_UNREADABLE:
         pytest.skip(f"could not read {TEMPLATE_REPO}@{ref}: {summary['error']}")
-    if summary["missing"]:
-        pytest.skip(
-            f"{TEMPLATE_REPO}@{ref} defines no {profile} profile "
-            f"(it defines: {', '.join(summary['available'])}). The Rust sync cannot be "
-            "exercised against a ref that has no Rust profile; set "
-            "RHIZA_RUST_TEMPLATE_REF to one that does (the drift job uses main)."
-        )
+    assert not summary["missing"], (
+        f"{TEMPLATE_REPO}@{ref} defines no {profile} profile "
+        f"(it defines: {', '.join(summary['available'])}). Every Rust pointer /init "
+        "writes names that profile, so this ref cannot serve a Rust repo: either the pin "
+        "is wrong or the template withdrew the profile."
+    )
 
 
 def _scaffold_crate(repo: Path, scripts: Path, *, description: str) -> None:
@@ -481,10 +486,9 @@ def _scaffold_crate(repo: Path, scripts: Path, *, description: str) -> None:
 def rust_crate(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A real crate built by the /init chain — `cargo init --lib` and the scripts after it.
 
-    No sync, so no dependency on the template having shipped a Rust profile: this is the
-    half of the Rust axis that can be asserted unconditionally, and it covers the
-    scaffolding, the pointer, language detection, structure validation, the licence and
-    the badges.
+    No sync, so nothing here depends on the template at all: the scaffolding, the pointer,
+    language detection, structure validation, the licence and the badges are all decided
+    before `/rhiza:update` ever runs, and this is where they are asserted.
     """
     missing = [t for t in RUST_TOOLS if shutil.which(t) is None]
     if missing:
@@ -502,8 +506,8 @@ def rust_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A Rust crate genuinely synced from the template's Rust profile.
 
     Built fresh rather than copied from `rust_crate` so the pointer records the ref the
-    sync actually used. Skips — loudly, with the template's own profile list in the
-    message — while no reachable ref defines a Rust profile.
+    sync actually used. Fails rather than skips when the ref defines no Rust profile — see
+    :func:`require_rust_profile`.
     """
     missing = [t for t in RUST_TOOLS if shutil.which(t) is None]
     if missing:

@@ -74,11 +74,10 @@ did.
 
 Two things need tools the plugin itself does not: the Rust fixtures need `cargo`
 (`cargo init --lib` builds the crate), and half of `tests/test_platform_cli.py` needs
-`glab`. Both skip when the tool is absent, and CI installs or verifies both so the
-skip never happens there. The Rust *sync* additionally needs a template ref that
-defines a Rust profile; while none of the releases do, those tests skip with the
-template's own profile list in the message, and `RHIZA_RUST_TEMPLATE_REF=main` (what
-the drift job sets) exercises them against the branch that has it.
+`glab`. Both skip when the tool is absent, and CI installs or verifies both so the skip
+never happens there. Nothing else skips: the pin is a rhiza release that defines every
+profile `/rhiza:init` writes, so a ref that stops defining one **fails** the suite rather
+than quietly narrowing it.
 
 ## CI/CD
 
