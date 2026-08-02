@@ -179,17 +179,23 @@ def go_module_path(target: Path) -> str | None:
 def go_package_name(target: Path) -> str:
     """Return the package name for the module's root package.
 
-    Go package names are identifiers: lowercase, no hyphens or dots. The convention is
-    the last element of the module path, minus a major-version suffix — a `/v2` is part
-    of the *import* path and never the package name.
+    The convention is the last element of the module path, minus a major-version suffix —
+    a `/v2` belongs to the *import* path and never to the package name.
+
+    That element then has to be a Go identifier, which is narrower than a path element:
+    lowercase, and no dots or hyphens. Underscores are kept, because `_` is a legal
+    identifier character and renaming `example.com/my_lib`'s package to `mylib` would
+    surprise anyone importing it. A name that cannot start an identifier — nothing left,
+    or a leading digit — falls back to `pkg`: valid, neutral, and deliberately not `main`,
+    which in Go declares an executable rather than a library.
     """
     path = go_module_path(target) or target.name
     last = path.rstrip("/").split("/")[-1]
     if re.fullmatch(r"v[0-9]+", last):
         parts = path.rstrip("/").split("/")
         last = parts[-2] if len(parts) > 1 else target.name
-    cleaned = re.sub(r"[^a-z0-9]", "", last.lower())
-    return cleaned or "main"
+    cleaned = re.sub(r"[^a-z0-9_]", "", last.lower())
+    return cleaned if re.fullmatch(r"[a-z_][a-z0-9_]*", cleaned) else "pkg"
 
 
 def declared_version(target: Path, language: str) -> str | None:
@@ -645,7 +651,9 @@ def _finish_cargo(
     missing*, so a hand-written manifest is never rewritten.
     """
     manifest = target / "Cargo.toml"
-    if not manifest.exists():
+    # `is_file`, not `exists`: a directory named Cargo.toml would pass the gate here and
+    # then be read as an absent manifest by every helper downstream.
+    if not manifest.is_file():
         notes.append("Cargo.toml absent — run `cargo init --lib` first")
         return {"modified": modified, "changes": [], "notes": notes, "ok": False}
 
@@ -695,7 +703,7 @@ def _finish_go(
     other two languages write into a manifest is, for Go, either the git remote's job or
     the `LICENSE` file's.
     """
-    if not (target / "go.mod").exists():
+    if not (target / "go.mod").is_file():
         notes.append("go.mod absent — run `go mod init <module path>` first")
         return {"modified": modified, "changes": [], "notes": notes, "ok": False}
 
@@ -804,7 +812,7 @@ def finish_skeleton(
         notes.append("seeded the empty README.md uv left behind — /rhiza:docs owns the real one")
 
     pyproject = target / "pyproject.toml"
-    if not pyproject.exists():
+    if not pyproject.is_file():
         notes.append("pyproject.toml absent — run `uv init --lib` first")
         return {"modified": modified, "changes": changes, "notes": notes, "ok": False}
 

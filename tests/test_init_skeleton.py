@@ -945,7 +945,11 @@ def test_go_module_path_of_a_manifest_without_a_module_line_is_none(tmp_path):
         # Package names are identifiers: no hyphens, no dots, lowercase.
         ("gitlab.com/acme/acme-tool", "acmetool"),
         ("example.com/Thing", "thing"),
-        ("example.com/---", "main"),  # degenerate: no identifier characters left
+        # `_` is a legal identifier character, so it survives.
+        ("example.com/my_lib", "my_lib"),
+        # Neither of these can start a Go identifier.
+        ("example.com/---", "pkg"),
+        ("example.com/2fa", "pkg"),
     ],
 )
 def test_go_package_name_is_an_identifier(tmp_path, module, expected):
@@ -956,11 +960,11 @@ def test_go_package_name_is_an_identifier(tmp_path, module, expected):
 def test_go_package_name_of_a_bare_version_module_falls_back_to_the_directory(tmp_path):
     """`module v2` has no element before the suffix — the folder is what is left."""
     (tmp_path / "go.mod").write_text("module v2\n")
-    assert sk.go_package_name(tmp_path) == re.sub(r"[^a-z0-9]", "", tmp_path.name.lower())
+    assert sk.go_package_name(tmp_path) == re.sub(r"[^a-z0-9_]", "", tmp_path.name.lower())
 
 
 def test_go_package_name_falls_back_to_the_directory(tmp_path):
-    assert sk.go_package_name(tmp_path) == re.sub(r"[^a-z0-9]", "", tmp_path.name.lower())
+    assert sk.go_package_name(tmp_path) == re.sub(r"[^a-z0-9_]", "", tmp_path.name.lower())
 
 
 def test_seed_package_doc_writes_a_go_doc_convention_comment(tmp_path):
@@ -1113,3 +1117,21 @@ def test_seed_package_doc_keeps_a_description_that_already_ends_in_a_full_stop(t
     sk.seed_package_doc(tmp_path, description="A widget library.")
     assert "// A widget library.\n" in (tmp_path / "doc.go").read_text()
     assert ".." not in (tmp_path / "doc.go").read_text()
+
+
+def test_the_package_fallback_is_never_main(tmp_path):
+    """`package main` declares an executable in Go — the wrong thing for a library."""
+    (tmp_path / "go.mod").write_text("module example.com/2fa\n")
+    assert sk.go_package_name(tmp_path) == "pkg"
+
+
+@pytest.mark.parametrize("language", ["python", "rust", "go"])
+def test_a_directory_named_like_the_manifest_fails_the_gate(tmp_path, language):
+    """`exists()` would let a *directory* named go.mod pass, then read as absent."""
+    manifest = {"python": "pyproject.toml", "rust": "Cargo.toml", "go": "go.mod"}[language]
+    (tmp_path / manifest).mkdir()
+    result = sk.finish_skeleton(
+        tmp_path, owner="a", repo="b", host="github", description=None, language=language
+    )
+    assert result["ok"] is False
+    assert any("absent" in note for note in result["notes"])
