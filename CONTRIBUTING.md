@@ -27,17 +27,31 @@ By participating you agree to abide by our
 Everything is driven by `make` (run `make help` for the full list):
 
 ```bash
-make lint         # pre-commit across every file (ruff, mypy, interrogate, test-layout, manifest checks, …)
-make test         # pytest with a 100% coverage gate on scripts/
-make book         # build the docs site locally
+make help           # show this list
+make install        # install the rhiza plugin via the Claude Code CLI
+make lint           # run all pre-commit hooks against every file
+make test           # run the script test suite with a 100% coverage gate
+make book           # build the documentation site into _book/
+make book-serve     # serve the docs locally with live reload
+make paper          # build the LaTeX paper and stage it for the docs site
+make paper-figures  # regenerate the paper's figures from captured command output
+make clean          # remove generated caches and artifacts
+make changelog      # regenerate CHANGELOG.md from conventional commits
 ```
 
 `make lint` runs every quality hook (mypy, interrogate, the test-layout check,
 and the manifest JSON/version-parity checks included). To run just one, use
 `uvx pre-commit run <hook-id> --all-files`.
 
-The CI gates mirror these exactly, so a green `make lint && make test` locally
-means a green PR.
+The two you need before opening a PR are `make lint` and `make test` — the CI
+gates mirror them exactly, so a green pair locally means a green PR.
+
+**`make book` needs a LaTeX engine.** It depends on `paper` (and on `test`), so a
+checkout without [`tectonic`](https://tectonic-typesetting.github.io/) or
+`pdflatex` fails there rather than in the docs build. That dependency is
+deliberate — `docs/index.md` links the PDF and `mkdocs build --strict` fails on a
+missing target, so the paper cannot go stale unnoticed. If you're only changing
+prose or scripts, `make lint && make test` is enough.
 
 ### Adding or changing a command
 
@@ -57,8 +71,11 @@ means a green PR.
   (`feat:`, `fix:`, `chore:`, `test:`, `docs:`, …) — the changelog is generated
   from them (`make changelog`).
 - Branch off `main`, open a PR, and let CI run. Keep PRs focused.
-- Never bump the plugin version by hand in only one manifest — the two must
-  match (a pre-commit hook enforces it); use `uv run --python 3.12 --no-project python scripts/bump_version.py`.
+- Never bump the plugin version by hand — `.claude-plugin/plugin.json` and
+  `.claude-plugin/marketplace.json` must agree, and the `manifest-version-parity`
+  pre-commit hook enforces it. Both are declared in `[tool.bumpversion]`
+  (`.bumpversion.toml`), so `bump-my-version` writes them together; `/rhiza:release`
+  drives it and regenerates the changelog.
 
 ## Reporting bugs / requesting features
 
