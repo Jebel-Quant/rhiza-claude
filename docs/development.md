@@ -26,9 +26,18 @@ make clean       # remove generated caches and artifacts
 ```
 
 `make lint` runs every quality hook — mypy, interrogate (docstrings), the
-test-layout check, and the manifest JSON/version-parity checks. To run a single
-one, use `uvx pre-commit run <hook-id> --all-files` (e.g. `mypy`, `interrogate`,
-`test-layout`, `manifest-version-parity`).
+test-layout check, the manifest JSON/version-parity checks, and the three that
+gate the prose (`command-contracts`, `prompt-wiring`, `docs-nav`). To run a
+single one, use `uvx pre-commit run <hook-id> --all-files` (e.g. `mypy`,
+`interrogate`, `test-layout`, `manifest-version-parity`, `docs-nav`).
+
+The prose hooks are the unusual ones. `command-contracts` treats each command as
+a contract — its frontmatter parses, its bash blocks are valid shell, the scripts
+and flags it names exist, and exactly the destructive commands
+(`release`, `uninstall`) declare `disable-model-invocation: true`. `prompt-wiring`
+keeps the `prompts/` procedures referenced and un-invocable. `docs-nav` requires a
+`docs/` page and an `mkdocs.yml` nav entry for every command and procedure, in
+both directions, so neither an undocumented command nor an orphaned page can ship.
 
 ## Building the book
 
