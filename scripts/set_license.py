@@ -2,7 +2,8 @@
 """Apply or change a project's license — the engine behind `/rhiza:license`.
 
 Sets the SPDX ``license`` / ``license-files`` metadata in ``pyproject.toml``
-(Python repos) and writes the ``LICENSE`` file's full text from the bundled
+(Python repos) and the ``license`` key in ``Cargo.toml``'s ``[package]`` table
+(Rust repos), and writes the ``LICENSE`` file's full text from the bundled
 templates. Unlike the *greenfield* scaffolder, this **changes** an existing
 license: it replaces the metadata, and (with ``--force``) overwrites an existing
 ``LICENSE`` file. Stdlib-only, so `/init` and `/license` can run it without the
@@ -49,17 +50,22 @@ def render_license(license_id: str, holder: str, year: str) -> str | None:
     return path.read_text().replace("{year}", year).replace("{holder}", holder)
 
 
-def _project_block(lines: list[str]) -> tuple[int, int]:
-    """Return ``(header_idx, end_idx)`` bounding the ``[project]`` table body."""
-    header = next((i for i, line in enumerate(lines) if line.strip() == "[project]"), None)
+def _table_block(lines: list[str], table: str, filename: str) -> tuple[int, int]:
+    """Return ``(header_idx, end_idx)`` bounding a top-level ``[table]`` body."""
+    header = next((i for i, line in enumerate(lines) if line.strip() == f"[{table}]"), None)
     if header is None:
-        raise ValueError("pyproject.toml has no [project] table")
+        raise ValueError(f"{filename} has no [{table}] table")
     end = len(lines)
     for i in range(header + 1, len(lines)):
         if lines[i].lstrip().startswith("["):
             end = i
             break
     return header, end
+
+
+def _project_block(lines: list[str]) -> tuple[int, int]:
+    """Return ``(header_idx, end_idx)`` bounding the ``[project]`` table body."""
+    return _table_block(lines, "project", "pyproject.toml")
 
 
 def set_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
@@ -90,6 +96,34 @@ def set_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
     return new_text, new_text != text
 
 
+def set_cargo_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
+    """Force-set (or clear) the SPDX ``license`` key in Cargo's ``[package]`` table.
+
+    Cargo's manifest has no ``license-files`` array — the SPDX expression goes in
+    ``license``, and ``license-file`` is the escape hatch for a licence with no SPDX
+    id. Both are removed first, then ``license`` is reinserted unless *license_id* is
+    ``none``: leaving a stale ``license-file`` pointing at a replaced LICENSE would
+    make ``cargo publish`` describe the wrong terms.
+
+    Returns ``(new_text, changed)``.
+    """
+    lines = text.splitlines()
+    header, end = _table_block(lines, "package", "Cargo.toml")
+    key = re.compile(r"^\s*license(-file)?\s*=")
+    kept = [line for i, line in enumerate(lines) if not (header < i < end and key.match(line))]
+    if license_id != DEFAULT_LICENSE:
+        # Appended to the end of the table, not under the header, so repeated runs
+        # leave `name`/`version` where cargo put them instead of walking them down.
+        header, end = _table_block(kept, "package", "Cargo.toml")
+        while end > header + 1 and not kept[end - 1].strip():
+            end -= 1
+        kept.insert(end, f'license = "{license_id}"')
+    new_text = "\n".join(kept)
+    if text.endswith("\n"):
+        new_text += "\n"
+    return new_text, new_text != text
+
+
 def set_license(
     target: Path, *, license_id: str, holder: str, year: str, force: bool
 ) -> dict[str, Any]:
@@ -114,17 +148,25 @@ def set_license(
             "needs_force": True,
         }
 
-    # 1. pyproject.toml metadata (Python repos only).
-    pyproject = target / "pyproject.toml"
-    if pyproject.exists():
+    # 1. Manifest metadata, for whichever manifests the repo has. Both are attempted
+    #    rather than dispatched on a declared language: a repo can legitimately carry
+    #    a pyproject.toml and a Cargo.toml (a pyo3/maturin extension), and the licence
+    #    must not disagree between them.
+    for name, setter in (
+        ("pyproject.toml", set_license_metadata),
+        ("Cargo.toml", set_cargo_license_metadata),
+    ):
+        manifest = target / name
+        if not manifest.exists():
+            continue
         try:
-            new_text, changed = set_license_metadata(pyproject.read_text(), license_id)
+            new_text, changed = setter(manifest.read_text(), license_id)
         except ValueError as exc:
-            notes.append(f"pyproject.toml: {exc}")
+            notes.append(f"{name}: {exc}")
         else:
             if changed:
-                pyproject.write_text(new_text)
-                modified.append("pyproject.toml")
+                manifest.write_text(new_text)
+                modified.append(name)
 
     # 2. The LICENSE file itself.
     if license_id == DEFAULT_LICENSE:

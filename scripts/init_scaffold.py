@@ -19,7 +19,7 @@ Usage:
   uv run --python 3.12 --no-project python \
       scripts/init_scaffold.py [TARGET] \
       [--host github|gitlab] [--template-host github|gitlab] \
-      [--language python|go] \
+      [--language python|go|rust] \
       [--template-repo owner/repo] [--ref TAG] [--json]
 """
 
@@ -31,12 +31,38 @@ import sys
 from pathlib import Path
 from typing import Any
 
-DEFAULT_TEMPLATE_REPO = {"python": "jebel-quant/rhiza", "go": "jebel-quant/rhiza-go"}
+# Rust shares `jebel-quant/rhiza` with Python: the template is multi-language, with a
+# per-language toolchain bundle (`python-core` / `rust-core`) layered on a neutral
+# `core`. Go still has its own fork; it predates that split.
+DEFAULT_TEMPLATE_REPO = {
+    "python": "jebel-quant/rhiza",
+    "go": "jebel-quant/rhiza-go",
+    "rust": "jebel-quant/rhiza",
+}
+
+# Which profile a (language, host) pair resolves to. Python's names are unprefixed
+# for backwards compatibility — renaming them would break the pointer of every repo
+# already synced.
+#
+# Rust maps both hosts to `rust-local`, because that is the only Rust profile the
+# template currently defines. Hosted-CI Rust profiles are made almost entirely of
+# workflows, and the template's `github`/`gitlab` bundles still ship Python ones (a
+# release job running `uv build` against PyPI, Dependabot declaring the `uv`
+# ecosystem), so they land together with the Rust workflows. Writing a pointer at a
+# `rust-github-project` that does not exist would fail the first sync with
+# "Profile 'rust-github-project' was not found"; a Rust repo gets working local
+# tooling now and gains CI when it exists.
+_PROFILES: dict[str, dict[str, str]] = {
+    "python": {"github": "github-project", "gitlab": "gitlab-project"},
+    "go": {"github": "github-project", "gitlab": "gitlab-project"},
+    "rust": {"github": "rust-local", "gitlab": "rust-local"},
+}
 
 
-def profile_for_host(host: str) -> str:
-    """Return the sync profile matching the git hosting platform."""
-    return "gitlab-project" if host == "gitlab" else "github-project"
+def profile_for_host(host: str, language: str = "python") -> str:
+    """Return the sync profile matching the git hosting platform and language."""
+    platform = "gitlab" if host == "gitlab" else "github"
+    return _PROFILES.get(language, _PROFILES["python"])[platform]
 
 
 def render_template_yml(
@@ -62,7 +88,7 @@ def render_template_yml(
         lines.append("template-host: gitlab")
     if language != "python":
         lines.append(f"language: {language}")
-    lines += ["", "profiles:", f"  - {profile_for_host(host)}", ""]
+    lines += ["", "profiles:", f"  - {profile_for_host(host, language)}", ""]
     return "\n".join(lines)
 
 
@@ -92,7 +118,7 @@ def scaffold(
         "language": language,
         "template_repository": template_repo,
         "ref": ref,
-        "profile": profile_for_host(host),
+        "profile": profile_for_host(host, language),
         "template_host": template_host or "github",
         "created": created,
         "skipped": skipped,
@@ -121,7 +147,10 @@ def main(argv: list[str] | None = None) -> int:
         "a GitLab-hosted repo, because the rhiza templates are on GitHub.",
     )
     parser.add_argument(
-        "--language", choices=("python", "go"), default="python", help="Project language."
+        "--language",
+        choices=tuple(DEFAULT_TEMPLATE_REPO),
+        default="python",
+        help="Project language; selects the default template repo and the profile prefix.",
     )
     parser.add_argument(
         "--template-repo", help="Template repository owner/repo (default: by language)."

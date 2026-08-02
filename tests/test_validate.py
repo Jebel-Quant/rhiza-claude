@@ -78,11 +78,11 @@ def test_profiles_mode_passes(git_repo):
 
 
 def test_unknown_language_warns_but_passes(git_repo):
-    write_template(git_repo, 'repository: "o/r"\nlanguage: rust\ntemplates:\n  - core\n')
+    write_template(git_repo, 'repository: "o/r"\nlanguage: cobol\ntemplates:\n  - core\n')
     ok, log = _run(git_repo)
-    # rust has no structure validator, so structure is skipped (pass with warning)
+    # cobol has no structure validator, so structure is skipped (pass with warning)
     assert ok is True
-    assert any("rust" in w for w in log.warnings)
+    assert any("cobol" in w for w in log.warnings)
 
 
 def test_go_language_requires_go_mod(tmp_path):
@@ -140,9 +140,32 @@ def test_go_structure(tmp_path):
     assert v._validate_go_structure(lg2, tmp_path) is True
 
 
+def test_rust_structure(tmp_path):
+    lg = log()
+    assert v._validate_rust_structure(lg, tmp_path) is False  # no Cargo.toml
+    (tmp_path / "Cargo.toml").write_text("[package]\nname = 'x'\n")
+    lg2 = log()
+    assert v._validate_rust_structure(lg2, tmp_path) is True  # manifest is enough to pass
+    assert any("lib.rs" in w for w in lg2.warnings)  # ...but the missing crate root warns
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text("//! x\n")
+    lg3 = log()
+    assert v._validate_rust_structure(lg3, tmp_path) is True
+    assert not lg3.warnings
+
+
+def test_rust_workspace_root_needs_no_crate_root(tmp_path):
+    """A virtual workspace has a Cargo.toml and deliberately no src/ — not a warning."""
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    lg = log()
+    assert v._validate_rust_structure(lg, tmp_path) is True
+    assert not lg.warnings
+
+
 def test_check_project_structure_unknown_language(tmp_path):
     lg = log()
-    assert v._check_project_structure(lg, tmp_path, "rust") is True
+    assert v._check_project_structure(lg, tmp_path, "cobol") is True
     assert lg.warnings
 
 
@@ -310,6 +333,15 @@ def test_validate_go_end_to_end(tmp_path):
         tmp_path,
         'repository: "a/b"\nlanguage: go\nprofiles:\n  - github-project\nref: main\n',
         ["go.mod"],
+    )
+    assert v.validate(log(), tmp_path) is True
+
+
+def test_validate_rust_end_to_end(tmp_path):
+    _repo(
+        tmp_path,
+        'repository: "a/b"\nlanguage: rust\nprofiles:\n  - rust-github-project\nref: main\n',
+        ["Cargo.toml", "src/lib.rs"],
     )
     assert v.validate(log(), tmp_path) is True
 

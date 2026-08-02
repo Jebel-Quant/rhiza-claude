@@ -85,6 +85,43 @@ def test_scaffold_skips_an_existing_pointer(tmp_path):
     assert (tmp_path / ".rhiza" / "template.yml").read_text() == "hand-written\n"  # untouched
 
 
+def test_scaffold_rust_uses_the_shared_template_and_a_rust_profile(tmp_path):
+    """Rust rides on jebel-quant/rhiza — only the profile is namespaced."""
+    summary = scaf.scaffold(
+        tmp_path,
+        host="github",
+        language="rust",
+        template_repo=scaf.DEFAULT_TEMPLATE_REPO["rust"],
+        ref="main",
+    )
+    assert summary["profile"] == "rust-local"
+    tpl = (tmp_path / ".rhiza" / "template.yml").read_text()
+    assert "jebel-quant/rhiza" in tpl
+    assert "language: rust" in tpl
+    assert "  - rust-local" in tpl
+
+
+def test_rust_resolves_to_a_profile_the_template_actually_defines(tmp_path):
+    """Both hosts map to rust-local: hosted Rust profiles arrive with the workflows.
+
+    A pointer at a `rust-github-project` that does not exist fails the very first
+    sync, which is a worse first experience than local-only tooling that works.
+    """
+    assert scaf.profile_for_host("github", "rust") == "rust-local"
+    assert scaf.profile_for_host("gitlab", "rust") == "rust-local"
+
+
+def test_an_unknown_language_still_gets_a_profile(tmp_path):
+    """`--language` is validated by argparse, but the mapping must not KeyError."""
+    assert scaf.profile_for_host("github", "cobol") == "github-project"
+
+
+def test_python_profiles_stay_unprefixed():
+    """Renaming python's profiles would break the pointer of every synced repo."""
+    assert scaf.profile_for_host("github", "python") == "github-project"
+    assert scaf.profile_for_host("gitlab") == "gitlab-project"
+
+
 def test_scaffold_go_defaults(tmp_path):
     summary = scaf.scaffold(
         tmp_path,
