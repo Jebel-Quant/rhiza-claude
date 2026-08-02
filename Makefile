@@ -23,8 +23,11 @@ install:  ## Install the rhiza plugin via the Claude Code CLI
 lint:  ## Run all pre-commit hooks against every file
 	uvx pre-commit run --all-files
 
+# PyYAML is a *test* dependency only — the bundled scripts stay stdlib-only at runtime.
+# It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
+# with it absent, half of that module's behaviour was invisible to the coverage gate.
 test:  ## Run the script test suite with a 100% coverage gate
-	uvx --with pytest-cov pytest tests/ --cov=scripts --cov-report=term-missing \
+	uvx --with pytest-cov --with pyyaml pytest tests/ --cov=scripts --cov-report=term-missing \
 		--cov-report=xml:$(TESTS)/coverage.xml \
 		--cov-report=html:$(TESTS)/html-coverage \
 		--cov-fail-under=100 $(ARGS)
