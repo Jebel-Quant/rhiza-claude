@@ -18,7 +18,8 @@ _BASE = {
     "repo": "widget",
     "branch": "main",
     "license_id": None,
-    "python_versions": [],
+    "language": None,
+    "language_versions": [],
     "ci_workflow": None,
     "template_ref": None,
     "coverage": None,
@@ -55,7 +56,7 @@ def test_bare_repo_gets_only_the_release_and_codefactor_badges():
     [
         ("template version", "no ref"),
         ("license", "no LICENSE file"),
-        ("python versions", "not a Python project"),
+        ("language badge", "no language detected"),
         ("CI", "no workflow file"),
         ("coverage", "no coverage service"),
     ],
@@ -88,7 +89,11 @@ def test_license_badge_links_to_the_license_file():
 
 
 def test_python_versions_are_bullet_joined():
-    (badge,) = [b for b in _build(python_versions=["3.12", "3.13"])["badges"] if "Python" in b]
+    (badge,) = [
+        b
+        for b in _build(language="python", language_versions=["3.12", "3.13"])["badges"]
+        if "Python" in b
+    ]
     assert "Python-3.12 • 3.13-blue" in badge
 
 
@@ -214,3 +219,54 @@ def test_main_accepts_every_detection_flag(capsys):
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["skipped"] == []  # every fact supplied ⇒ nothing omitted
+
+
+# --- the language badge is no longer Python-only ------------------------------
+
+
+@pytest.mark.parametrize(
+    ("language", "versions", "label", "logo"),
+    [
+        ("python", ["3.12", "3.13"], "Python-3.12 • 3.13", "logo=python"),
+        ("go", ["1.22"], "Go-1.22", "logo=go"),
+        ("rust", ["2021"], "Rust-2021", "logo=rust"),
+    ],
+)
+def test_each_language_gets_its_own_badge(language, versions, label, logo):
+    badges = _build(language=language, language_versions=versions)["badges"]
+    (badge,) = [b for b in badges if label in b]
+    assert logo in badge
+
+
+def test_a_go_repo_no_longer_reports_not_a_python_project():
+    """The old skip note was true and useless: it described the wrong language."""
+    skipped = "\n".join(_build(language="go", language_versions=["1.22"])["skipped"])
+    assert "Python" not in skipped
+
+
+def test_a_known_language_with_no_version_is_reported_as_undetected():
+    skipped = "\n".join(_build(language="rust", language_versions=[])["skipped"])
+    assert "rust version: not detected" in skipped
+
+
+def test_a_language_with_no_badge_defined_is_omitted_not_faked():
+    """`omit, don't fake`: an unknown language gets a reason, never an invented badge."""
+    summary = _build(language="cobol", language_versions=["85"])
+    assert not any("cobol" in b.lower() for b in summary["badges"])
+    assert "language badge: no badge defined for cobol" in summary["skipped"]
+
+
+def test_python_versions_flag_still_implies_the_python_language(capsys):
+    """The old CLI spelling stays working — /rhiza:docs and older prose both use it."""
+    rc = rb.main(["--owner", "acme", "--repo", "widget", "--python-versions", "3.12"])
+    assert rc == 0
+    assert "Python-3.12" in capsys.readouterr().out
+
+
+def test_the_language_flag_takes_precedence_over_the_python_shorthand(capsys):
+    rc = rb.main(
+        ["--owner", "acme", "--repo", "w", "--language", "go", "--language-versions", "1.22"]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Go-1.22" in out and "Python" not in out

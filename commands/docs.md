@@ -38,10 +38,18 @@ reviewable; `Write` is for scaffolding a file that isn't there.
   answers `PUBLIC` and `glab` answers `public`, so comparing the raw value gives a
   platform-dependent answer. Exit 1 (no CLI, or logged out) ⇒ fall back to `main` and
   treat visibility as unknown.
-- **Project metadata** — from `pyproject.toml` if present: `project.name`,
-  `description`, `requires-python`/classifiers (→ Python versions), `license`. From
-  `.rhiza/template.yml`: the template `ref`. Non-Python repo ⇒ skip the
-  Python-specific facts.
+- **Language, and therefore which manifest to read** — ask rather than assume
+  `pyproject.toml`:
+  ```bash
+  uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/language_profile.py" --json
+  ```
+  It returns the language, its `manifest` and its `source_root`. Exit **1** means
+  undetermined — scaffold without language-specific facts rather than guessing Python.
+- **Project metadata** — from the manifest that detection named. `pyproject.toml`:
+  `project.name`, `description`, `requires-python`/classifiers (→ Python versions),
+  `license`. `Cargo.toml`: `[package]` `name`, `description`, `edition`, `license`.
+  `go.mod`: the module path and the `go` directive (→ Go version). From
+  `.rhiza/template.yml`: the template `ref`.
 - **CI workflow** — `find .github/workflows -maxdepth 1 -name '*.yml'`, preferring one
   named `*ci*` (rhiza ships `rhiza_ci.yml`); or `.gitlab-ci.yml`. A badge must point at
   a workflow that exists.
@@ -60,10 +68,17 @@ the step-1 facts to the bundled renderer (**keep the quotes**; in a source check
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/render_badges.py" \
   --owner "$OWNER" --repo "$REPO" --host <github|gitlab> --branch "$BRANCH" \
-  [--license MIT] [--python-versions 3.12,3.13] [--ci-workflow rhiza_ci.yml] \
+  [--language python|go|rust] [--language-versions 3.12,3.13] \
+  [--license MIT] [--ci-workflow rhiza_ci.yml] \
   [--template-ref v1.1.3] [--coverage codecov|gitlab] \
   [--uses-ruff] [--uses-uv] [--public] [--codespaces]
 ```
+
+`--language`/`--language-versions` replace the Python-only pair: a Go repo gets a Go
+badge from `1.22`, a Rust crate an edition badge from `2021`. `--python-versions` still
+works and implies `--language python`. The step-1 language detection above is what
+fills these in, and `--uses-ruff`/`--uses-uv` are Python facts — don't pass them for a
+Go or Rust repo just because the flags exist.
 **Pass a flag only when step 1 actually found the fact.** The script enforces *omit,
 don't fake* — every badge it skips comes back as an `omitted …` line with the reason,
 which goes in your report. It emits the release badge on its own line, then the rest

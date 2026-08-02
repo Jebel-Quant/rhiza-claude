@@ -16,6 +16,7 @@ Usage:
   uv run --python 3.12 --no-project python \
       scripts/render_badges.py --owner OWNER --repo REPO \
       [--host github|gitlab] [--branch main] [--license MIT] \
+      [--language python|go|rust] [--language-versions 3.12,3.13] \
       [--python-versions 3.12,3.13] [--ci-workflow rhiza_ci.yml] \
       [--template-ref v1.1.3] [--coverage codecov|gitlab] \
       [--uses-ruff] [--uses-uv] [--public] [--codespaces] [--json]
@@ -81,17 +82,34 @@ def _license_section(license_id: str | None) -> Section:
     ], []
 
 
-def _python_section(python_versions: list[str]) -> Section:
-    """The supported-Python-versions badge."""
-    if not python_versions:
-        return [], ["python versions: not a Python project"]
-    joined = " • ".join(python_versions)
+# The language badge, per language: the shields label, colour, logo slug and the link.
+# One table rather than one function each, because the badges differ only in these four
+# values — and a table is what makes adding a language a one-line change.
+_LANGUAGE_BADGES = {
+    "python": ("Python", "blue", "python", "https://www.python.org/"),
+    "go": ("Go", "00ADD8", "go", "https://go.dev/"),
+    "rust": ("Rust", "000000", "rust", "https://www.rust-lang.org/"),
+}
+
+
+def _language_section(language: str | None, versions: list[str]) -> Section:
+    """The language-and-version badge, for whichever language the repo is.
+
+    Was Python-only, which is why a Go repo's README came back with a
+    "not a Python project" skip note and no language badge at all — technically
+    truthful, and useless.
+    """
+    if not language:
+        return [], ["language badge: no language detected"]
+    entry = _LANGUAGE_BADGES.get(language)
+    if entry is None:
+        return [], [f"language badge: no badge defined for {language}"]
+    label, colour, logo, url = entry
+    if not versions:
+        return [], [f"{language} version: not detected"]
+    joined = " • ".join(versions)
     return [
-        _md(
-            "Python versions",
-            f"{_SHIELDS}/badge/Python-{joined}-blue?logo=python",
-            "https://www.python.org/",
-        )
+        _md(f"{label} versions", f"{_SHIELDS}/badge/{label}-{joined}-{colour}?logo={logo}", url)
     ], []
 
 
@@ -198,7 +216,8 @@ def build_badges(
     repo: str,
     branch: str,
     license_id: str | None,
-    python_versions: list[str],
+    language: str | None,
+    language_versions: list[str],
     ci_workflow: str | None,
     template_ref: str | None,
     coverage: str | None,
@@ -219,7 +238,7 @@ def build_badges(
         ([release_badge(host, owner, repo)], []),
         _template_section(template_ref),
         _license_section(license_id),
-        _python_section(python_versions),
+        _language_section(language, language_versions),
         _ci_section(gitlab=gitlab, slug=slug, branch=branch, ci_workflow=ci_workflow),
         _coverage_section(coverage=coverage, slug=slug, branch=branch),
         _tooling_section(uses_ruff=uses_ruff, uses_uv=uses_uv),
@@ -256,7 +275,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--branch", default="main", help="Default branch (default: main).")
     parser.add_argument("--license", dest="license_id", help="SPDX id; omit if unlicensed.")
-    parser.add_argument("--python-versions", help="Comma-separated, e.g. 3.12,3.13.")
+    parser.add_argument(
+        "--language",
+        choices=tuple(_LANGUAGE_BADGES),
+        help="Repo language; implied by --python-versions for backwards compatibility.",
+    )
+    parser.add_argument(
+        "--language-versions", help="Comma-separated versions for --language, e.g. 1.22 or 2021."
+    )
+    parser.add_argument(
+        "--python-versions", help="Comma-separated, e.g. 3.12,3.13 (shorthand for Python)."
+    )
     parser.add_argument("--ci-workflow", help="CI workflow filename, e.g. rhiza_ci.yml.")
     parser.add_argument("--template-ref", help="Template ref from .rhiza/template.yml.")
     parser.add_argument(
@@ -277,7 +306,8 @@ def main(argv: list[str] | None = None) -> int:
         repo=args.repo,
         branch=args.branch,
         license_id=args.license_id,
-        python_versions=_split_csv(args.python_versions),
+        language=args.language or ("python" if args.python_versions else None),
+        language_versions=_split_csv(args.language_versions or args.python_versions),
         ci_workflow=args.ci_workflow,
         template_ref=args.template_ref,
         coverage=args.coverage,

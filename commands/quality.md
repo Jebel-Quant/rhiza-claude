@@ -33,14 +33,41 @@ below is a `make` target that the sync delivers.** Without `.rhiza/rhiza.mk` all
 them fail with "No rule to make target", and the scorecard would report a broken
 repo when the truth is an unsynced one. A misleading score is worse than no score.
 
-**Profiles vary, so probe before running** (**keep the quotes**; in a source checkout
-fall back to the repo-relative path):
+### Which language is this repo?
+
+**Ask before assuming.** The gate list below, `src/`, `pyproject.toml` and the
+test-layout rule are all the **Python** profile. `/rhiza:init` supports Python, Go and
+Rust, so a synced repo may legitimately be none of those things (**keep the quotes**;
+in a source checkout use the repo-relative path):
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/language_profile.py" --json
+```
+
+It returns the language and how it was determined, plus the **source root**, the
+**manifest**, and whether `test_layout_applies`. Feed those to `design-analysis.md` and
+`scorecard.md` instead of the Python defaults. Exit **1** means the language could not
+be determined — say so and score conservatively rather than assuming Python.
+
+**Profiles vary, so probe before running:**
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_make_targets.py"
 ```
 It reads the gate list **out of this file's numbered list below** — so the probe can
 never drift from what you're about to run — and reports each target as `available` or
 `unavailable`, using `make -n` so no recipe executes.
+
+It also reports **`undeclared`**: targets the repo documents (`target: ## description`)
+that the list below never named. On a Python repo those are mostly noise (`book`,
+`clean`). On a Go or Rust repo they are the point — the named gates will nearly all be
+unavailable, because the list describes a template that repo isn't using, and the
+discovered targets are the real ones. **Run the relevant discovered targets and score
+them**; reporting "no gates available" on a repo with a working `make test` is the
+unsynced-repo error wearing a different hat.
+
+Discovery rather than a per-language table is deliberate: this plugin has not seen the
+Go and Rust templates' makefiles, and a table of targets it guessed at would be prose
+asserting things about repos it has never run in.
 
 `typecheck`, `security` and `docs-coverage` come from the template's *tests* bundle and
 `deptry`/`fmt` from *core*, so a reduced profile legitimately lacks some. **Run only the
