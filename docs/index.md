@@ -79,7 +79,7 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`commands/*.md` → slash commands** you invoke: seven of them, each with a page here.
+- **`commands/*.md` → slash commands** you invoke: eight of them, each with a page here.
 - **`prompts/*.md` → internal procedures**: seven shared steps a command reaches with
   the `Read` tool, deliberately kept *outside* `commands/` so they cannot be invoked
   directly.
