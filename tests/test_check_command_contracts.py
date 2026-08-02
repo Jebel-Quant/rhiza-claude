@@ -43,6 +43,11 @@ def plugin(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _write_prose(plugin: Path, name: str, body: str) -> None:
+    """Write a non-command prose file at the plugin root."""
+    (plugin / name).write_text(body)
+
+
 def _write(plugin: Path, body: str, *, name: str = "demo.md") -> None:
     """Replace the demo command's body, keeping valid frontmatter."""
     (plugin / "commands" / name).write_text(_GOOD_FRONTMATTER + body)
@@ -414,3 +419,64 @@ def test_this_plugins_frontmatter_all_parses():
         mapping, problems = ccc.parse_frontmatter(block)
         assert problems == [], f"{path.name}: {problems}"
         assert {"description", "argument-hint", "allowed-tools"} <= set(mapping)
+
+
+# --- rule 7: prose outside commands/ ------------------------------------------
+
+
+def test_flags_a_dead_script_reference_in_contributing(plugin):
+    """The exact historical failure, pinned.
+
+    `CONTRIBUTING.md` told contributors to run `scripts/bump_version.py`, which has
+    never existed. Two things let it survive: it sat in inline backticks rather than a
+    ```bash block, and no gate read the top-of-repo prose at all.
+    """
+    (plugin / "CONTRIBUTING.md").write_text(
+        "Bump with `uv run --no-project python scripts/bump_version.py`.\n"
+    )
+    violations = ccc.check_contracts(plugin)
+    assert any("scripts/bump_version.py, which does not exist" in v for v in violations)
+
+
+def test_flags_a_bad_flag_in_prose(plugin):
+    _write_prose(plugin, "README.md", "Run `python scripts/init_scaffold.py . --nope x`.\n")
+    assert any("passes --nope" in v for v in ccc.check_contracts(plugin))
+
+
+def test_a_real_script_and_flag_in_prose_is_fine(plugin):
+    _write_prose(plugin, "README.md", "Run `python scripts/init_scaffold.py . --host github`.\n")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_the_docs_site_is_checked_too(plugin):
+    page = plugin / "docs" / "commands" / "demo.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("It calls `scripts/ghost.py`.\n")
+    assert any("docs/commands/demo.md" in v for v in ccc.check_contracts(plugin))
+
+
+def test_generated_reports_are_not_treated_as_prose(plugin):
+    """`docs/reports/` is a coverage dump, not something anyone wrote."""
+    report = plugin / "docs" / "reports" / "index.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("`scripts/ghost.py`\n")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_prose_files_absent_is_not_a_violation(plugin):
+    """A repo need not have every one of these files."""
+    assert ccc.prose_files(plugin) == []
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_this_repos_prose_references_all_resolve():
+    """The assertion that matters: no dead script reference anywhere a reader looks."""
+    scripts_dir = _ROOT / "scripts"
+    violations = [
+        v
+        for path in ccc.prose_files(_ROOT)
+        for v in ccc.check_script_references(
+            path.relative_to(_ROOT).as_posix(), path.read_text(), scripts_dir
+        )
+    ]
+    assert violations == []

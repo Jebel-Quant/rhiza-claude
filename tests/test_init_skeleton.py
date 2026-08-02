@@ -599,3 +599,52 @@ def test_finish_skeleton_rust_reports_a_workspace_root_manifest(tmp_path):
     )
     assert summary["ok"] is False
     assert any("[package]" in note for note in summary["notes"])
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_project_block_ends_at_eof_when_it_is_the_last_table():
+    """`[project]` with nothing after it — the loop exhausts instead of breaking.
+
+    The break path was covered; this one falls through to `end = len(lines)`, which is
+    where an off-by-one would quietly eat or keep a line.
+    """
+    lines = ["[project]", 'name = "x"', 'version = "0.1"']
+    header, end = sk._project_block(lines)
+    assert (header, end) == (0, 3)
+
+
+def test_table_block_ends_at_eof_when_it_is_the_last_table():
+    lines = ["[package]", 'name = "x"']
+    assert sk._table_block(lines, "package", "Cargo.toml") == (0, 2)
+
+
+def test_set_cargo_keys_preserves_the_absence_of_a_trailing_newline():
+    """A manifest not ending in a newline must not grow one."""
+    text = '[package]\nname = "x"'
+    new_text, added = sk.set_cargo_keys(text, {"edition": '"2021"'})
+    assert added == ["edition"]
+    assert not new_text.endswith("\n")
+
+
+def test_set_cargo_keys_keeps_a_trailing_newline_when_there_was_one():
+    text = '[package]\nname = "x"\n'
+    new_text, _ = sk.set_cargo_keys(text, {"edition": '"2021"'})
+    assert new_text.endswith("\n")
+
+
+def test_finish_cargo_omits_description_when_there_is_none(tmp_path):
+    """`description` is the one optional key — absent means absent, not empty-string."""
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "x"\nversion = "0.1.0"\n')
+    result = sk._finish_cargo(
+        tmp_path,
+        owner="acme",
+        repo="widget",
+        host_domain="github.com",
+        description=None,
+        modified=[],
+        notes=[],
+    )
+    assert result["ok"] is True
+    assert "description" not in (tmp_path / "Cargo.toml").read_text()

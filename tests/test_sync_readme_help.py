@@ -280,3 +280,12 @@ def test_e2e_docs_leaves_a_marker_less_readme_alone(synced_repo_copy):
 
     assert result["status"] == "skipped"
     assert readme.read_text() == before
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_a_marker_followed_only_by_blank_lines_finds_no_block():
+    """The scan runs off the end instead of breaking — no fence, so no block."""
+    lines = ["Run `make help` to see all available targets:", "", "   ", ""]
+    assert srh.find_block(lines) is None

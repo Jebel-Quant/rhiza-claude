@@ -26,7 +26,12 @@ the code it actually calls:
    command, so a removed one can't linger in another command's prose.
 6. **allowed-tools covers the binaries used** — a command that runs ``git`` in a block
    must be permitted to, or the user gets a permission prompt mid-flow.
-7. **Model-invocation policy** — exactly the commands in ``_MODEL_INVOCATION_OPT_OUT``
+7. **Prose references resolve** — a ``scripts/<name>.py`` named in ``README.md``,
+   ``CONTRIBUTING.md``, ``CLAUDE.md`` or the docs site exists, and its flags are real.
+   Checked over the whole text, not just fenced blocks: ``CONTRIBUTING.md`` pointed at
+   ``scripts/bump_version.py``, which never existed, and it survived because it sat in
+   inline backticks and because nothing read the top-of-repo prose at all.
+8. **Model-invocation policy** — exactly the commands in ``_MODEL_INVOCATION_OPT_OUT``
    declare ``disable-model-invocation: true``, and no others declare the key at all.
    The policy is a property of the whole command surface, not of one file, so it is
    asserted in both directions: a destructive command that quietly loses the key is as
@@ -270,7 +275,7 @@ def check_allowed_tools(rel: str, text: str, blocks: list[str]) -> list[str]:
 
 
 def check_model_invocation(rel: str, stem: str, text: str) -> list[str]:
-    """Rule 7: exactly the opt-out commands disable model invocation.
+    """Rule 8: exactly the opt-out commands disable model invocation.
 
     Checked in both directions. A missing key on a destructive command is the
     dangerous failure, but an unexpected key elsewhere matters too: it silently
@@ -296,6 +301,48 @@ def check_model_invocation(rel: str, stem: str, text: str) -> list[str]:
     return []
 
 
+# Prose a contributor reads that is not a command: the top-of-repo files and the docs
+# site. `docs/reports/` is a generated coverage dump, not prose anyone wrote.
+_PROSE_FILES = ("README.md", "CONTRIBUTING.md", "CLAUDE.md", "SECURITY.md")
+_PROSE_GLOB = "docs/**/*.md"
+_PROSE_EXCLUDE = ("docs/reports/",)
+
+
+def prose_files(root: Path) -> list[Path]:
+    """Return the non-command markdown whose script references should still resolve."""
+    found = [root / name for name in _PROSE_FILES if (root / name).is_file()]
+    for path in sorted(root.glob(_PROSE_GLOB)):
+        rel = path.relative_to(root).as_posix()
+        if not any(rel.startswith(prefix) for prefix in _PROSE_EXCLUDE):
+            found.append(path)
+    return found
+
+
+def check_script_references(rel: str, text: str, scripts_dir: Path) -> list[str]:
+    """Rule 7: a `scripts/<name>.py` named anywhere in prose exists, with real flags.
+
+    Scans the **whole text**, not just fenced bash blocks, and that is the point.
+    `CONTRIBUTING.md` told contributors to run ``scripts/bump_version.py`` — a file that
+    has never existed — for however long it had been there. It survived every gate
+    because it sat in inline backticks rather than a ```bash block, and because nothing
+    read the top-of-repo prose at all. A contributor following it hits a traceback; the
+    build stayed green.
+    """
+    violations = []
+    for name, args in _SCRIPT_CALL.findall(text.replace("\\\n", " ")):
+        path = scripts_dir / f"{name}.py"
+        if not path.is_file():
+            violations.append(f"{rel}: names scripts/{name}.py, which does not exist")
+            continue
+        declared = script_flags(path)
+        violations += [
+            f"{rel}: passes {flag} to scripts/{name}.py, which does not accept it"
+            for flag in _FLAG.findall(args)
+            if flag not in declared
+        ]
+    return violations
+
+
 def check_contracts(root: Path) -> list[str]:
     """Run every rule over the plugin at *root*; return all violations."""
     commands_dir, prompts_dir, scripts_dir = root / "commands", root / "prompts", root / "scripts"
@@ -315,6 +362,11 @@ def check_contracts(root: Path) -> list[str]:
             if is_command:
                 violations += check_allowed_tools(rel, text, blocks)
                 violations += check_model_invocation(rel, path.stem, text)
+
+    scripts_dir = root / "scripts"
+    for path in prose_files(root):
+        rel = path.relative_to(root).as_posix()
+        violations += check_script_references(rel, path.read_text(), scripts_dir)
     return violations
 
 
@@ -332,7 +384,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ✗ {violation}", file=sys.stderr)
         return 1
 
-    count = len(list((root / "commands").glob("*.md"))) + len(list((root / "prompts").glob("*.md")))
+    count = (
+        len(list((root / "commands").glob("*.md")))
+        + len(list((root / "prompts").glob("*.md")))
+        + len(prose_files(root))
+    )
     print(f"command contracts hold ({count} file(s) checked)")
     return 0
 

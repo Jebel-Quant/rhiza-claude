@@ -242,3 +242,33 @@ def test_e2e_uninstall_twice_reports_nothing_to_do(synced_repo_copy):
     """With the lock gone, a second run has no file list and says so rather than erroring."""
     assert uninstall.uninstall(synced_repo_copy, force=True) == 0
     assert uninstall.uninstall(synced_repo_copy, force=True) == 0
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_a_listed_file_that_is_already_gone_is_not_offered_for_deletion(tmp_path, monkeypatch):
+    """The confirmation lists only what is really there — a stale lock entry is skipped."""
+    repo = _make_repo(tmp_path, ["present.txt", "vanished.txt"])
+    (repo / "vanished.txt").unlink()
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    uninstall.uninstall(repo, force=False)
+    assert not (repo / "present.txt").exists()
+
+
+def test_a_lock_listing_itself_is_not_deleted_twice(tmp_path):
+    """A lock whose `files:` includes the lock leaves nothing for the final unlink.
+
+    Realistic rather than contrived: the list is whatever the last sync recorded, and a
+    template that manages its own lock path produces exactly this.
+    """
+    # Built by hand, not via _make_repo: that helper writes every listed file, which
+    # would clobber the lock with placeholder text and leave nothing to parse.
+    (tmp_path / ".rhiza").mkdir(parents=True)
+    (tmp_path / "kept.txt").write_text("x")
+    (tmp_path / ".rhiza" / "template.lock").write_text(
+        "sha: abc\nfiles:\n- .rhiza/template.lock\n- kept.txt\n"
+    )
+    assert uninstall.uninstall(tmp_path, force=True) == 0
+    assert not (tmp_path / ".rhiza" / "template.lock").exists()
+    assert not (tmp_path / "kept.txt").exists()

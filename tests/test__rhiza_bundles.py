@@ -108,3 +108,24 @@ def test_resolve_bundle_names_expands_and_dedups() -> None:
         {"bundles": {"core": {}, "extra": {}}, "profiles": {"p": {"bundles": ["core", "extra"]}}}
     )
     assert rb.resolve_bundle_names(template, bundles) == ["core", "extra"]
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_resolve_to_path_map_omits_entries_that_are_not_remapped() -> None:
+    """A file kept at its own path contributes nothing — the map is remaps only."""
+    b = _bundles(a={"files": ["same.txt", {"source": "s", "dest": "d"}]})
+    assert b.resolve_to_path_map(["a"]) == {"s": "d"}
+
+
+def test_resolve_bundle_names_dedups_a_bundle_shared_by_two_profiles() -> None:
+    """Profiles overlap by design (`core` is in most), so the skip arm is the normal case."""
+    template = Template("o/r", "main", profiles=["p1", "p2"])
+    bundles = rb.Bundles.from_config(
+        {
+            "bundles": {"core": {}, "extra": {}},
+            "profiles": {"p1": {"bundles": ["core", "extra"]}, "p2": {"bundles": ["core"]}},
+        }
+    )
+    assert rb.resolve_bundle_names(template, bundles) == ["core", "extra"]

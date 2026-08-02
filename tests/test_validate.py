@@ -385,3 +385,19 @@ class TestLog:
         loud.debug("shown")
         err = capsys.readouterr().err
         assert "ok" in err and "fyi" in err and "shown" in err
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+@pytest.mark.parametrize("present", ["pkg", "internal"])
+def test_go_structure_accepts_either_package_folder_alone(tmp_path, present):
+    """`pkg` or `internal` — either satisfies the layout; both were always present before.
+
+    The rule is "not neither", so each folder's success path has to be reachable on its
+    own, not only when the other is there too.
+    """
+    (tmp_path / "go.mod").write_text("module x\n")
+    (tmp_path / present).mkdir()
+    lg = log()
+    assert v._validate_go_structure(lg, tmp_path) is True

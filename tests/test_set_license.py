@@ -309,3 +309,23 @@ def test_set_license_notes_a_cargo_toml_without_a_package_table(tmp_path):
     summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
     assert any("Cargo.toml" in note for note in summary["notes"])
     assert summary["created"] == ["LICENSE"]
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_table_block_ends_at_eof_when_it_is_the_last_table():
+    """The loop exhausts rather than breaking on a following `[table]`."""
+    assert sl._table_block(["[package]", 'name = "x"'], "package", "Cargo.toml") == (0, 2)
+
+
+def test_set_license_metadata_preserves_the_absence_of_a_trailing_newline():
+    text = '[project]\nname = "x"'
+    new_text, changed = sl.set_license_metadata(text, "MIT")
+    assert changed and not new_text.endswith("\n")
+
+
+def test_set_cargo_license_metadata_preserves_the_absence_of_a_trailing_newline():
+    text = '[package]\nname = "x"'
+    new_text, changed = sl.set_cargo_license_metadata(text, "MIT")
+    assert changed and not new_text.endswith("\n")

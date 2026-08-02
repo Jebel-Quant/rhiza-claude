@@ -1,4 +1,8 @@
 [run]
+# Line coverage answers "did this run?"; branch coverage answers "did both ways run?".
+# A gate at 100% lines can still miss the arm that never fired — the `if` that was only
+# ever entered, the `for` that never ran dry — which is where the interesting bugs sit.
+branch = true
 omit =
     scripts/release.sh
 

@@ -191,3 +191,27 @@ def test_main_text_output(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "modified pyproject.toml" in captured.out
     assert "note" in captured.err
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_a_duplicated_non_python_classifier_is_collapsed():
+    """The dedup arm. Repeating a *Python* classifier cannot reach it — those are
+    stripped and regenerated — so the duplicate has to be one that survives filtering."""
+    text = (
+        "[project]\n"
+        'requires-python = ">=3.11"\n'
+        "classifiers = [\n"
+        '    "Typing :: Typed",\n'
+        '    "Typing :: Typed",\n'
+        "]\n"
+    )
+    new_text, _ = sp.apply_python_metadata(text, "3.12")
+    assert new_text.count('"Typing :: Typed"') == 1
+
+
+def test_the_absence_of_a_trailing_newline_is_preserved():
+    text = '[project]\nrequires-python = ">=3.10"'
+    new_text, changes = sp.apply_python_metadata(text, "3.12")
+    assert changes and not new_text.endswith("\n")
