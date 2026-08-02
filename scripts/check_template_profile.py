@@ -160,7 +160,9 @@ def _report(summary: dict[str, Any]) -> list[str]:
     for profile in summary["missing"]:
         lines.append(f"MISSING      {where} does not define {profile}")
     if summary["missing"]:
-        lines.append(f"             available profiles: {', '.join(summary['available']) or 'none'}")
+        lines.append(
+            f"             available profiles: {', '.join(summary['available']) or 'none'}"
+        )
         lines.append(
             "             A pointer naming it would sync fine at /init and fail at the "
             "first /rhiza:update. Pin a ref that defines it, or pick a profile that "
