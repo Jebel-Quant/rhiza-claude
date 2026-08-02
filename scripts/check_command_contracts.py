@@ -26,6 +26,11 @@ the code it actually calls:
    command, so a removed one can't linger in another command's prose.
 6. **allowed-tools covers the binaries used** — a command that runs ``git`` in a block
    must be permitted to, or the user gets a permission prompt mid-flow.
+7. **Model-invocation policy** — exactly the commands in ``_MODEL_INVOCATION_OPT_OUT``
+   declare ``disable-model-invocation: true``, and no others declare the key at all.
+   The policy is a property of the whole command surface, not of one file, so it is
+   asserted in both directions: a destructive command that quietly loses the key is as
+   much a regression as a harmless one that grows it.
 
 Usage:
   uv run --python 3.12 --no-project python \
@@ -44,6 +49,15 @@ import sys
 from pathlib import Path
 
 _FRONTMATTER_KEYS = ("description", "argument-hint", "allowed-tools")
+# Commands the model may not invoke off a description match — the user has to name them.
+# The line is drawn at side effects that are not a reviewable proposal: `uninstall`
+# deletes every managed file, `release` commits and tags. Everything else stays
+# invocable on purpose — `init` and `update` open a PR but never push to the default
+# branch, `docs` only writes files, and `quality` files issues solely from an explicit
+# menu selection. Adding a command here is a deliberate change to the plugin's surface,
+# which is why the set lives in code and is reviewed rather than inferred per file.
+_MODEL_INVOCATION_OPT_OUT = frozenset({"release", "uninstall"})
+_OPT_OUT_KEY = "disable-model-invocation"
 _BASH_BLOCK = re.compile(r"```bash\n(.*?)```", re.S)
 # The script path is usually quoted — `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py" --flag` —
 # so the closing quote must be consumed before the arguments, or the argument capture
@@ -255,6 +269,33 @@ def check_allowed_tools(rel: str, text: str, blocks: list[str]) -> list[str]:
     ]
 
 
+def check_model_invocation(rel: str, stem: str, text: str) -> list[str]:
+    """Rule 7: exactly the opt-out commands disable model invocation.
+
+    Checked in both directions. A missing key on a destructive command is the
+    dangerous failure, but an unexpected key elsewhere matters too: it silently
+    removes a command from what the model can reach, and the user only finds out by
+    the command never firing.
+    """
+    block = frontmatter(text)
+    if block is None:  # already reported as missing frontmatter by rule 1
+        return []
+    declared = parse_frontmatter(block)[0].get(_OPT_OUT_KEY)
+    if stem in _MODEL_INVOCATION_OPT_OUT:
+        if declared != "true":
+            return [
+                f"{rel}: has side effects the user must ask for by name, so it must "
+                f"declare `{_OPT_OUT_KEY}: true` (found: {declared or 'nothing'})"
+            ]
+        return []
+    if declared is not None:
+        return [
+            f"{rel}: declares `{_OPT_OUT_KEY}: {declared}` but is not in the opt-out "
+            f"set — add `{stem}` to _MODEL_INVOCATION_OPT_OUT or drop the key"
+        ]
+    return []
+
+
 def check_contracts(root: Path) -> list[str]:
     """Run every rule over the plugin at *root*; return all violations."""
     commands_dir, prompts_dir, scripts_dir = root / "commands", root / "prompts", root / "scripts"
@@ -273,6 +314,7 @@ def check_contracts(root: Path) -> list[str]:
             violations += check_slash_commands(rel, text, commands_dir)
             if is_command:
                 violations += check_allowed_tools(rel, text, blocks)
+                violations += check_model_invocation(rel, path.stem, text)
     return violations
 
 

@@ -233,6 +233,62 @@ def test_a_procedure_is_not_checked_for_allowed_tools(plugin):
     assert ccc.check_contracts(plugin) == []
 
 
+# --- rule 7: model-invocation policy -------------------------------------------
+
+
+def _write_opt_out_command(plugin: Path, name: str, declared: str | None) -> None:
+    """Write `commands/<name>.md`, optionally declaring the opt-out key."""
+    key = f"{ccc._OPT_OUT_KEY}: {declared}\n" if declared is not None else ""
+    frontmatter = _GOOD_FRONTMATTER.rstrip("\n").removesuffix("---") + key + "---\n"
+    (plugin / "commands" / f"{name}.md").write_text(frontmatter + "\nBody.\n")
+
+
+@pytest.mark.parametrize("name", sorted(ccc._MODEL_INVOCATION_OPT_OUT))
+def test_flags_an_opt_out_command_that_does_not_declare_the_key(plugin, name):
+    _write_opt_out_command(plugin, name, None)
+    violations = ccc.check_contracts(plugin)
+    assert any("must declare" in v and name in v for v in violations)
+
+
+@pytest.mark.parametrize("name", sorted(ccc._MODEL_INVOCATION_OPT_OUT))
+def test_an_opt_out_command_declaring_true_is_fine(plugin, name):
+    _write_opt_out_command(plugin, name, "true")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_flags_an_opt_out_command_that_declares_false(plugin):
+    """`false` is not merely redundant here — it reverses the policy."""
+    _write_opt_out_command(plugin, "uninstall", "false")
+    violations = ccc.check_contracts(plugin)
+    assert any("must declare" in v and "found: false" in v for v in violations)
+
+
+def test_flags_an_ordinary_command_that_declares_the_key(plugin):
+    """The other direction: an opt-out nobody reviewed silently hides a command."""
+    _write_opt_out_command(plugin, "harmless", "true")
+    violations = ccc.check_contracts(plugin)
+    assert any("is not in the opt-out set" in v for v in violations)
+
+
+def test_an_ordinary_command_without_the_key_is_fine(plugin):
+    _write_opt_out_command(plugin, "harmless", None)
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_the_policy_is_not_applied_to_procedures(plugin):
+    """Rule 1 already rejects frontmatter under prompts/; rule 7 must not double-report."""
+    (plugin / "prompts" / "release.md").write_text("Not a slash command.\n")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_a_command_with_no_frontmatter_is_left_to_rule_one(plugin):
+    """Rule 7 stays silent rather than piling a second error onto the same cause."""
+    (plugin / "commands" / "release.md").write_text("# No frontmatter\n")
+    violations = ccc.check_contracts(plugin)
+    assert any("missing frontmatter" in v for v in violations)
+    assert not any(ccc._OPT_OUT_KEY in v for v in violations)
+
+
 # --- helpers ------------------------------------------------------------------
 
 
