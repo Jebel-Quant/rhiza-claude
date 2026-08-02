@@ -54,8 +54,14 @@ _GATE = re.compile(r"^\s*\d+\.\s+`make ([a-z][a-z0-9-]*)`", re.MULTILINE)
 _MAKEFILES = ("Makefile", "makefile", "GNUmakefile")
 # A self-documenting target — `test:  ## Run the suite` — the convention every rhiza
 # Makefile uses for `make help`. Undocumented internal targets are deliberately not
-# matched: they are not gates anyone meant to expose.
-_DOCUMENTED = re.compile(r"^([a-z][a-z0-9_-]*):.*?##\s*(.+)$", re.MULTILINE)
+# matched: they are not gates anyone meant to expose. `test::` (a double-colon rule,
+# which rust.mk uses) counts too.
+_DOCUMENTED = re.compile(r"^([a-z][a-z0-9_-]*)::?.*?##\s*(.+)$", re.MULTILINE)
+# An `include`/`-include` line, with its (possibly glob) operands.
+_INCLUDE = re.compile(r"^\s*-?include\s+(.+?)\s*$", re.MULTILINE)
+# How deep to follow includes. Makefile -> .rhiza/rhiza.mk -> .rhiza/make.d/*.mk is two,
+# so three leaves room without risking a pathological chain.
+_INCLUDE_DEPTH = 3
 
 EXIT_OK = 0
 EXIT_UNAVAILABLE = 1
@@ -82,6 +88,47 @@ def find_makefile(target_dir: Path) -> Path | None:
     return next((target_dir / n for n in _MAKEFILES if (target_dir / n).is_file()), None)
 
 
+def makefile_chain(target_dir: Path, *, depth: int = _INCLUDE_DEPTH) -> list[Path]:
+    """Return the repo's makefile plus the files it ``include``s, in reading order.
+
+    **Reading only the root makefile finds nothing on a real repo.** A rhiza-synced
+    repo's `Makefile` is a stub — a few variables and `include .rhiza/rhiza.mk` — which
+    in turn ends with `-include .rhiza/make.d/*.mk`, and *that* is where every gate
+    lives. Probing was unaffected (``make -n`` follows includes itself), but discovery
+    read one file where make reads a dozen, so a synced Rust repo reported zero
+    discovered targets while `.rhiza/make.d/rust.mk` was sitting there defining `deps`,
+    `license` and `coverage`. The mechanism that exists to stop `/quality` reporting
+    "nothing could be checked" was doing exactly that.
+
+    Globs are expanded and each file is visited once. An operand containing `$` is
+    skipped: it is a make variable this parser cannot resolve, and guessing is worse
+    than omitting.
+    """
+    root = find_makefile(target_dir)
+    if root is None:
+        return []
+    chain: list[Path] = []
+    seen: set[Path] = set()
+
+    def _walk(path: Path, remaining: int) -> None:
+        resolved = path.resolve()
+        if resolved in seen or not path.is_file():
+            return
+        seen.add(resolved)
+        chain.append(path)
+        if remaining <= 0:
+            return
+        for operands in _INCLUDE.findall(path.read_text(errors="ignore")):
+            for operand in operands.split():
+                if "$" in operand:
+                    continue
+                for included in sorted(target_dir.glob(operand)):
+                    _walk(included, remaining - 1)
+
+    _walk(root, depth)
+    return chain
+
+
 def documented_targets(target_dir: Path) -> dict[str, str]:
     """Return the repo's self-documenting `make` targets, mapped to their descriptions.
 
@@ -91,16 +138,15 @@ def documented_targets(target_dir: Path) -> dict[str, str]:
     that had `/quality` scoring repos against gates that did not exist.
 
     So they are discovered instead, from the ``target: ## description`` convention every
-    rhiza Makefile uses to build ``make help``. What comes back is what the repo really
-    offers, whatever language it is.
+    rhiza Makefile uses to build ``make help`` — across the whole include chain, because
+    that is where make itself looks (see :func:`makefile_chain`). What comes back is what
+    the repo really offers, whatever language it is.
     """
-    makefile = find_makefile(target_dir)
-    if makefile is None:
-        return {}
-    return {
-        name: description.strip()
-        for name, description in _DOCUMENTED.findall(makefile.read_text(errors="ignore"))
-    }
+    found: dict[str, str] = {}
+    for makefile in makefile_chain(target_dir):
+        for name, description in _DOCUMENTED.findall(makefile.read_text(errors="ignore")):
+            found.setdefault(name, description.strip())
+    return found
 
 
 def target_exists(target_dir: Path, target: str) -> bool:
@@ -177,6 +223,18 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
             "other target(s). If this is a Go, Rust or non-standard template, those are "
             "its real gates — run the relevant ones from `undeclared` and score them, "
             "rather than reporting that nothing could be checked."
+        )
+    # The milder case, which a synced Rust repo really hits: most named gates resolve
+    # (`fmt`, `test`, `typecheck` are named the same in every language layer) while the
+    # one that doesn't has a differently-named analogue sitting in `undeclared` —
+    # `deptry` is absent and `deps` is right there. Scoring the absent one out-of-scope
+    # and stopping would silently skip a gate the repo does provide.
+    elif undeclared and unavailable:
+        notes.append(
+            f"{len(unavailable)} named gate(s) are absent while this repo documents "
+            f"{len(undeclared)} other target(s) — check `undeclared` for the equivalent "
+            "under a different name (a Rust repo's `deps` is the `deptry` analogue) and "
+            "score that instead of skipping the concern."
         )
 
     return {

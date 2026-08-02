@@ -480,3 +480,62 @@ def test_this_repos_prose_references_all_resolve():
         )
     ]
     assert violations == []
+
+
+# --- rule 9: prose naming a test file that no longer exists --------------------
+
+
+def test_flags_a_dead_test_reference_in_the_docs(plugin):
+    """The exact historical failure, pinned — the other half of rule 7.
+
+    `docs/development.md` told contributors to run `RHIZA_E2E=1 uvx pytest
+    tests/test_init_e2e.py`. That file was folded into `test_init_scaffold.py` in #29 and
+    the instruction stayed, because the reference scanner only read `scripts/`.
+    """
+    (plugin / "tests").mkdir()
+    _write_prose(plugin, "CONTRIBUTING.md", "Run `uvx pytest tests/test_init_e2e.py`.\n")
+    violations = ccc.check_contracts(plugin)
+    assert any("tests/test_init_e2e.py, which does not exist" in v for v in violations)
+
+
+def test_a_live_test_reference_is_fine(plugin):
+    (plugin / "tests").mkdir()
+    (plugin / "tests" / "test_real.py").write_text("")
+    _write_prose(plugin, "CONTRIBUTING.md", "Run `uvx pytest tests/test_real.py`.\n")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_the_templates_own_synced_tests_are_not_ours_to_resolve(plugin):
+    """`.rhiza/tests/test_pyproject.py` is a file the sync delivers, documented here.
+
+    Matching it would make the gate demand a file this repo must not contain.
+    """
+    (plugin / "tests").mkdir()
+    _write_prose(
+        plugin, "CONTRIBUTING.md", "The synced `.rhiza/tests/test_pyproject.py` asserts.\n"
+    )
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_a_test_glob_or_placeholder_is_not_a_reference(plugin):
+    """`tests/*.py` and `tests/test_<name>.py` are patterns, not files."""
+    (plugin / "tests").mkdir()
+    _write_prose(
+        plugin,
+        "CLAUDE.md",
+        "`tests/` mirrors `scripts/`: `tests/test_<name>.py` per module, `tests/*.py` pass.\n",
+    )
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_this_repos_prose_test_references_all_resolve():
+    """No dead test reference anywhere a contributor looks."""
+    tests_dir = _ROOT / "tests"
+    violations = [
+        v
+        for path in ccc.prose_files(_ROOT)
+        for v in ccc.check_test_references(
+            path.relative_to(_ROOT).as_posix(), path.read_text(), tests_dir
+        )
+    ]
+    assert violations == []

@@ -379,6 +379,151 @@ def synced_repo_copy(synced_repo: Path, tmp_path: Path) -> Path:
     return target
 
 
+# ---------------------------------------------------------------------------
+# End-to-end: the Rust axis
+#
+# #86 taught the plugin three languages — a language registry, per-language complexity
+# tooling, gate discovery, language-aware badges — and none of it had ever run against a
+# real crate. What was tested was the registry's internal coherence and discovery against
+# fixtures written by hand, which cannot catch the two things that actually broke: a
+# pointer naming a profile no template defines, and discovery reading one makefile where
+# make reads a dozen.
+#
+# `cargo init --lib` is the whole setup, and GitHub's runners ship a Rust toolchain, so
+# this needs no extra CI provisioning. Almost every assertion downstream is about rhiza
+# plumbing rather than about Rust: does the pointer name the right profile, does the sync
+# write a lock, does language_profile detect the language, does the probe find the targets.
+# ---------------------------------------------------------------------------
+
+RUST_TOOLS = ("cargo", "git", "make", "uv")
+
+
+def rust_profile(host: str = "github") -> str:
+    """Return the profile `/init` writes for a Rust repo on *host*.
+
+    Read from the code that writes the pointer rather than repeated here: a test that
+    hardcodes `rust-local` stops testing the mapping and starts testing itself.
+    """
+    import init_scaffold
+
+    return init_scaffold.profile_for_host(host, "rust")
+
+
+def rust_template_ref() -> str:
+    """Return the template ref the Rust fixtures sync from.
+
+    `RHIZA_RUST_TEMPLATE_REF` overrides; otherwise it is the same ref as everything else
+    syncs from. The override exists because the Rust layer's availability and the Python
+    pin are separate facts: `rust-local` and `rust-core` live on `jebel-quant/rhiza`'s
+    default branch and, at the time of writing, in no release — so the drift job sets
+    `RHIZA_RUST_TEMPLATE_REF=main` to exercise the Rust path weekly against the branch
+    that has it, while PR runs stay on the pinned release.
+    """
+    return os.environ.get("RHIZA_RUST_TEMPLATE_REF", TEMPLATE_REF)
+
+
+def require_rust_profile(ref: str) -> None:
+    """Skip unless the template at *ref* defines the profile a Rust pointer names.
+
+    Deliberately a skip with the evidence in it, not a failure: the template not having
+    shipped a Rust profile yet is upstream's state, not this plugin's bug, and a suite
+    that goes red for somebody else's reasons stops being read. The blocking half of the
+    Rust axis — everything that needs no sync — runs regardless.
+    """
+    import check_template_profile as ctp
+
+    profile = rust_profile()
+    summary = ctp.check(TEMPLATE_REPO, ref, [profile])
+    if summary["exit_code"] == ctp.EXIT_UNREADABLE:
+        pytest.skip(f"could not read {TEMPLATE_REPO}@{ref}: {summary['error']}")
+    if summary["missing"]:
+        pytest.skip(
+            f"{TEMPLATE_REPO}@{ref} defines no {profile} profile "
+            f"(it defines: {', '.join(summary['available'])}). The Rust sync cannot be "
+            "exercised against a ref that has no Rust profile; set "
+            "RHIZA_RUST_TEMPLATE_REF to one that does (the drift job uses main)."
+        )
+
+
+def _scaffold_crate(repo: Path, scripts: Path, *, description: str) -> None:
+    """Run the /init chain for a Rust crate in *repo*: cargo init, skeleton, pointer."""
+    # `git init` first: cargo initialises a repo itself, but only when it decides the
+    # directory needs one, and the skeleton's author metadata comes from git identity.
+    assert_ok(run_cmd(["git", "init", "-q", "-b", "main", "."], repo), "git init")
+    assert_ok(run_cmd(["cargo", "init", "--lib", "--name", "widget"], repo), "cargo init")
+    for key, value in (("user.email", "e2e@example.com"), ("user.name", "E2E")):
+        assert_ok(run_cmd(["git", "config", key, value], repo), f"git config {key}")
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_skeleton.py"), str(repo), "--language", "rust",
+             "--owner", "jebel-quant", "--repo", "widget", "--description", description],
+            repo,
+        ),
+        "init_skeleton --language rust",
+    )  # fmt: skip
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_scaffold.py"), str(repo), "--host", "github",
+             "--language", "rust", "--template-repo", TEMPLATE_REPO,
+             "--ref", rust_template_ref()],
+            repo,
+        ),
+        "init_scaffold --language rust",
+    )  # fmt: skip
+    assert_ok(
+        run_cmd([*PY, str(scripts / "set_license.py"), str(repo), "--license", "MIT",
+                 "--owner", "jebel-quant"], repo),
+        "set_license",
+    )  # fmt: skip
+
+
+@pytest.fixture(scope="session")
+def rust_crate(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A real crate built by the /init chain — `cargo init --lib` and the scripts after it.
+
+    No sync, so no dependency on the template having shipped a Rust profile: this is the
+    half of the Rust axis that can be asserted unconditionally, and it covers the
+    scaffolding, the pointer, language detection, structure validation, the licence and
+    the badges.
+    """
+    missing = [t for t in RUST_TOOLS if shutil.which(t) is None]
+    if missing:
+        pytest.skip(f"the Rust end-to-end tests need {', '.join(missing)}")
+
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    repo = tmp_path_factory.mktemp("e2e-rust") / "widget"
+    repo.mkdir()
+    _scaffold_crate(repo, scripts, description="End-to-end Rust fixture for the rhiza plugin.")
+    return repo
+
+
+@pytest.fixture(scope="session")
+def rust_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A Rust crate genuinely synced from the template's Rust profile.
+
+    Built fresh rather than copied from `rust_crate` so the pointer records the ref the
+    sync actually used. Skips — loudly, with the template's own profile list in the
+    message — while no reachable ref defines a Rust profile.
+    """
+    missing = [t for t in RUST_TOOLS if shutil.which(t) is None]
+    if missing:
+        pytest.skip(f"the Rust end-to-end tests need {', '.join(missing)}")
+    ref = rust_template_ref()
+    require_rust_profile(ref)
+
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    repo = tmp_path_factory.mktemp("e2e-rust-synced") / "widget"
+    repo.mkdir()
+    _scaffold_crate(repo, scripts, description="Synced Rust fixture for the rhiza plugin.")
+    assert_ok(run_cmd(["git", "add", "-A"], repo), "git add")
+    assert_ok(run_cmd(["git", "commit", "-qm", "feat: initial"], repo), "git commit")
+
+    sync = run_cmd([*PY, str(scripts / "sync.py"), "."], repo)
+    assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
+    assert (repo / ".rhiza" / "template.lock").is_file(), "sync wrote no lock"
+    return repo
+
+
 @pytest.fixture
 def make_repo(tmp_path: Path, hermetic_git: None) -> Iterator[Callable[[str], Repo]]:
     """Return a factory that creates initialised git repos under the temp dir."""

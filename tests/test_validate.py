@@ -401,3 +401,35 @@ def test_go_structure_accepts_either_package_folder_alone(tmp_path, present):
     (tmp_path / present).mkdir()
     lg = log()
     assert v._validate_go_structure(lg, tmp_path) is True
+
+
+# --- end-to-end: a real crate and a real workspace ----------------------------
+
+
+def test_e2e_a_real_crate_validates(rust_crate):
+    """`validate.py` against a crate built by the /init chain, not by a fixture writer.
+
+    `/rhiza:status` runs this first, so a Rust repo that fails here is reported as
+    misconfigured before anything else is even looked at.
+    """
+    ok, log = _run(rust_crate)
+    assert ok, log.errors
+
+
+def test_e2e_a_virtual_workspace_validates_too(rust_crate, tmp_path):
+    """`[workspace]` with no `src/` is a legitimate Rust repo, and the commoner shape.
+
+    The distinction is already coded; neither half had ever been run against a real tree.
+    A workspace root reported as a malformed crate is the "confidently wrong" failure the
+    language axis exists to prevent.
+    """
+    import shutil
+
+    workspace = tmp_path / "widget"
+    shutil.copytree(rust_crate, workspace)
+    shutil.rmtree(workspace / "src")
+    (workspace / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\nresolver = "3"\n')
+
+    ok, log = _run(workspace)
+    assert ok, log.errors
+    assert not (workspace / "src").exists()

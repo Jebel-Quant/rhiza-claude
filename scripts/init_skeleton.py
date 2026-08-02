@@ -239,6 +239,25 @@ def is_cargo_placeholder_lib(text: str) -> bool:
     return bool(body) and all(line in allowed for line in body)
 
 
+def crate_name(target: Path) -> str:
+    """Return the crate's name: `[package] name` if the manifest declares one, else the dir.
+
+    The directory is only a fallback. `cargo init --lib --name widget` inside `some-dir/`
+    produces a crate called `widget`, and naming its doc comment after the folder would
+    describe a crate that does not exist — the same class of "confidently wrong" the
+    language axis exists to avoid.
+    """
+    manifest = target / "Cargo.toml"
+    if manifest.is_file():
+        lines = manifest.read_text(errors="ignore").splitlines()
+        span = _table_span(lines, "package")
+        for line in lines[span[0] + 1 : span[1]] if span else []:
+            match = re.match(r"""^\s*name\s*=\s*["']([^"']+)["']""", line)
+            if match:
+                return match.group(1).replace("-", "_")
+    return target.name.replace("-", "_")
+
+
 def seed_crate_docs(target: Path) -> list[str]:
     """Prepend a `//!` crate doc comment to a crate root that has none.
 
@@ -250,6 +269,7 @@ def seed_crate_docs(target: Path) -> list[str]:
     Returns the relative paths modified (empty when both roots already have docs).
     """
     modified: list[str] = []
+    crate = crate_name(target)
     for name in ("lib.rs", "main.rs"):
         root = target / "src" / name
         if not root.is_file():
@@ -257,7 +277,6 @@ def seed_crate_docs(target: Path) -> list[str]:
         text = root.read_text()
         if text.lstrip().startswith("//!"):
             continue
-        crate = target.name.replace("-", "_")
         root.write_text(
             f"//! {crate} crate.\n\n{text}" if text.strip() else f"//! {crate} crate.\n"
         )

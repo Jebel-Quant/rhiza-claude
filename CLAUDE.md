@@ -119,3 +119,14 @@ off `main` and open a PR — never push to the default branch.
   root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
+- **The end-to-end tests are part of `make test`, not an opt-in extra.** They sync real
+  repos from `jebel-quant/rhiza` at the ref pinned in `tests/conftest.py`, so the suite
+  needs network, `uv` and (for the Rust fixtures) `cargo`. Anything tool-shaped skips
+  when the tool is absent, which is why CI verifies `cargo` explicitly rather than
+  letting a whole language axis vanish quietly.
+- **The Rust *sync* tests skip on a release ref, and that is not a bug.** `rust-local`
+  and `rust-core` exist only on the template's default branch; `RHIZA_RUST_TEMPLATE_REF`
+  (which the drift job sets to `main`) is how they run. Everything about the Rust axis
+  that needs no sync runs unconditionally. Don't "fix" the skip by bumping
+  `PINNED_TEMPLATE_REF` — check first, with
+  `scripts/check_template_profile.py rust-local --template-repo jebel-quant/rhiza --ref <tag>`.

@@ -8,9 +8,12 @@ idempotent, additive, and must never write a `classifiers` key.
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 
 import init_skeleton as sk
 import pytest
+from conftest import PY, assert_ok, run_cmd
 
 # `pyproject.toml` exactly as `uv init --lib --python 3.12` leaves it.
 _UV_PYPROJECT = """\
@@ -515,6 +518,42 @@ def test_seed_crate_docs_handles_a_binary_crate(tmp_path):
     assert sk.seed_crate_docs(tmp_path) == ["src/main.rs"]
 
 
+def test_the_crate_doc_names_the_crate_not_the_directory(tmp_path):
+    """`cargo init --name widget` in another folder still gets "//! widget crate."."""
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "widget"\nversion = "0.1.0"\n')
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+
+    sk.seed_crate_docs(tmp_path)
+    assert (tmp_path / "src" / "lib.rs").read_text().startswith("//! widget crate.")
+
+
+def test_crate_name_falls_back_to_the_directory(tmp_path):
+    """No manifest yet (or none with a `name`) — the folder is the best guess left."""
+    assert sk.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    assert sk.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
+
+
+def test_crate_name_falls_back_when_the_package_table_declares_no_name(tmp_path):
+    """A `[package]` table is not a guarantee of a `name`, and `name` may sit elsewhere.
+
+    `version` in `[package]` with the name inherited from a workspace is a real shape;
+    scanning past the table's end to find some other `name = ` would be worse than the
+    directory fallback.
+    """
+    (tmp_path / "Cargo.toml").write_text(
+        '[package]\nversion = "0.1.0"\n\n[dependencies.serde]\nname = "serde"\n'
+    )
+    assert sk.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
+
+
+def test_crate_name_hyphens_become_underscores(tmp_path):
+    """A crate's Rust identifier is its package name with `-` mapped to `_`."""
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "acme-tool"\n')
+    assert sk.crate_name(tmp_path) == "acme_tool"
+
+
 def test_set_cargo_keys_appends_below_name_and_version():
     out, added = sk.set_cargo_keys(_CARGO, {"description": '"d"'})
     assert added == ["description"]
@@ -648,3 +687,60 @@ def test_finish_cargo_omits_description_when_there_is_none(tmp_path):
     )
     assert result["ok"] is True
     assert "description" not in (tmp_path / "Cargo.toml").read_text()
+
+
+# --- end-to-end: a real crate from `cargo init --lib` -------------------------
+#
+# Everything above asserts against cargo's stub as written down here. These assert
+# against the stub cargo actually produced, which is the only way the placeholder
+# recognition can be trusted: `is_cargo_placeholder_lib` matches an exact set of lines,
+# and cargo is free to change them.
+
+
+def test_e2e_the_crate_doc_is_prepended_and_cargos_only_test_survives(rust_crate):
+    """The single most destructive thing this script could do, checked for real.
+
+    Cargo's `src/lib.rs` carries the crate's only test. Substituting the file — which is
+    what the Python path does to uv's placeholder — would delete it, and the template's
+    coverage gate would then measure a crate with no tests.
+    """
+    lib = (rust_crate / "src" / "lib.rs").read_text()
+    assert lib.startswith("//! widget crate."), lib[:80]
+    assert "fn it_works()" in lib, "cargo's placeholder test was lost"
+    assert "pub fn add(left: u64, right: u64) -> u64" in lib
+
+
+def test_e2e_the_readme_cargo_never_writes_is_seeded(rust_crate):
+    """`cargo init` creates no README at all, and `/rhiza:docs` needs one to own."""
+    readme = (rust_crate / "README.md").read_text()
+    assert readme.startswith("# widget")
+    assert "/rhiza:docs" in readme
+
+
+def test_e2e_the_package_metadata_cargo_omits_is_filled_in(rust_crate):
+    """`cargo init --lib` writes only name/version/edition."""
+    manifest = (rust_crate / "Cargo.toml").read_text()
+    for key in ("repository", "homepage", "authors", "description"):
+        assert f"{key} = " in manifest, f"Cargo.toml lacks {key}:\n{manifest}"
+    assert 'repository = "https://github.com/jebel-quant/widget"' in manifest
+    # cargo's own keys are left exactly where cargo put them.
+    lines = [line.strip() for line in manifest.splitlines() if line.strip()]
+    assert lines[0] == "[package]"
+    assert lines[1] == 'name = "widget"'
+
+
+def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_crate(rust_crate, tmp_path):
+    """Running it twice must change nothing — /init can be re-run after a failed step."""
+    copy = tmp_path / "widget"
+    shutil.copytree(rust_crate, copy)
+    before = (copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_skeleton.py"), str(copy), "--language", "rust",
+             "--owner", "jebel-quant", "--repo", "widget", "--description", "Anything else."],
+            copy,
+        ),
+        "init_skeleton (second run)",
+    )  # fmt: skip
+    assert ((copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()) == before

@@ -46,11 +46,21 @@ So a new repo is **two PRs**: **#1 (`/init`)** makes it rhiza-managed; **#2
    platform CLI is logged in with `scripts/platform_cli.py auth-status`, which picks
    `gh auth status` or `glab auth status` for you; not being logged in doesn't stop the
    local work, it just defers the remote steps.
-3. **Picks the template repo and ref** — language (`python` or `go`) selects the
-   default, `jebel-quant/rhiza` or `jebel-quant/rhiza-go`, overridable with any
-   `owner/repo`; it checks the repo is reachable and pins the ref to its latest
-   release. Nothing is synced from it here — that's just the initial pin, which
-   `/update` bumps later.
+3. **Picks the template repo and ref** — language (`python`, `rust` or `go`) selects
+   the default, `jebel-quant/rhiza` (Python **and** Rust: that template is
+   multi-language) or `jebel-quant/rhiza-go`, overridable with any `owner/repo`; it
+   checks the repo is reachable and pins the ref to its latest release. Nothing is
+   synced from it here — that's just the initial pin, which `/update` bumps later.
+
+    It then checks, with `scripts/check_template_profile.py`, that the pinned ref
+    actually **defines the profile** the pointer is about to name, and stops rather than
+    writing one it doesn't. That check exists because the failure lands so far from the
+    mistake: a pointer naming an undefined profile is written happily, merges happily,
+    and then kills the *first* `/rhiza:update` with "Profile 'X' was not found". If the
+    profile is missing you're offered the choices its output supports — pin a ref that
+    does define it, pick one it lists, or wait for a release. A template that can't be
+    read at all (offline, unknown ref) is a warning, not a stop: nothing was learned
+    either way.
 4. **Writes the pointer** via `scripts/init_scaffold.py` — `.rhiza/template.yml` and
    only that, and only if absent — on a `rhiza_init_<date>` branch. It **never**
    pushes to the default branch: for a brand-new repo it asks you to create it,

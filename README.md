@@ -120,7 +120,9 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   install-uv, then skeleton, then license. It detects platform/owner/name from an
   existing `origin` (or asks), picks the language (Python, Go or Rust) and template
   repo (`jebel-quant/rhiza` for Python and Rust — the template is multi-language —
-  `rhiza-go` for Go, or a custom one) plus its latest release as the initial pin, and
+  `rhiza-go` for Go, or a custom one) plus its latest release as the initial pin —
+  checking that ref actually defines the profile it's about to name, since an
+  unsatisfiable pointer merges cleanly and then fails the *first* `/rhiza:update` — and
   opens a PR on a `rhiza_init_<date>` branch — never pushing to the
   default branch (a brand-new repo's base branch is created by you). It runs **no
   sync and no gates**: the template content (CI, `Makefile`, `rhiza.mk`, docs base)

@@ -1,5 +1,5 @@
 ---
-description: Make the current folder a rhiza-managed repo. It writes exactly one file itself — `.rhiza/template.yml`, the pointer at a template repository and pinned ref — and delegates everything else to internal procedures under prompts/ — install-uv, pr-base (work branch off an untouched default), skeleton (uv init --lib + the pyproject shape the template's gates require, which itself applies python-version), and license. If a `.rhiza/` directory already exists it hands off to /update instead and never touches template.yml. It detects (or asks) GitHub vs GitLab, picks the template repo (default jebel-quant/rhiza, reachability-checked) and its latest release as the initial pin, then opens a PR. It runs no sync and no gates — the template content (CI, Makefile, rhiza.mk, docs base) arrives when the user runs /update after this PR merges. Never pushes to the default branch.
+description: Make the current folder a rhiza-managed repo. It writes exactly one file itself — `.rhiza/template.yml`, the pointer at a template repository and pinned ref — and delegates everything else to internal procedures under prompts/ — install-uv, pr-base (work branch off an untouched default), skeleton (uv init --lib + the pyproject shape the template's gates require, which itself applies python-version), and license. If a `.rhiza/` directory already exists it hands off to /update instead and never touches template.yml. It detects (or asks) GitHub vs GitLab, picks the template repo (default jebel-quant/rhiza, reachability-checked) and its latest release as the initial pin, checks that ref really defines the profile it is about to name (an unsatisfiable pointer merges fine and then kills the first /update), then opens a PR. It runs no sync and no gates — the template content (CI, Makefile, rhiza.mk, docs base) arrives when the user runs /update after this PR merges. Never pushes to the default branch.
 argument-hint: "[repo name]  (optional; defaults to the current folder name)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(curl*), Bash(brew*), Bash(ls*), Bash(basename*), Bash(pwd*), Bash(date*), Read, Write, Edit, AskUserQuestion, Skill
 ---
@@ -83,15 +83,11 @@ complete the local work and report that the remote steps are pending auth.
   template is multi-language, layering a `rust-core` toolchain bundle on a neutral
   `core`) or `jebel-quant/rhiza-go` (go, a separate fork); offer to override with any
   `owner/repo`, or to pick from `gh search repos --topic rhiza --json fullName`.
-- **Rust needs a recent enough pin, and gets no hosted CI yet.** `rust-local` only
-  exists from the `jebel-quant/rhiza` release that introduced the Rust bundles; if
-  `$TARGET` predates it, the first `/update` fails with "Profile 'rust-local' was not
-  found". Pinning the latest release — which step 3 does anyway — avoids that.
-  There is deliberately no `rust-github-project`: those profiles are almost entirely
-  CI workflows, and rhiza's `github`/`gitlab` bundles still ship Python ones. **Say
-  this to the user** when they pick rust, so no one waits for CI that was never
-  configured: they get the full local toolchain (cargo, clippy, nextest, llvm-cov,
-  cargo-deny) and add hosted CI when the Rust workflows land.
+- **Rust gets no hosted CI yet.** There is deliberately no `rust-github-project`: those
+  profiles are almost entirely CI workflows, and rhiza's `github`/`gitlab` bundles still
+  ship Python ones. **Say this to the user** when they pick rust, so no one waits for CI
+  that was never configured: they get the full local toolchain (cargo, clippy, nextest,
+  llvm-cov, cargo-deny) and add hosted CI when the Rust workflows land.
 - **Reachability** — `git ls-remote --exit-code https://<host>/$TEMPLATE_REPO`. If
   unreachable, **stop** — don't write a pointer at a repo that isn't there. (If `git`
   can't check, warn and continue.)
@@ -99,6 +95,25 @@ complete the local work and report that the remote steps are pending auth.
   `gh release list -R "$TEMPLATE_REPO" -L 1 --json tagName --jq '.[0].tagName'` (fall
   back to `git ls-remote --tags` for a GitLab-hosted template; else ask). Just the
   **initial pin** — `/update` bumps it later, and nothing is synced from it here.
+- **Does `$TARGET` actually define the profile?** Check, don't assume — a pointer naming
+  a profile the template doesn't define writes cleanly, merges, and then kills the
+  *first* `/rhiza:update` with "Profile 'X' was not found", one step removed from the
+  mistake. This has happened twice (`rust-github-project`, which never existed;
+  `rust-local`, which exists on `jebel-quant/rhiza`'s default branch and in no release).
+  Reads one file from the template, so it costs a fraction of a sync:
+```bash
+uv run --python 3.12 --no-project python \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/check_template_profile.py" "$PROFILE" \
+  --template-repo "$TEMPLATE_REPO" --ref "$TARGET" --template-host <github|gitlab>
+```
+  `$PROFILE` is what step 5 will write: `github-project`/`gitlab-project` for
+  python/go, `rust-local` for rust. **Exit 0** — proceed. **Exit 1** — the profile is
+  missing; **stop before writing the pointer** and give the user the choice its output
+  supports: pin a ref that does define it (`--ref main` tracks the template's default
+  branch, unreleased but working), pick one of the profiles it lists, or wait for a
+  release. **Exit 2** — the template couldn't be read at all (network, unknown ref);
+  that is not a wrong profile, so warn and continue, exactly as with the reachability
+  check.
 
 ## 4. Work branch
 

@@ -59,12 +59,47 @@ jobs:
             echo "::notice::the pin is behind; this run checks whether that matters"
           fi
 
+      # Has the Rust layer reached a release yet? `rust-local` and `rust-core` live on
+      # the template's default branch and in no release, so `/rhiza:init --language rust`
+      # against the latest release would write a pointer the first sync rejects. The
+      # Rust end-to-end sync therefore runs against `main` (below) and skips on a
+      # release. This step is the watch for that changing: the day a release defines the
+      # profile, `RHIZA_RUST_TEMPLATE_REF` can go away and PR runs pick the Rust axis up
+      # too. Never fails the job — it is information, and the answer is upstream's to
+      # give.
+      - name: Report where the Rust profile exists
+        continue-on-error: true
+        env:
+          LATEST: ${{ steps.refs.outputs.latest }}
+        run: |
+          probe() {
+            uv run --python 3.12 --no-project python scripts/check_template_profile.py \
+              rust-local --template-repo jebel-quant/rhiza --ref "$1"
+          }
+          if probe "$LATEST"; then
+            echo "::notice::${LATEST} defines rust-local: bump the pin and drop RHIZA_RUST_TEMPLATE_REF"
+          elif probe main; then
+            echo "::notice::${LATEST} defines no rust-local: the Rust sync runs against main here only"
+          else
+            # Not a skip to shrug at: `/rhiza:init --language rust` writes this profile
+            # name, so if the template stops defining it anywhere, every Rust pointer the
+            # plugin writes is unsatisfiable and _PROFILES needs updating.
+            echo "::warning::rust-local is gone from both ${LATEST} and main — \
+            scripts/init_scaffold.py:_PROFILES now names a profile the template does not define"
+          fi
+
       # Only the end-to-end tests: they are the ones that touch the template. No
       # coverage gate, since a filtered run cannot meet it and coverage is not the
       # question being asked here.
+      #
+      # `RHIZA_RUST_TEMPLATE_REF: main` is what makes the Rust axis actually run: its
+      # profile exists only there, so on any release ref those tests skip. That is the
+      # honest arrangement rather than an opt-in — the sync half of the Rust axis runs
+      # here every week, and everything about it that needs no sync runs on every PR.
       - name: Run the end-to-end tests against the latest template
         env:
           RHIZA_TEMPLATE_REF: latest
+          RHIZA_RUST_TEMPLATE_REF: main
         run: uvx pytest tests/ -k e2e -q
 
       - name: Raise a finding if the template no longer agrees
