@@ -64,13 +64,26 @@ jobs:
       # because it stops the sync before it starts — and it lands on users at their first
       # `/rhiza:update`, not at `/init`. The e2e run below covers `rust-local` and the
       # Python pair; this covers all of them, including profiles no fixture syncs.
+      # Exit 1 (a profile is missing) fails the job and files the finding below. Exit 2
+      # (the template could not be read) must not: a network blip is not upstream
+      # withdrawing a profile, and filing a drift issue for it is how a weekly job earns
+      # its reputation for crying wolf. The script separates the two precisely so a caller
+      # can act differently — acting the same would waste that.
       - name: Check the latest release still defines the profiles /init writes
         env:
           LATEST: ${{ steps.refs.outputs.latest }}
         run: |
+          set +e
           uv run --python 3.12 --no-project python scripts/check_template_profile.py \
             local rust-local github-project gitlab-project \
             --template-repo jebel-quant/rhiza --ref "$LATEST"
+          status=$?
+          set -e
+          if [ "$status" -eq 2 ]; then
+            echo "::warning::could not read jebel-quant/rhiza@${LATEST}; its profiles were not checked"
+            exit 0
+          fi
+          exit "$status"
 
       # Only the end-to-end tests: they are the ones that touch the template. No
       # coverage gate, since a filtered run cannot meet it and coverage is not the

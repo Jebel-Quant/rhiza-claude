@@ -283,14 +283,23 @@ def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
     from the scripts alone had no version location and `/rhiza:release` would have fallen
     back to `git describe`. Both are fixed, so this asserts a clean run — a tolerated
     failure that nobody re-examines becomes a permanent hole.
+
+    **"No failures" is not enough on its own.** An absent target, a `uv` that cannot
+    resolve pytest, or an upstream `.rhiza/tests/` that stopped being synced all yield
+    zero `FAILED` lines, and the gate would read as passing while running nothing — the
+    same shape as the bug `check_make_targets.py` exists to prevent. So the exit status
+    and the count of tests that actually ran are asserted too.
     """
     result = run_cmd(["make", "rhiza-test"], synced_repo)
-    failed = sorted(
-        set(re.findall(r"^FAILED \S+?\.py::(\S+)", result.stdout + result.stderr, re.MULTILINE))
-    )
+    output = result.stdout + result.stderr
+    failed = sorted(set(re.findall(r"^FAILED \S+?\.py::(\S+)", output, re.MULTILINE)))
+    assert failed == [], f"the template's own tests reject our scaffold: {failed}\n{output[-3000:]}"
 
-    assert failed == [], (
-        f"the template's own tests reject our scaffold: {failed}\n{result.stdout[-3000:]}"
+    assert_ok(result, "make rhiza-test")
+    passed = [int(n) for n in re.findall(r"(\d+) passed", output)]
+    assert passed and passed[0] > 0, (
+        f"`make rhiza-test` reported no test as having run — the gate did not execute the "
+        f"template's tests, which is not the same as passing them.\n{output[-3000:]}"
     )
 
 

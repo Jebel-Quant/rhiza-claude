@@ -236,7 +236,7 @@ def test_e2e_a_real_crate_is_detected_as_rust_from_its_pointer(rust_crate):
     assert "template.yml declares language: rust" in reason
 
 
-def test_e2e_a_real_crates_facts_are_the_registrys(rust_crate):
+def test_e2e_a_real_crates_facts_come_from_the_registry(rust_crate):
     facts = lp.facts(lp.resolve("rust"), rust_crate)
     assert facts["manifest"] == "Cargo.toml"
     assert facts["manifest_present"] is True
