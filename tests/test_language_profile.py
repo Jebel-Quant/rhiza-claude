@@ -269,3 +269,19 @@ def test_e2e_a_dual_manifest_crate_sniffs_as_rust_without_a_pointer(rust_crate, 
     language, reason = lp.detect(copy)
     assert language is not None and language.name == "rust"
     assert reason == "found Cargo.toml"
+
+
+def test_e2e_a_real_module_is_detected_as_go_from_its_pointer(go_module):
+    """Go's facts differ from the other two in every field that matters downstream."""
+    language, reason = lp.detect(go_module)
+    assert language is not None and language.name == "go"
+    assert "template.yml declares language: go" in reason
+
+    facts = lp.facts(language, go_module)
+    assert facts["manifest"] == "go.mod"
+    assert facts["manifest_present"] is True
+    # Not `src`: a Go module's packages live wherever the directory tree puts them.
+    assert facts["source_root"] == "."
+    # `go.mod`'s own `go` directive pins the toolchain — there is no sidecar file.
+    assert facts["toolchain_pin"] is None
+    assert facts["test_layout_applies"] is False

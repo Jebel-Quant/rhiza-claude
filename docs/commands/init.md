@@ -47,8 +47,8 @@ So a new repo is **two PRs**: **#1 (`/init`)** makes it rhiza-managed; **#2
    `gh auth status` or `glab auth status` for you; not being logged in doesn't stop the
    local work, it just defers the remote steps.
 3. **Picks the template repo and ref** — language (`python`, `rust` or `go`) selects
-   the default, `jebel-quant/rhiza` (Python **and** Rust: that template is
-   multi-language) or `jebel-quant/rhiza-go`, overridable with any `owner/repo`; it
+   the profile; the template is `jebel-quant/rhiza` for all three, since it is
+   multi-language, and is overridable with any `owner/repo` fork; it
    checks the repo is reachable and pins the ref to its latest release. Nothing is
    synced from it here — that's just the initial pin, which `/update` bumps later.
 

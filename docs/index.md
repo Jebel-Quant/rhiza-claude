@@ -12,9 +12,9 @@ and type and coverage gates, a docs build. Copy that into ten repos and you have
 copies drifting apart — a workflow fixed in one, a gate loosened in another, and no way
 to tell which repo has which vintage.
 
-**rhiza** is the shared original: a *template repository*
-([`jebel-quant/rhiza`](https://github.com/jebel-quant/rhiza) for Python,
-`rhiza-go` for Go) holding that scaffolding once. **rhiza-claude** — this plugin — is
+**rhiza** is the shared original: one multi-language *template repository*
+([`jebel-quant/rhiza`](https://github.com/jebel-quant/rhiza), for Python, Rust and
+Go alike) holding that scaffolding once. **rhiza-claude** — this plugin — is
 how a repo adopts it, keeps up with it, and gets told how it's doing: it syncs your
 repo from a pinned template release and scores the result.
 

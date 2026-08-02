@@ -24,8 +24,8 @@ template's latest release.
    (`.rhiza/template.yml` exists) and the working tree is clean. Notes the branch you
    started on, the default branch, and the hosting platform.
 2. **Resolves the target ref** — the given tag, or the latest release of **the
-   template repo named in `template.yml`** (so forks and `jebel-quant/rhiza-go` bump
-   to their own tags, not `jebel-quant/rhiza`'s). Major-version jumps require
+   template repo named in `template.yml`** (so a fork bumps to its own tags, not
+   `jebel-quant/rhiza`'s). Major-version jumps require
    confirmation.
 3. **Branches off the up-to-date default branch**, then bumps the `ref` in
    `.rhiza/template.yml` and commits. `profiles:`, `templates:` and the rest are left

@@ -433,3 +433,24 @@ def test_e2e_a_virtual_workspace_validates_too(rust_crate, tmp_path):
     ok, log = _run(workspace)
     assert ok, log.errors
     assert not (workspace / "src").exists()
+
+
+def test_e2e_a_real_go_module_validates(go_module):
+    """`/rhiza:status` runs this first; a Go repo must not be reported as misconfigured."""
+    ok, log = _run(go_module)
+    assert ok, log.errors
+
+
+def test_e2e_a_library_module_without_cmd_is_a_warning_not_an_error(go_module):
+    """`cmd/` holds main packages, and a library has none — that must not fail."""
+    ok, log = _run(go_module)
+    assert ok
+    assert not (go_module / "cmd").exists()
+    assert any("cmd" in warning for warning in log.warnings), log.warnings
+
+
+def test_e2e_the_synced_module_satisfies_the_pkg_or_internal_rule(go_synced_repo):
+    """`go-core` ships `internal/version/`, so the layout check is satisfied by the sync."""
+    ok, log = _run(go_synced_repo)
+    assert ok, log.errors
+    assert (go_synced_repo / "internal").is_dir()

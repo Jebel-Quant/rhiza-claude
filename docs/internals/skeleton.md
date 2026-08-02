@@ -1,7 +1,7 @@
 # skeleton (internal)
 
-Create the Python project skeleton a rhiza-managed repo needs, and finish it into
-the shape the template's gates require.
+Create the project skeleton a rhiza-managed repo needs — in Python, Rust or Go — and
+finish it into the shape the template's gates require.
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`prompts/skeleton.md`), not something you
@@ -16,8 +16,9 @@ but the project metadata is always the repo's own. So without one,
 `install` (a `uv sync`), and the synced `.rhiza/tests/test_pyproject.py` asserts a
 specific `[project]` shape. This command produces that shape.
 
-It's a thin wrapper around `uv init --lib` plus the bundled
-`scripts/init_skeleton.py`.
+It's a thin wrapper around the language's own initialiser (`uv init --lib`,
+`cargo init --lib`, `go mod init`) plus the bundled `scripts/init_skeleton.py`.
+The steps below are the Python path; see [Rust and Go](#rust-and-go).
 
 ## What it does
 
@@ -45,6 +46,22 @@ It's a thin wrapper around `uv init --lib` plus the bundled
 
 The license is **not** its job: [license](license.md) owns that, and
 [`/rhiza:init`](../commands/init.md) follows it immediately after this procedure.
+
+## Rust and Go
+
+Same shape, different manifest — and each has one thing the others don't:
+
+| | Rust | Go |
+| --- | --- | --- |
+| initialiser | `cargo init --lib` | `go mod init <module path>` |
+| manifest | `Cargo.toml` | `go.mod` |
+| profile | `rust-local` | `go-local` |
+| docs gate | `#![warn(missing_docs)]` — a `//!` crate doc is **prepended**, never substituted, because cargo's stub holds the crate's only test | revive's `exported` rule — a `doc.go` package comment, since `go mod init` writes no Go file at all |
+| metadata | `[package]` gains `description`, `repository`, `homepage`, `authors` | **nothing to add**: `go.mod` has no such fields |
+| version location | `.bumpversion.toml`, anchored to `[package]` and to `Cargo.lock` | **not written here** — a Go module's version is its git tag, and `go-core` ships the config; it arrives with the first [`/rhiza:update`](../commands/update.md) |
+
+The gate is the same idea in each: `cargo metadata` (Rust) or `go list -m` plus
+`go vet` (Go) must pass, or the procedure stops rather than hand-writing a manifest.
 
 ## Notes
 
