@@ -14,6 +14,20 @@ importable we defer to it (same "stdlib works, third-party enhances" posture as
 the tomllib/tomli fallback), so hand-authored configs using constructs
 this parser doesn't cover still load correctly.
 
+**Two readers means they must agree, and they did not.** PyYAML applies YAML 1.1
+implicit resolution where this parser applies something close to YAML 1.2 core, so
+the same file produced different answers depending only on whether PyYAML happened to
+be importable — `ref: 1.20` read as the float `1.2`, `strategy: no` as `False`,
+`0755` as octal 493, a timestamp as a `datetime`, and a `|` block keeping its trailing
+newline. `ref` selects the template tag a sync pulls from, so that one silently
+changed which release a repo tracked. `_build_loader` normalises the PyYAML path down
+to this parser's rules; PyYAML is still what handles *structure* (anchors, flow
+collections, quoting), which is the reason for deferring to it.
+
+What parity guarantees: for a well-formed mapping document, both readers return equal
+data. For a malformed one they differ by design — this parser is lenient, PyYAML is
+strict — but both fail as `ValueError`, the error every caller guards against.
+
 `dump_yaml` emits the flat top-level scalar/sequence subset the lock file uses,
 matching PyYAML's `default_flow_style=False, sort_keys=False` layout (zero-indent
 list items, `[]` for empty lists, single-quoted values where a bare token would
@@ -30,9 +44,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-try:  # pragma: no cover - exercised only when PyYAML is installed
+try:
     import yaml as _pyyaml
-except ModuleNotFoundError:  # pragma: no cover
+except ModuleNotFoundError:  # pragma: no cover - the runtime case; tests install PyYAML
     _pyyaml = None
 
 # YAML 1.1 timestamp shapes PyYAML resolves to datetime; we must quote these on
@@ -41,6 +55,81 @@ _TIMESTAMP = re.compile(
     r"^\d{4}-\d{1,2}-\d{1,2}([Tt ]\d{1,2}:\d{1,2}:\d{1,2}(\.\d+)?([Zz]|[+-]\d{1,2}(:\d{1,2})?)?)?$"
 )
 _BLOCK_SCALAR_INDICATORS = {"|", ">", "|-", ">-", "|+", ">+"}
+
+# --- keeping the two readers in agreement ------------------------------------
+#
+# `load_yaml` has two implementations behind it, and they used to disagree. PyYAML
+# applies YAML **1.1** implicit resolution; the subset parser below applies something
+# close to YAML 1.2 core. On one realistic pointer file that produced four different
+# answers, and one of them was not cosmetic:
+#
+#     ref: 1.20   ->  "1.20" (subset)  vs  1.2 (PyYAML, float)
+#
+# `ref` selects the template tag to sync from, so the same repo would resolve to a
+# different release depending on whether PyYAML happened to be importable. The others:
+# `synced_at` became a datetime, `strategy: no` became False, and `0755` was read as
+# octal 493 rather than 755.
+#
+# The subset parser is the reference implementation — these files are configuration
+# whose scalars are strings unless they are plainly a bool, an int or null — so the
+# PyYAML path is normalised down to match it, rather than the reverse. Structure
+# (anchors, flow collections, block scalars, quoting) still comes from PyYAML, which is
+# the reason for deferring to it at all.
+_DROPPED_TAGS = frozenset({"tag:yaml.org,2002:float", "tag:yaml.org,2002:timestamp"})
+# YAML 1.2 core booleans only: `yes`/`no`/`on`/`off`/`y`/`n` stay strings.
+_STRICT_BOOL = re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$")
+# Decimal only: no octal, no hex, no underscores — `int(s)` is what the subset does.
+_STRICT_INT = re.compile(r"^[-+]?[0-9]+$")
+
+
+def _build_loader() -> Any:
+    """Return a PyYAML loader whose scalars resolve the way `_scalar` does.
+
+    Implemented by editing the implicit-resolver table rather than post-processing the
+    result, because post-processing cannot tell an unquoted ``true`` from a quoted
+    ``"true"`` — by then both are the same Python string, and coercing the second
+    would trade one disagreement for another.
+    """
+    if _pyyaml is None:  # pragma: no cover - guarded by the caller
+        return None
+
+    class _RhizaLoader(_pyyaml.SafeLoader):  # type: ignore[misc]
+        """SafeLoader with YAML 1.1's scalar surprises removed."""
+
+    table: dict[str, list[Any]] = {}
+    for char, mappings in _pyyaml.SafeLoader.yaml_implicit_resolvers.items():
+        kept = []
+        for tag, regexp in mappings:
+            if tag in _DROPPED_TAGS:
+                continue
+            if tag == "tag:yaml.org,2002:bool":
+                regexp = _STRICT_BOOL
+            elif tag == "tag:yaml.org,2002:int":
+                regexp = _STRICT_INT
+            kept.append((tag, regexp))
+        table[char] = kept
+    _RhizaLoader.yaml_implicit_resolvers = table
+
+    # Resolving the tag is only half of it: PyYAML's int *constructor* still reads a
+    # leading zero as octal, so `0755` came back as 493 even once the resolver was
+    # restricted to decimal. `_STRICT_INT` has already guaranteed the token is plain
+    # decimal, so `int()` is both safe here and exactly what `_scalar` does.
+    _RhizaLoader.add_constructor(
+        "tag:yaml.org,2002:int",
+        lambda loader, node: int(loader.construct_scalar(node)),
+    )
+
+    # A fifth disagreement, found by running the existing suite with PyYAML installed:
+    # `key: |` clips to one trailing newline per the YAML spec, while the subset
+    # parser's `_parse_block_scalar` strips. Reconciled toward the subset parser for
+    # consistency with the rows above — and only for block styles, since stripping every
+    # string would destroy deliberate whitespace in a quoted one.
+    def _construct_str(loader: Any, node: Any) -> str:
+        value: str = loader.construct_scalar(node)
+        return value.strip() if node.style in ("|", ">") else value
+
+    _RhizaLoader.add_constructor("tag:yaml.org,2002:str", _construct_str)
+    return _RhizaLoader
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -53,7 +142,14 @@ def load_yaml(path: Path) -> dict[str, Any]:
     """
     text = path.read_text(errors="ignore")
     if _pyyaml is not None:
-        data = _pyyaml.safe_load(text)
+        try:
+            data = _pyyaml.load(text, Loader=_build_loader())  # nosec B506 - SafeLoader subclass
+        except _pyyaml.YAMLError as exc:
+            # Every caller guards `load_yaml` with `except (OSError, ValueError)`, which
+            # is the module's contract. PyYAML's YAMLError is neither, so on a damaged
+            # lock it escaped all eight of them — and `stage_synced` stopped degrading
+            # to "stage the pointer only", which is a safety property, not a nicety.
+            raise ValueError(f"could not parse YAML: {exc}") from exc
         if data is None:
             return {}
         if not isinstance(data, dict):
