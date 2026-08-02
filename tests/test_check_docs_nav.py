@@ -86,7 +86,9 @@ def test_a_nav_entry_spelled_with_the_docs_prefix_counts(repo):
 def test_flags_a_page_whose_command_was_removed(repo):
     (repo / "docs" / "commands" / "retired.md").write_text("# stale instructions\n")
     violations = cdn.check_docs_nav(repo)
-    assert "docs/commands/retired.md has no matching commands/retired.md — orphan page" in violations
+    assert (
+        "docs/commands/retired.md has no matching commands/retired.md — orphan page" in violations
+    )
 
 
 # --- rule 4: no dangling nav entry --------------------------------------------
