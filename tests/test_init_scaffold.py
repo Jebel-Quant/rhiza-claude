@@ -256,3 +256,65 @@ def test_e2e_gitlab_and_github_profiles_share_the_core_api(gitlab_synced_repo, s
     for path in ("Makefile", ".rhiza/rhiza.mk", "ruff.toml"):
         assert (gitlab_synced_repo / path).is_file(), f"gitlab profile lacks {path}"
         assert (synced_repo / path).is_file(), f"github profile lacks {path}"
+
+
+# --- end-to-end: the Rust axis ------------------------------------------------
+
+
+def test_e2e_the_rust_pointer_names_the_language_and_its_profile(rust_crate):
+    """The pointer is the whole of /init's own output, and Rust's differs in two ways.
+
+    `language: rust` is what everything downstream reads (`language_profile.detect`
+    prefers it over sniffing the manifest), and the profile is the Rust one rather than
+    the Python default.
+    """
+    from conftest import rust_profile
+
+    body = (rust_crate / ".rhiza" / "template.yml").read_text()
+    assert 'repository: "jebel-quant/rhiza"' in body, "Rust shares the Python template"
+    assert "language: rust" in body
+    assert f"  - {rust_profile('github')}" in body
+    assert "template-host" not in body, "the template is GitHub-hosted; nothing to redirect"
+
+
+def test_e2e_the_rust_sync_writes_a_lock_recording_the_profile(rust_synced_repo):
+    """The sync is what /update runs; the lock is the record of what it did."""
+    import _rhiza_yaml
+    from conftest import rust_profile
+
+    lock = _rhiza_yaml.load_yaml(rust_synced_repo / ".rhiza" / "template.lock")
+    assert lock["profiles"] == [rust_profile("github")]
+    assert lock["sha"], "the lock records no upstream SHA"
+    assert lock["files"], "the lock records no files"
+
+
+def test_e2e_the_rust_sync_delivers_the_rust_toolchain_layer(rust_synced_repo):
+    """What `rust-core` ships, asserted as *what the lock says arrived* — not a wish list.
+
+    The template owns which files a profile carries. Hardcoding them here would fail the
+    day upstream reorganises its bundles, which is a template change, not a plugin bug.
+    So: every file the lock records exists, and the Rust make include is among them.
+    """
+    import _rhiza_yaml
+
+    lock = _rhiza_yaml.load_yaml(rust_synced_repo / ".rhiza" / "template.lock")
+    missing = [f for f in lock["files"] if not (rust_synced_repo / f).exists()]
+    assert missing == [], f"the lock records files the sync did not deliver: {missing}"
+    assert (rust_synced_repo / "Makefile").is_file(), "sync delivered no Makefile"
+    assert (rust_synced_repo / ".rhiza" / "rhiza.mk").is_file(), "sync delivered no rhiza.mk"
+    rust_mk = [f for f in lock["files"] if f.startswith(".rhiza/make.d/") and "rust" in f]
+    assert rust_mk, f"no Rust make include in the synced files: {lock['files']}"
+
+
+def test_e2e_the_rust_profile_ships_no_hosted_ci_and_that_is_deliberate(rust_synced_repo):
+    """`rust-local` is local tooling only — asserting CI here would demand a wrong thing.
+
+    The template's `github`/`gitlab` bundles still ship *Python* workflows (a release job
+    running `uv build` against PyPI), so a Rust profile including them would deliver CI
+    that fails on its first run. The absence is the design, and a test that expected
+    workflows would be the thing that's wrong.
+    """
+    workflows = rust_synced_repo / ".github" / "workflows"
+    assert not workflows.exists() or not list(workflows.glob("*.yml")), (
+        "the Rust profile is local-only; hosted CI arrives with the Rust workflows"
+    )

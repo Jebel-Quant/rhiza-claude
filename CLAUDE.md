@@ -119,3 +119,14 @@ off `main` and open a PR — never push to the default branch.
   root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
+- **The end-to-end tests are part of `make test`, not an opt-in extra.** They sync real
+  repos from `jebel-quant/rhiza` at the ref pinned in `tests/conftest.py`, so the suite
+  needs network, `uv` and (for the Rust fixtures) `cargo`. Anything tool-shaped skips
+  when the tool is absent, which is why CI verifies `cargo` explicitly rather than
+  letting a whole language axis vanish quietly.
+- **The pinned template ref decides which profiles the suite can exercise.** `rust-local`
+  arrived in rhiza **v1.3.0**, which is what `PINNED_TEMPLATE_REF` names and why the Rust
+  sync runs on every PR. Before bumping it, check the new ref still defines what `/init`
+  writes: `scripts/check_template_profile.py rust-local github-project gitlab-project
+  --template-repo jebel-quant/rhiza --ref <tag>`. A ref that doesn't now **fails** the
+  Rust fixtures rather than skipping them — see `require_rust_profile`.

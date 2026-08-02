@@ -8,6 +8,7 @@ language complete, and every language `validate.py` can validate also profiled h
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import language_profile as lp
@@ -216,3 +217,55 @@ def test_this_repo_is_not_detected_as_managed():
     """rhiza-claude has no .rhiza/ and no manifest — it must not claim a language."""
     language, _ = lp.detect(_ROOT)
     assert language is None
+
+
+# --- end-to-end: a real crate -------------------------------------------------
+
+
+def test_e2e_a_real_crate_is_detected_as_rust_from_its_pointer(rust_crate):
+    """Detection prefers what the repo *declares* — the pointer — over what it looks like.
+
+    This is the seam every downstream consumer crosses: `/quality` picks its complexity
+    tooling here, `/docs` its badge, and `check_test_layout`'s applicability comes from
+    `test_layout_applies`. Until now it had only ever been asked about repos assembled
+    by these tests; this one was built by the /init chain from `cargo init --lib`.
+    """
+    language, reason = lp.detect(rust_crate)
+    assert language is not None
+    assert language.name == "rust"
+    assert "template.yml declares language: rust" in reason
+
+
+def test_e2e_a_real_crates_facts_come_from_the_registry(rust_crate):
+    facts = lp.facts(lp.resolve("rust"), rust_crate)
+    assert facts["manifest"] == "Cargo.toml"
+    assert facts["manifest_present"] is True
+    assert facts["source_root"] == "src"
+    # The mirror rule is written around Python module/class naming; cargo puts unit tests
+    # inside the module they cover, so demanding tests/ parity would fail every crate.
+    assert facts["test_layout_applies"] is False
+    assert all("cargo" in command for command in facts["complexity"] + facts["graph"])
+
+
+def test_e2e_the_pointer_wins_over_a_second_manifest(rust_crate, tmp_path):
+    """A pyo3/maturin crate carries both manifests — the one shape that could pick wrong.
+
+    `_BY_MANIFEST` is ordered so Cargo.toml wins on a sniff, but the pointer should
+    decide before sniffing ever happens.
+    """
+    copy = tmp_path / "widget"
+    shutil.copytree(rust_crate, copy)
+    (copy / "pyproject.toml").write_text('[project]\nname = "widget"\nversion = "0.1.0"\n')
+    language, reason = lp.detect(copy)
+    assert language is not None and language.name == "rust", reason
+
+
+def test_e2e_a_dual_manifest_crate_sniffs_as_rust_without_a_pointer(rust_crate, tmp_path):
+    """Same repo, pointer removed: the Cargo manifest is what makes it a crate."""
+    copy = tmp_path / "widget"
+    shutil.copytree(rust_crate, copy)
+    (copy / "pyproject.toml").write_text('[project]\nname = "widget"\nversion = "0.1.0"\n')
+    (copy / ".rhiza" / "template.yml").unlink()
+    language, reason = lp.detect(copy)
+    assert language is not None and language.name == "rust"
+    assert reason == "found Cargo.toml"

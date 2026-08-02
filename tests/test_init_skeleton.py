@@ -8,9 +8,12 @@ idempotent, additive, and must never write a `classifiers` key.
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 
 import init_skeleton as sk
 import pytest
+from conftest import PY, assert_ok, run_cmd
 
 # `pyproject.toml` exactly as `uv init --lib --python 3.12` leaves it.
 _UV_PYPROJECT = """\
@@ -350,7 +353,12 @@ def test_finish_skeleton_completes_a_uv_project(tmp_path):
 
     assert summary["ok"]
     assert set(summary["modified"]) == {"src/acme_tool/__init__.py", "pyproject.toml"}
-    assert summary["changes"] == ["description", "project.urls", "dependency-groups"]
+    assert summary["changes"] == [
+        "description",
+        "project.urls",
+        "dependency-groups",
+        "tool.bumpversion",
+    ]
     text = (tmp_path / "pyproject.toml").read_text()
     assert 'description = "Acme things."' in text
     assert 'Homepage = "https://github.com/jebel-quant/acme-tool"' in text
@@ -515,6 +523,42 @@ def test_seed_crate_docs_handles_a_binary_crate(tmp_path):
     assert sk.seed_crate_docs(tmp_path) == ["src/main.rs"]
 
 
+def test_the_crate_doc_names_the_crate_not_the_directory(tmp_path):
+    """`cargo init --name widget` in another folder still gets "//! widget crate."."""
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "widget"\nversion = "0.1.0"\n')
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+
+    sk.seed_crate_docs(tmp_path)
+    assert (tmp_path / "src" / "lib.rs").read_text().startswith("//! widget crate.")
+
+
+def test_crate_name_falls_back_to_the_directory(tmp_path):
+    """No manifest yet (or none with a `name`) — the folder is the best guess left."""
+    assert sk.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    assert sk.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
+
+
+def test_crate_name_falls_back_when_the_package_table_declares_no_name(tmp_path):
+    """A `[package]` table is not a guarantee of a `name`, and `name` may sit elsewhere.
+
+    `version` in `[package]` with the name inherited from a workspace is a real shape;
+    scanning past the table's end to find some other `name = ` would be worse than the
+    directory fallback.
+    """
+    (tmp_path / "Cargo.toml").write_text(
+        '[package]\nversion = "0.1.0"\n\n[dependencies.serde]\nname = "serde"\n'
+    )
+    assert sk.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
+
+
+def test_crate_name_hyphens_become_underscores(tmp_path):
+    """A crate's Rust identifier is its package name with `-` mapped to `_`."""
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "acme-tool"\n')
+    assert sk.crate_name(tmp_path) == "acme_tool"
+
+
 def test_set_cargo_keys_appends_below_name_and_version():
     out, added = sk.set_cargo_keys(_CARGO, {"description": '"d"'})
     assert added == ["description"]
@@ -648,3 +692,225 @@ def test_finish_cargo_omits_description_when_there_is_none(tmp_path):
     )
     assert result["ok"] is True
     assert "description" not in (tmp_path / "Cargo.toml").read_text()
+
+
+# --- end-to-end: a real crate from `cargo init --lib` -------------------------
+#
+# Everything above asserts against cargo's stub as written down here. These assert
+# against the stub cargo actually produced, which is the only way the placeholder
+# recognition can be trusted: `is_cargo_placeholder_lib` matches an exact set of lines,
+# and cargo is free to change them.
+
+
+def test_e2e_the_crate_doc_is_prepended_and_cargos_only_test_survives(rust_crate):
+    """The single most destructive thing this script could do, checked for real.
+
+    Cargo's `src/lib.rs` carries the crate's only test. Substituting the file — which is
+    what the Python path does to uv's placeholder — would delete it, and the template's
+    coverage gate would then measure a crate with no tests.
+    """
+    lib = (rust_crate / "src" / "lib.rs").read_text()
+    assert lib.startswith("//! widget crate."), lib[:80]
+    assert "fn it_works()" in lib, "cargo's placeholder test was lost"
+    assert "pub fn add(left: u64, right: u64) -> u64" in lib
+
+
+def test_e2e_the_readme_cargo_never_writes_is_seeded(rust_crate):
+    """`cargo init` creates no README at all, and `/rhiza:docs` needs one to own."""
+    readme = (rust_crate / "README.md").read_text()
+    assert readme.startswith("# widget")
+    assert "/rhiza:docs" in readme
+
+
+def test_e2e_the_package_metadata_cargo_omits_is_filled_in(rust_crate):
+    """`cargo init --lib` writes only name/version/edition."""
+    manifest = (rust_crate / "Cargo.toml").read_text()
+    for key in ("repository", "homepage", "authors", "description"):
+        assert f"{key} = " in manifest, f"Cargo.toml lacks {key}:\n{manifest}"
+    assert 'repository = "https://github.com/jebel-quant/widget"' in manifest
+    # cargo's own keys are left exactly where cargo put them.
+    lines = [line.strip() for line in manifest.splitlines() if line.strip()]
+    assert lines[0] == "[package]"
+    assert lines[1] == 'name = "widget"'
+
+
+def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_crate(rust_crate, tmp_path):
+    """Running it twice must change nothing — /init can be re-run after a failed step."""
+    copy = tmp_path / "widget"
+    shutil.copytree(rust_crate, copy)
+    before = (copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    assert_ok(
+        run_cmd(
+            [*PY, str(scripts / "init_skeleton.py"), str(copy), "--language", "rust",
+             "--owner", "jebel-quant", "--repo", "widget", "--description", "Anything else."],
+            copy,
+        ),
+        "init_skeleton (second run)",
+    )  # fmt: skip
+    assert ((copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()) == before
+
+
+# --- the version location, for /rhiza:release ---------------------------------
+#
+# Written by the script rather than by the procedure's prose because the failure is
+# silent: with no discoverable config, bump-my-version falls back to `git describe` and a
+# release can be cut at a version that already exists. The template's
+# test_a_discoverable_config_exists gate (rhiza v1.3.0) fails on its absence.
+
+
+def test_bumpversion_config_is_found_only_where_the_tool_looks(tmp_path):
+    """`.rhiza/.cfg.toml` is not one of the files bump-my-version searches."""
+    assert sk.bumpversion_config(tmp_path) is None
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / ".cfg.toml").write_text("[tool.bumpversion]\ncurrent_version = '1'\n")
+    assert sk.bumpversion_config(tmp_path) is None
+    (tmp_path / "pyproject.toml").write_text("[tool.bumpversion]\ncurrent_version = '1'\n")
+    assert sk.bumpversion_config(tmp_path) == "pyproject.toml"
+
+
+def test_bumpversion_config_accepts_the_legacy_ini_spelling(tmp_path):
+    (tmp_path / "setup.cfg").write_text("[bumpversion]\ncurrent_version = 1.0.0\n")
+    assert sk.bumpversion_config(tmp_path) == "setup.cfg"
+
+
+def test_bumpversion_config_ignores_a_file_without_the_section(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+    assert sk.bumpversion_config(tmp_path) is None
+
+
+@pytest.mark.parametrize(
+    ("language", "manifest", "body", "expected"),
+    [
+        ("python", "pyproject.toml", '[project]\nname = "x"\nversion = "1.2.3"\n', "1.2.3"),
+        ("rust", "Cargo.toml", '[package]\nname = "x"\nversion = "0.4.0"\n', "0.4.0"),
+        ("python", "pyproject.toml", '[project]\nname = "x"\n', None),  # no version declared
+        ("rust", "Cargo.toml", "[workspace]\nmembers = []\n", None),  # no [package] table
+    ],
+)
+def test_declared_version_reads_the_manifests_own_table(
+    tmp_path, language, manifest, body, expected
+):
+    (tmp_path / manifest).write_text(body)
+    assert sk.declared_version(tmp_path, language) == expected
+
+
+def test_declared_version_without_a_manifest_is_none(tmp_path):
+    assert sk.declared_version(tmp_path, "python") is None
+
+
+def test_seeding_appends_the_table_to_pyproject(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "1.2.3"\n')
+    assert sk.seed_bumpversion_config(tmp_path, "python") == "pyproject.toml"
+    body = (tmp_path / "pyproject.toml").read_text()
+    assert '[tool.bumpversion]\ncurrent_version = "1.2.3"' in body
+    # Anchored to [project], or it would also rewrite an unrelated table's version.
+    assert r"search = " + "'" + r"(?ms)^\[project\]" in body
+    assert "{current_version}" in body, "bump-my-version's own placeholder must survive"
+
+
+def test_seeding_writes_bumpversion_toml_for_a_crate(tmp_path):
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "acme-tool"\nversion = "0.1.0"\n')
+    assert sk.seed_bumpversion_config(tmp_path, "rust") == ".bumpversion.toml"
+    body = (tmp_path / ".bumpversion.toml").read_text()
+    assert 'current_version = "0.1.0"' in body
+    assert 'filename = "Cargo.toml"' in body
+    # The lock entry must be a regex, or its `\n` is matched literally and it silently
+    # does nothing — leaving the lockfile stale after a release.
+    assert 'filename = "Cargo.lock"' in body
+    lock_entry = body.split('filename = "Cargo.lock"')[1]
+    assert "regex = true" in lock_entry
+    assert "replace = " in lock_entry
+    # The package name as the manifest writes it: Cargo.lock keeps the hyphens.
+    assert 'name = "acme-tool"' in lock_entry
+
+
+def test_seeding_is_idempotent_and_never_overwrites_the_users_config(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "1.2.3"\n\n'
+        '[tool.bumpversion]\ncurrent_version = "9.9.9"\n'
+    )
+    assert sk.seed_bumpversion_config(tmp_path, "python") is None
+    assert 'current_version = "9.9.9"' in (tmp_path / "pyproject.toml").read_text()
+
+
+def test_seeding_a_crate_that_already_declares_it_elsewhere_is_a_no_op(tmp_path):
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "x"\nversion = "0.1.0"\n')
+    (tmp_path / ".bumpversion.cfg").write_text("[bumpversion]\ncurrent_version = 0.1.0\n")
+    assert sk.seed_bumpversion_config(tmp_path, "rust") is None
+
+
+def test_seeding_needs_a_version_to_anchor_to(tmp_path):
+    """No declared version means no table: `current_version` would have nothing to match."""
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+    assert sk.seed_bumpversion_config(tmp_path, "python") is None
+
+
+def test_a_crate_with_no_package_name_falls_back_to_the_directory(tmp_path):
+    """`cargo generate-lockfile` needs a name; a malformed manifest still gets a config."""
+    (tmp_path / "Cargo.toml").write_text('[package]\nversion = "0.1.0"\n')
+    assert sk.seed_bumpversion_config(tmp_path, "rust") == ".bumpversion.toml"
+    assert f'name = "{tmp_path.name}"' in (tmp_path / ".bumpversion.toml").read_text()
+
+
+def test_note_bumpversion_says_nothing_when_the_manifest_work_failed(tmp_path):
+    """A failed manifest edit means there is no version to anchor to — stay quiet."""
+    result = {"modified": [], "changes": [], "notes": [], "ok": False}
+    sk._note_bumpversion(tmp_path, "python", result)
+    assert result["notes"] == []
+
+
+def test_note_bumpversion_reports_an_existing_declaration(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nversion = "1.0.0"\n\n[tool.bumpversion]\ncurrent_version = "1.0.0"\n'
+    )
+    result = {"modified": [], "changes": [], "notes": [], "ok": True}
+    sk._note_bumpversion(tmp_path, "python", result)
+    assert any("already declared in pyproject.toml" in n for n in result["notes"])
+    assert result["changes"] == []
+
+
+def test_note_bumpversion_reports_that_nothing_could_be_declared(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+    result = {"modified": [], "changes": [], "notes": [], "ok": True}
+    sk._note_bumpversion(tmp_path, "python", result)
+    assert any("no version declared in the manifest" in n for n in result["notes"])
+
+
+def test_note_bumpversion_does_not_list_pyproject_twice(tmp_path):
+    """It is usually already in `modified` from the metadata edits."""
+    (tmp_path / "pyproject.toml").write_text('[project]\nversion = "1.0.0"\n')
+    result = {"modified": ["pyproject.toml"], "changes": [], "notes": [], "ok": True}
+    sk._note_bumpversion(tmp_path, "python", result)
+    assert result["modified"] == ["pyproject.toml"]
+    assert "tool.bumpversion" in result["changes"]
+
+
+def test_finish_skeleton_declares_the_version_location_for_python(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    result = sk.finish_skeleton(
+        tmp_path, owner="acme", repo="widget", host="github", description="d"
+    )
+    assert result["ok"]
+    assert "tool.bumpversion" in result["changes"]
+    assert sk.bumpversion_config(tmp_path) == "pyproject.toml"
+
+
+def test_finish_skeleton_declares_the_version_location_for_rust(tmp_path):
+    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+    result = sk.finish_skeleton(
+        tmp_path, owner="acme", repo="acme-tool", host="github", description="d", language="rust"
+    )
+    assert result["ok"]
+    assert sk.bumpversion_config(tmp_path) == ".bumpversion.toml"
+
+
+def test_seeding_a_pyproject_without_a_trailing_newline_still_parses(tmp_path):
+    """Appending straight onto the last line would fuse it with `[tool.bumpversion]`."""
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "1.0.0"')
+    assert sk.seed_bumpversion_config(tmp_path, "python") == "pyproject.toml"
+    body = (tmp_path / "pyproject.toml").read_text()
+    assert '\nversion = "1.0.0"\n' in body
+    assert "\n[tool.bumpversion]\n" in body

@@ -104,33 +104,25 @@ test -f pyproject.toml && head -20 pyproject.toml
 
 ## 5. Declare where the version lives, for `/rhiza:release`
 
-`/release` refuses to guess which files state the version — it reads
-`[tool.bumpversion]`. Without it the first release stops dead, so add the config now
-while the repo's shape is known. Append to `pyproject.toml` (or write
-`.bumpversion.toml`) if no `[tool.bumpversion]` exists yet:
+**Step 3's script already did this** — `init_skeleton.py` appends a `[tool.bumpversion]`
+table to `pyproject.toml`, anchored to `[project].version`, and says so in its notes
+(`declared the version location in …`). Nothing to write by hand. What is left is to
+*check*, because the consequence of it being absent is silent:
 
-```toml
-[tool.bumpversion]
-current_version = "0.1.0"   # match [project].version
-tag = false                 # /rhiza:release tags after the changelog lands
-commit = false              # ... and commits, so the diff is reviewable first
-allow_dirty = false         # a release is cut from a clean tree
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-regex = true
-search = '(?ms)^\[project\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
-replace = '[project]\1version = "{new_version}"'
+```bash
+grep -l 'tool.bumpversion' .bumpversion.toml .bumpversion.cfg setup.cfg pyproject.toml 2>/dev/null
 ```
 
-**The pattern must be anchored.** `search`/`replace` apply to *every* occurrence in a
-file, so the naive `search = 'version = "{current_version}"'` would also rewrite a
-`[tool.something].version` that happens to share the number. The `regex` form above
-confines the change to the `[project]` table. (Dependency pins like `httpx>=0.27` are
-never at risk — they aren't line-anchored `version = ` assignments.)
+`/release` refuses to guess which files state the version, and `bump-my-version` itself
+falls back to `git describe` without warning — so a missing table means a release can be
+cut at a version that already exists. The table must live in a file the tool actually
+searches (`.bumpversion.toml`, `.bumpversion.cfg`, `setup.cfg`, `pyproject.toml`); one
+in `.rhiza/.cfg.toml` is never found, and the template's own
+`test_a_discoverable_config_exists` gate fails on exactly that.
 
-Set `current_version` to whatever `[project].version` actually says — they must agree,
-or `bump-my-version` won't find its search pattern.
+If the script reported that it wrote nothing because the manifest declares no version,
+**stop** — that is step 4's gate failing, not something to paper over. If a
+`[tool.bumpversion]` was already there, it is the user's and wins.
 
 **A repo whose CI stubs point at itself** needs one entry per stub as well, or a
 published tag ships workflows calling the previous version's reusable workflows. That
@@ -227,34 +219,23 @@ apply this procedure to the member crate instead.
 
 ### R5. Declare where the version lives, for `/rhiza:release`
 
-Same rule as step 5 — `/release` reads `[tool.bumpversion]` and refuses to guess.
-Rust has no `[tool]` table convention, so write **`.bumpversion.toml`**:
+**R3's script already did this**, as on the python side — but to `.bumpversion.toml`,
+because Cargo has no `[tool]` table convention and `bump-my-version` does not read
+`Cargo.toml`. It writes two file entries: `Cargo.toml` anchored to `[package]`, and
+`Cargo.lock` anchored to the package's own name.
 
-```toml
-[tool.bumpversion]
-current_version = "0.1.0"   # match [package].version
-tag = false
-commit = false
-allow_dirty = false
+Check it exists and move on:
 
-[[tool.bumpversion.files]]
-filename = "Cargo.toml"
-regex = true
-search = '(?ms)^\[package\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
-replace = '[package]\1version = "{new_version}"'
-
-[[tool.bumpversion.files]]
-filename = "Cargo.lock"
-search = 'name = "{name}"\nversion = "{current_version}"'
-ignore_missing_file = true
+```bash
+test -f .bumpversion.toml && grep -c 'tool.bumpversion' .bumpversion.toml
 ```
 
-**The `[package]` anchor matters more here than in python.** An unanchored
-`version = "{current_version}"` would rewrite every dependency in `Cargo.lock` that
-happens to share the number. And `Cargo.lock` records the crate's own version, so a
-release that bumps only `Cargo.toml` leaves the lockfile stale and the next `cargo
-build` dirties the tree — hence the second entry (`{name}` is the crate name; fill it
-in literally).
+**Both entries matter, for different reasons.** The `[package]` anchor keeps the rewrite
+off every dependency in `Cargo.lock` that happens to share the version number. And
+`Cargo.lock` records the crate's *own* version, so bumping only `Cargo.toml` leaves the
+lockfile stale and the next `cargo build` dirties the tree — which is why the lock entry
+is there, and why it is `regex = true`: without that, its `\n` is matched literally, the
+entry silently does nothing, and the release looks clean while the lockfile is wrong.
 
 ### R6. Report
 

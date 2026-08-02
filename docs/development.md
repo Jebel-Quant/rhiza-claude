@@ -55,12 +55,29 @@ adds the site metadata and navigation.
 ## Tests
 
 ```bash
-make test                          # fast, offline; enforces 100% coverage of scripts/
-RHIZA_E2E=1 uvx pytest tests/test_init_e2e.py   # opt-in end-to-end (needs network + uv)
+make test                    # the whole suite, with a 100% coverage gate on scripts/
+uvx pytest tests/ -k e2e -q  # just the end-to-end tests (needs network, uv, cargo)
 ```
 
-The end-to-end test scaffolds a repo, runs a real `rhiza sync`, and asserts the
-template's own gates pass — the sign-off for changes to the `init` scaffolder.
+**The end-to-end tests are not opt-in.** They scaffold repos with the real `/init`
+script chain, sync them from the real template, and assert the outcomes — a Python
+repo on `github-project`, one on `gitlab-project`, and a Rust crate. They used to be
+opt-in behind `RHIZA_E2E=1`, which is how `/rhiza:quality` shipped unable to run at
+all: a suite nobody runs still reads as coverage.
+
+The template ref they sync from is **pinned** in `tests/conftest.py`
+(`PINNED_TEMPLATE_REF`), so a PR run never goes red merely because upstream released.
+The cost of pinning is drift, so `.github/workflows/template-drift.yml` runs the same
+tests weekly against the template's *latest* release and files a finding when the two
+disagree. A red **Template drift** means upstream moved; a red **CI** means this repo
+did.
+
+Two things need tools the plugin itself does not: the Rust fixtures need `cargo`
+(`cargo init --lib` builds the crate), and half of `tests/test_platform_cli.py` needs
+`glab`. Both skip when the tool is absent, and CI installs or verifies both so the skip
+never happens there. Nothing else skips: the pin is a rhiza release that defines every
+profile `/rhiza:init` writes, so a ref that stops defining one **fails** the suite rather
+than quietly narrowing it.
 
 ## CI/CD
 

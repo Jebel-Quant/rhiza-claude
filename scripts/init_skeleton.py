@@ -23,6 +23,17 @@ gates have something to pass:
   [project.urls]          Homepage + Repository — the template's .rhiza/tests/
                           test_pyproject.py requires both
   [dependency-groups]     `test` (incl. pytest) and `lint` groups — likewise required
+  [tool.bumpversion]      where the version lives, so `/rhiza:release` has something to
+                          read (`.bumpversion.toml` on the Rust side)
+
+**Why the bumpversion table is written here and not left to the prose.** It was prose —
+`prompts/skeleton.md` steps 5 and R5 spell the exact block out — and prose is a step a
+model can skip. What it costs when skipped is not a failed gate but a wrong release:
+`bump-my-version` silently falls back to ``git describe``, so a version that already
+exists can be cut again. The template's own `test_a_discoverable_config_exists` (new in
+rhiza v1.3.0) fails on its absence, which is how this surfaced. The block is fixed text
+with one substituted number, so by this plugin's own division of labour — deterministic
+work in tested Python, judgement in markdown — it belongs here.
 
 It writes **no** ``classifiers`` — not a ``License ::`` trove classifier (PEP 639
 replaced it with the SPDX ``license`` field, and `/rhiza:license` owns that), and
@@ -62,6 +73,118 @@ _DEPENDENCY_GROUPS: dict[str, list[str]] = {
     "test": ["pytest>=8.0", "pytest-cov>=5.0"],
     "lint": ["ruff>=0.6"],
 }
+
+# The files `bump-my-version` searches for its config, in its own order. A
+# `[tool.bumpversion]` table anywhere else — `.rhiza/.cfg.toml`, say — is never found,
+# and the tool then falls back to `git describe` without saying so.
+_BUMPVERSION_CONFIGS = (".bumpversion.toml", ".bumpversion.cfg", "setup.cfg", "pyproject.toml")
+# `[tool.bumpversion]` in TOML; `[bumpversion]` is the legacy INI spelling in setup.cfg.
+_BUMPVERSION_SECTION = re.compile(r"^\s*\[(tool\.)?bumpversion\]", re.MULTILINE)
+
+# The version-location declarations, one per language. Fixed text apart from the current
+# version (and, for Cargo.lock, the crate name), which is why they are written by the
+# script rather than left to the procedure's prose.
+#
+# **The search patterns are anchored to their table on purpose.** `search`/`replace` apply
+# to every occurrence in a file, so a bare `version = "{current_version}"` would also
+# rewrite a `[tool.something].version`, or — worse, in `Cargo.lock` — every dependency
+# that happens to share the number.
+#
+# **And the `Cargo.lock` entry needs `regex = true`.** Without it the `\n` is matched
+# literally, so the entry silently does nothing: `Cargo.toml` moves, the lockfile records
+# the old version, and the next `cargo build` dirties the tree — the exact failure the
+# entry exists to prevent, reported as a successful release. The version this repo's own
+# procedure documented had that bug until a real bump was run against it.
+# Raw strings: every backslash here belongs to the regex that lands in the file, and
+# `{{...}}` survives `.format()` as bump-my-version's own `{current_version}` placeholder.
+_PYTHON_BUMPVERSION = r"""
+[tool.bumpversion]
+current_version = "{version}"
+tag = false
+commit = false
+allow_dirty = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+regex = true
+search = '(?ms)^\[project\]((?:(?!^\[)[\s\S])*?)^version = "{{current_version}}"'
+replace = '[project]\1version = "{{new_version}}"'
+"""
+
+_RUST_BUMPVERSION = r"""[tool.bumpversion]
+current_version = "{version}"
+tag = false
+commit = false
+allow_dirty = false
+
+[[tool.bumpversion.files]]
+filename = "Cargo.toml"
+regex = true
+search = '(?ms)^\[package\]((?:(?!^\[)[\s\S])*?)^version = "{{current_version}}"'
+replace = '[package]\1version = "{{new_version}}"'
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+regex = true
+search = '(?m)^name = "{name}"\nversion = "{{current_version}}"$'
+replace = 'name = "{name}"\nversion = "{{new_version}}"'
+ignore_missing_file = true
+"""
+
+
+def bumpversion_config(target: Path) -> str | None:
+    """Return the discoverable file declaring a bumpversion config, or None."""
+    for name in _BUMPVERSION_CONFIGS:
+        path = target / name
+        if path.is_file() and _BUMPVERSION_SECTION.search(path.read_text(errors="ignore")):
+            return name
+    return None
+
+
+def declared_version(target: Path, language: str) -> str | None:
+    """Return the version the manifest declares, or None when it declares none."""
+    manifest = target / ("Cargo.toml" if language == "rust" else "pyproject.toml")
+    if not manifest.is_file():
+        return None
+    lines = manifest.read_text(errors="ignore").splitlines()
+    span = _table_span(lines, "package" if language == "rust" else "project")
+    for line in lines[span[0] + 1 : span[1]] if span else []:
+        match = re.match(r"""^\s*version\s*=\s*["']([^"']+)["']""", line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def seed_bumpversion_config(target: Path, language: str) -> str | None:
+    """Declare where the version lives, for `/rhiza:release`; return the file written.
+
+    Returns None when a discoverable config already exists (the user's wins, and this is
+    idempotent) or when the manifest declares no version to anchor to.
+
+    Python appends to `pyproject.toml`, since that is both discoverable and where the
+    version is. Rust gets `.bumpversion.toml`: Cargo has no `[tool]` table convention,
+    and `bump-my-version` does not read `Cargo.toml`.
+    """
+    if bumpversion_config(target) is not None:
+        return None
+    version = declared_version(target, language)
+    if version is None:
+        return None
+
+    if language == "rust":
+        # The *package* name, not the crate identifier: `Cargo.lock` records the name as
+        # written in the manifest, hyphens and all.
+        name = cargo_package_name(target) or target.name
+        path = target / ".bumpversion.toml"
+        path.write_text(_RUST_BUMPVERSION.format(version=version, name=name))
+        return ".bumpversion.toml"
+
+    manifest = target / "pyproject.toml"
+    text = manifest.read_text()
+    if not text.endswith("\n"):
+        text += "\n"
+    manifest.write_text(text + _PYTHON_BUMPVERSION.format(version=version))
+    return "pyproject.toml"
 
 
 def _project_block(lines: list[str]) -> tuple[int, int]:
@@ -239,6 +362,31 @@ def is_cargo_placeholder_lib(text: str) -> bool:
     return bool(body) and all(line in allowed for line in body)
 
 
+def cargo_package_name(target: Path) -> str | None:
+    """Return `[package] name` exactly as `Cargo.toml` writes it, or None."""
+    manifest = target / "Cargo.toml"
+    if not manifest.is_file():
+        return None
+    lines = manifest.read_text(errors="ignore").splitlines()
+    span = _table_span(lines, "package")
+    for line in lines[span[0] + 1 : span[1]] if span else []:
+        match = re.match(r"""^\s*name\s*=\s*["']([^"']+)["']""", line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def crate_name(target: Path) -> str:
+    """Return the crate's Rust identifier: `[package] name` with `-` mapped to `_`.
+
+    The directory is only a fallback. `cargo init --lib --name widget` inside `some-dir/`
+    produces a crate called `widget`, and naming its doc comment after the folder would
+    describe a crate that does not exist — the same class of "confidently wrong" the
+    language axis exists to avoid.
+    """
+    return (cargo_package_name(target) or target.name).replace("-", "_")
+
+
 def seed_crate_docs(target: Path) -> list[str]:
     """Prepend a `//!` crate doc comment to a crate root that has none.
 
@@ -250,6 +398,7 @@ def seed_crate_docs(target: Path) -> list[str]:
     Returns the relative paths modified (empty when both roots already have docs).
     """
     modified: list[str] = []
+    crate = crate_name(target)
     for name in ("lib.rs", "main.rs"):
         root = target / "src" / name
         if not root.is_file():
@@ -257,7 +406,6 @@ def seed_crate_docs(target: Path) -> list[str]:
         text = root.read_text()
         if text.lstrip().startswith("//!"):
             continue
-        crate = target.name.replace("-", "_")
         root.write_text(
             f"//! {crate} crate.\n\n{text}" if text.strip() else f"//! {crate} crate.\n"
         )
@@ -437,6 +585,33 @@ def _finish_cargo(
     return {"modified": modified, "changes": added, "notes": notes, "ok": True}
 
 
+def _note_bumpversion(target: Path, language: str, result: dict[str, Any]) -> None:
+    """Declare the version location and record what happened in *result*, in place.
+
+    Runs last, and only when the manifest work succeeded: the table anchors to the version
+    the manifest declares, so there is nothing to write until that manifest is sound.
+    """
+    if not result["ok"]:
+        return
+    existing = bumpversion_config(target)
+    written = seed_bumpversion_config(target, language)
+    if written is not None:
+        if written not in result["modified"]:
+            result["modified"].append(written)
+        result["changes"].append("tool.bumpversion")
+        result["notes"].append(
+            f"declared the version location in {written} — /rhiza:release reads "
+            "[tool.bumpversion] and refuses to guess"
+        )
+    elif existing is not None:
+        result["notes"].append(f"version location already declared in {existing}")
+    else:
+        result["notes"].append(
+            "no version declared in the manifest, so no [tool.bumpversion] was written — "
+            "/rhiza:release will have nothing to read"
+        )
+
+
 def finish_skeleton(
     target: Path,
     *,
@@ -459,7 +634,7 @@ def finish_skeleton(
         if seed_readme(target, repo=repo, description=description, create=True):
             modified.append("README.md")
             notes.append("seeded the README.md cargo never writes — /rhiza:docs owns the real one")
-        return _finish_cargo(
+        result = _finish_cargo(
             target,
             owner=owner,
             repo=repo,
@@ -468,6 +643,8 @@ def finish_skeleton(
             modified=modified,
             notes=notes,
         )
+        _note_bumpversion(target, "rust", result)
+        return result
 
     modified.extend(normalize_package_init(target))
     if modified:
@@ -517,7 +694,9 @@ def finish_skeleton(
 
     notes.append("license + classifiers are /rhiza:license and /rhiza:python-version's job")
 
-    return {"modified": modified, "changes": changes, "notes": notes, "ok": True}
+    result = {"modified": modified, "changes": changes, "notes": notes, "ok": True}
+    _note_bumpversion(target, "python", result)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

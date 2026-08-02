@@ -61,6 +61,14 @@ jobs:
           rm -rf glab.tar.gz bin
           glab --version
 
+      # The Rust end-to-end fixtures build a crate with `cargo init --lib`, and skip when
+      # cargo is absent. GitHub's runners ship a toolchain, so this is normally a no-op —
+      # it is here to make an image that stops shipping one fail loudly instead of
+      # silently skipping the whole Rust axis, which is how a suite quietly stops
+      # covering a language.
+      - name: Verify the Rust toolchain the crate fixture needs
+        run: cargo --version
+
       # The suite includes end-to-end tests that clone the real template
       # (jebel-quant/rhiza, at the ref pinned in tests/conftest.py) and drive each
       # command's script chain against a genuinely synced repo. They always run —

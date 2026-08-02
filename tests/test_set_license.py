@@ -329,3 +329,45 @@ def test_set_cargo_license_metadata_preserves_the_absence_of_a_trailing_newline(
     text = '[package]\nname = "x"'
     new_text, changed = sl.set_cargo_license_metadata(text, "MIT")
     assert changed and not new_text.endswith("\n")
+
+
+# --- end-to-end: a real crate, and the dual-manifest case ---------------------
+
+
+def test_e2e_a_real_crate_gets_the_spdx_expression_cargo_wants(rust_crate):
+    """`/rhiza:license` ran as part of the fixture chain; this is its outcome.
+
+    `license` in `[package]` is what `cargo publish` and the template's licence gate
+    read, and it is the only place a crate's terms are declared.
+    """
+    manifest = (rust_crate / "Cargo.toml").read_text()
+    assert 'license = "MIT"' in manifest
+    assert "license-file" not in manifest
+    assert (rust_crate / "LICENSE").read_text().startswith("MIT License")
+
+
+def test_e2e_both_manifests_are_visited_so_they_cannot_disagree(rust_crate, tmp_path):
+    """A pyo3/maturin repo carries a Cargo.toml *and* a pyproject.toml.
+
+    Dispatching on the declared language would leave one of them stale, and two manifests
+    declaring different terms is worse than one declaring none.
+    """
+    import shutil
+
+    repo = tmp_path / "widget"
+    shutil.copytree(rust_crate, repo)
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname = "widget"\nversion = "0.1.0"\nlicense = "Apache-2.0"\n'
+    )
+    # A stale `license-file` is the trap: left behind, `cargo publish` describes terms
+    # the repo no longer ships.
+    (repo / "Cargo.toml").write_text(
+        (repo / "Cargo.toml").read_text().replace('license = "MIT"', 'license-file = "COPYING"')
+    )
+
+    summary = sl.set_license(repo, license_id="MIT", holder="jebel-quant", year="2026", force=True)
+
+    assert set(summary["modified"]) == {"pyproject.toml", "Cargo.toml"}
+    cargo, pyproject = (repo / "Cargo.toml").read_text(), (repo / "pyproject.toml").read_text()
+    assert 'license = "MIT"' in cargo and "license-file" not in cargo
+    assert 'license = "MIT"' in pyproject and "Apache-2.0" not in pyproject

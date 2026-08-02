@@ -324,24 +324,18 @@ def test_main_reports_no_tags(repo, capsys):
 
 # --- end-to-end: /release's full chain on a real repo -------------------------
 
-# Declared version locations, as prompts/skeleton.md scaffolds them: the `[project]`
-# table anchored by regex, plus a self-referencing CI stub pin. `[tool.unrelated]`
-# shares the version number deliberately — it must not move.
+# What a repo adds *on top of* the base `[tool.bumpversion]` table that
+# `init_skeleton.py` already wrote (the `[project]` anchor): a self-referencing CI stub
+# pin, which is a location only this repo knows about. `[tool.unrelated]` shares the
+# version number deliberately — it must not move.
+#
+# Re-declaring `[tool.bumpversion]` here would be a duplicate-key TOML error, which is
+# itself worth knowing: appending a second table is how a repo breaks its own release
+# config, so `/rhiza:release`'s locations are extended, never restated. `allow_dirty` is
+# left as the skeleton set it (false) and the bump below passes `--no-commit`.
 _BUMPVERSION_CONFIG = r"""
 [tool.unrelated]
 version = "0.1.0"
-
-[tool.bumpversion]
-current_version = "0.1.0"
-tag = false
-commit = false
-allow_dirty = true
-
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-regex = true
-search = '(?ms)^\[project\]((?:(?!^\[)[\s\S])*?)^version = "{current_version}"'
-replace = '[project]\1version = "{new_version}"'
 
 [[tool.bumpversion.files]]
 filename = ".github/workflows/stub.yml"
@@ -370,6 +364,16 @@ def test_e2e_release_bumps_every_declared_location(synced_repo_copy):
     )
     pyproject.write_text(pyproject.read_text() + _BUMPVERSION_CONFIG)
     assert 'version = "0.1.0"' in pyproject.read_text()
+
+    # The skeleton writes `allow_dirty = false` — a release is cut from a clean tree — so
+    # commit what the sync left behind first. That constraint is part of what is under
+    # test: passing `--allow-dirty` here would quietly stop exercising it.
+    # `--no-verify`: an earlier gate in this session may have installed the template's
+    # pre-commit hooks in the shared fixture, and they would reject the deliberately
+    # minimal `stub.yml` above as an invalid workflow. The template's hooks are not what
+    # this test is about.
+    assert_ok(run_cmd(["git", "add", "-A"], repo), "git add")
+    assert_ok(run_cmd(["git", "commit", "-qm", "chore: sync", "--no-verify"], repo), "git commit")
 
     # 1. The declared current version, read by /release's step 1.
     current = run_cmd(["uvx", "bump-my-version", "show", "current_version"], repo)

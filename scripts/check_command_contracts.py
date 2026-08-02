@@ -36,6 +36,10 @@ the code it actually calls:
    The policy is a property of the whole command surface, not of one file, so it is
    asserted in both directions: a destructive command that quietly loses the key is as
    much a regression as a harmless one that grows it.
+9. **Test references resolve** — a ``tests/test_<name>.py`` named in that same prose
+   exists. Rule 7's other half, and missing for the same reason: ``docs/development.md``
+   went on telling contributors to run ``tests/test_init_e2e.py`` long after that file
+   was folded into ``test_init_scaffold.py``, because only ``scripts/`` was ever scanned.
 
 Usage:
   uv run --python 3.12 --no-project python \
@@ -306,6 +310,10 @@ def check_model_invocation(rel: str, stem: str, text: str) -> list[str]:
 _PROSE_FILES = ("README.md", "CONTRIBUTING.md", "CLAUDE.md", "SECURITY.md")
 _PROSE_GLOB = "docs/**/*.md"
 _PROSE_EXCLUDE = ("docs/reports/",)
+# A test file named in prose. The lookbehind keeps it to *this* repo's tests: the
+# template's synced `.rhiza/tests/test_pyproject.py` is documented here and is not ours
+# to resolve. Globs and `<name>` placeholders never match the `[a-z0-9_]+` body.
+_TEST_REFERENCE = re.compile(r"(?<![\w./-])tests/(test_[a-z0-9_]+)\.py")
 
 
 def prose_files(root: Path) -> list[Path]:
@@ -316,6 +324,27 @@ def prose_files(root: Path) -> list[Path]:
         if not any(rel.startswith(prefix) for prefix in _PROSE_EXCLUDE):
             found.append(path)
     return found
+
+
+def check_test_references(rel: str, text: str, tests_dir: Path) -> list[str]:
+    """Rule 9: a `tests/test_<name>.py` named in prose exists.
+
+    The other half of rule 7, and it was missing for the same reason rule 7 was added.
+    ``docs/development.md`` told contributors to run
+    ``RHIZA_E2E=1 uvx pytest tests/test_init_e2e.py`` — a file folded into
+    ``test_init_scaffold.py`` and deleted — and the instruction survived the deletion
+    because the reference scanner only ever looked at ``scripts/``. A contributor
+    following it gets "file or directory not found" and reasonably concludes the suite
+    is broken.
+
+    Only ``tests/…`` at a path boundary counts, so the template's own
+    ``.rhiza/tests/test_pyproject.py`` (a synced file, not ours) is left alone.
+    """
+    return [
+        f"{rel}: names tests/{name}.py, which does not exist"
+        for name in _TEST_REFERENCE.findall(text)
+        if not (tests_dir / f"{name}.py").is_file()
+    ]
 
 
 def check_script_references(rel: str, text: str, scripts_dir: Path) -> list[str]:
@@ -363,10 +392,12 @@ def check_contracts(root: Path) -> list[str]:
                 violations += check_allowed_tools(rel, text, blocks)
                 violations += check_model_invocation(rel, path.stem, text)
 
-    scripts_dir = root / "scripts"
+    scripts_dir, tests_dir = root / "scripts", root / "tests"
     for path in prose_files(root):
         rel = path.relative_to(root).as_posix()
-        violations += check_script_references(rel, path.read_text(), scripts_dir)
+        text = path.read_text()
+        violations += check_script_references(rel, text, scripts_dir)
+        violations += check_test_references(rel, text, tests_dir)
     return violations
 
 

@@ -270,3 +270,49 @@ def test_the_language_flag_takes_precedence_over_the_python_shorthand(capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "Go-1.22" in out and "Python" not in out
+
+
+# --- end-to-end: the badges a real crate gets ---------------------------------
+
+
+def test_e2e_a_real_crate_gets_a_rust_badge_carrying_its_own_edition(rust_crate):
+    """`/rhiza:docs` reads `edition` out of `Cargo.toml` and passes it here.
+
+    So the assertion crosses that seam rather than trusting a literal: the edition is
+    read from the crate cargo actually wrote, and the badge must carry that value. A
+    hardcoded `2021` would keep passing after cargo's default moved on.
+    """
+    import re as _re
+
+    manifest = (rust_crate / "Cargo.toml").read_text()
+    edition = _re.search(r'^\s*edition\s*=\s*"([^"]+)"', manifest, _re.MULTILINE)
+    assert edition, f"cargo wrote no edition:\n{manifest}"
+
+    summary = rb.build_badges(
+        **{
+            **_BASE,
+            "owner": "jebel-quant",
+            "language": "rust",
+            "language_versions": [edition.group(1)],
+            "license_id": "MIT",
+        }
+    )
+    rust_badges = [b for b in summary["badges"] if "Rust-" in b]
+    assert len(rust_badges) == 1, summary["badges"]
+    assert edition.group(1) in rust_badges[0]
+    assert "logo=rust" in rust_badges[0]
+    assert not any("Python" in badge for badge in summary["badges"])
+
+
+def test_e2e_a_crate_with_no_ci_gets_no_ci_badge(rust_crate):
+    """`rust-local` ships no workflows, and a badge for absent CI is a broken image.
+
+    "Omit, don't fake" is the renderer's whole rule, and the Rust profile is the case
+    where the omission is permanent rather than a detection failure.
+    """
+    assert not list((rust_crate / ".github").glob("workflows/*.yml")), (
+        "the fixture crate has CI after all — this test no longer asserts what it claims"
+    )
+    summary = rb.build_badges(**{**_BASE, "language": "rust", "language_versions": ["2024"]})
+    assert not any("actions/workflows" in badge for badge in summary["badges"])
+    assert "CI: no workflow file found in .github/workflows" in summary["skipped"]
