@@ -36,7 +36,7 @@ neither.
 performs the first sync; `/quality` needs that content to exist. So "`/init` ran and no
 CI appeared" is the expected result of step one.
 
-**Two kinds of markdown, and the difference is enforced.** `commands/` holds the seven
+**Two kinds of markdown, and the difference is enforced.** `commands/` holds the eight
 slash commands you invoke; `prompts/` holds seven **internal procedures** they `Read` —
 kept outside `commands/` so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
@@ -227,10 +227,11 @@ anything.
 
 ## Contributing
 
-Edit the command `.md` files under `commands/`, then commit and push:
+Branch off `main`, make the change, and open a PR — CI runs the same
+`make lint && make test` you can run locally, so a green pair means a green PR.
+[CONTRIBUTING.md](./CONTRIBUTING.md) has the details: the prerequisites, the
+checklist for adding or changing a command, and the commit conventions the
+changelog is generated from.
 
-```bash
-git add -A && git commit -m "..." && git push
-```
-
-Installed users pick up changes the next time the marketplace refreshes.
+Once a change lands on `main`, installed users pick it up the next time the
+marketplace refreshes.
