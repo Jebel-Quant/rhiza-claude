@@ -77,17 +77,21 @@ complete the local work and report that the remote steps are pending auth.
 
 - **Language** — ask (`AskUserQuestion`, default **python**): `python`, `rust` or `go`.
   It picks the default template repo, the `language:` key in the pointer, and the
-  profile: `rust` gets the namespaced `rust-github-project` / `rust-gitlab-project`,
-  the others the unprefixed pair.
+  profile: `python`/`go` get `github-project`/`gitlab-project`, `rust` gets
+  `rust-local` on either host.
 - **`TEMPLATE_REPO`** — default `jebel-quant/rhiza` (python **and rust** — that
   template is multi-language, layering a `rust-core` toolchain bundle on a neutral
   `core`) or `jebel-quant/rhiza-go` (go, a separate fork); offer to override with any
   `owner/repo`, or to pick from `gh search repos --topic rhiza --json fullName`.
-- **Rust needs a recent enough pin.** The `rust-*` profiles only exist from the
-  `jebel-quant/rhiza` release that introduced them. If `$TARGET` predates it the first
-  `/update` fails with "Profile 'rust-github-project' was not found" — check with
-  `git ls-remote --tags` or just pin the latest release, which step 3's `TARGET` does
-  anyway.
+- **Rust needs a recent enough pin, and gets no hosted CI yet.** `rust-local` only
+  exists from the `jebel-quant/rhiza` release that introduced the Rust bundles; if
+  `$TARGET` predates it, the first `/update` fails with "Profile 'rust-local' was not
+  found". Pinning the latest release — which step 3 does anyway — avoids that.
+  There is deliberately no `rust-github-project`: those profiles are almost entirely
+  CI workflows, and rhiza's `github`/`gitlab` bundles still ship Python ones. **Say
+  this to the user** when they pick rust, so no one waits for CI that was never
+  configured: they get the full local toolchain (cargo, clippy, nextest, llvm-cov,
+  cargo-deny) and add hosted CI when the Rust workflows land.
 - **Reachability** — `git ls-remote --exit-code https://<host>/$TEMPLATE_REPO`. If
   unreachable, **stop** — don't write a pointer at a repo that isn't there. (If `git`
   can't check, warn and continue.)

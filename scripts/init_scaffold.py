@@ -40,16 +40,29 @@ DEFAULT_TEMPLATE_REPO = {
     "rust": "jebel-quant/rhiza",
 }
 
-# Languages whose profiles are namespaced in the template (`rust-github-project`).
-# Python's profiles are unprefixed for backwards compatibility — renaming them would
-# break the pointer of every repo already synced.
-_PROFILE_PREFIX = {"rust": "rust-"}
+# Which profile a (language, host) pair resolves to. Python's names are unprefixed
+# for backwards compatibility — renaming them would break the pointer of every repo
+# already synced.
+#
+# Rust maps both hosts to `rust-local`, because that is the only Rust profile the
+# template currently defines. Hosted-CI Rust profiles are made almost entirely of
+# workflows, and the template's `github`/`gitlab` bundles still ship Python ones (a
+# release job running `uv build` against PyPI, Dependabot declaring the `uv`
+# ecosystem), so they land together with the Rust workflows. Writing a pointer at a
+# `rust-github-project` that does not exist would fail the first sync with
+# "Profile 'rust-github-project' was not found"; a Rust repo gets working local
+# tooling now and gains CI when it exists.
+_PROFILES: dict[str, dict[str, str]] = {
+    "python": {"github": "github-project", "gitlab": "gitlab-project"},
+    "go": {"github": "github-project", "gitlab": "gitlab-project"},
+    "rust": {"github": "rust-local", "gitlab": "rust-local"},
+}
 
 
 def profile_for_host(host: str, language: str = "python") -> str:
     """Return the sync profile matching the git hosting platform and language."""
-    platform = "gitlab-project" if host == "gitlab" else "github-project"
-    return f"{_PROFILE_PREFIX.get(language, '')}{platform}"
+    platform = "gitlab" if host == "gitlab" else "github"
+    return _PROFILES.get(language, _PROFILES["python"])[platform]
 
 
 def render_template_yml(
