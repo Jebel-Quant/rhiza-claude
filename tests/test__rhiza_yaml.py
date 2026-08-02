@@ -273,3 +273,13 @@ def test_is_float():
 )
 def test_as_list(value: Any, expected: list[str]) -> None:
     assert y.as_list(value) == expected
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_a_block_scalar_running_to_the_end_of_the_document(tmp_path):
+    """The scan exhausts the file instead of breaking on a dedented line."""
+    path = tmp_path / "t.yml"
+    path.write_text("name: x\nnotes: |\n  first\n  second\n")
+    assert y.load_yaml(path)["notes"] == "first\nsecond"
