@@ -63,3 +63,16 @@ PyYAML.
 - **No `template.yml` at all** means the repo isn't rhiza-managed — that points at
   [`/rhiza:init`](init.md).
 - For an assessment rather than a report, use [`/rhiza:quality`](quality.md).
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `commands/status.md` |
+| **Invocation** | `/rhiza:status [path to a repo root]  (optional; defaults to the current repo)` |
+| **Model-invocable** | yes |
+| **Allowed tools** | `Bash(uv*)`, `Read` |
+
+<!-- generated:end -->

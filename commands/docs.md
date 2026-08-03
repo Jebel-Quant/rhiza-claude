@@ -1,5 +1,5 @@
 ---
-description: Create or refresh the current repo's three top-of-repo documentation files — README.md (with the standard rhiza badge set, rendered by scripts/render_badges.py), CLAUDE.md (guidance for future Claude Code sessions), and mkdocs.yml (the locally-owned docs site config) — auto-detecting platform, owner/repo, and project metadata from the git remote, pyproject.toml, workflows, and .rhiza/ config. Preserves hand-written prose — it replaces the generated badge block, adds missing standard sections, and corrects stale facts, but never deletes what a human wrote. Also syncs the README's `make help` target list via scripts/sync_readme_help.py. Writes files only — no commit, no branch, no PR.
+description: Create or refresh this repo's README.md, CLAUDE.md and mkdocs.yml, detecting project metadata from git and the manifest. Preserves hand-written prose. Writes files only — no commit, no branch, no PR.
 argument-hint: "[readme | claude | mkdocs | all]  (optional; defaults to all)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(grep*), Bash(find*), Bash(cat*), Bash(head*), Bash(make*), Bash(uv*), Read, Edit, Write, AskUserQuestion
 ---

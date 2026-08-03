@@ -67,3 +67,16 @@ is worse than a shorter catalogue. `themes` must be non-empty (a test enforces i
 - Needs `uv` only, and the script is stdlib-only.
 - *Über sieben Brücken musst du gehn* is a Karat song (1978); the catalogue attributes
   the year of **Maffay's** recording, 1980.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `commands/maffay.md` |
+| **Invocation** | `/rhiza:maffay [theme keyword e.g. mut]  (optional; omit for the whole catalogue)` |
+| **Model-invocable** | yes |
+| **Allowed tools** | `Bash(uv*)` |
+
+<!-- generated:end -->

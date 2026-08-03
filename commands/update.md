@@ -1,5 +1,5 @@
 ---
-description: Sync the current rhiza-managed repo to the latest (or a given) template release — bump the `ref` in .rhiza/template.yml, run the bundled stdlib-only sync, resolve any conflicts by taking the upstream side, and open a PR containing **only template-owned files** (the paths .rhiza/template.lock records, never a blanket `git add --all`). The template repository is read from template.yml, so a fork works too. It runs no quality gates, produces no scorecard, and files no issues — run /rhiza:quality for that. Always branches off the up-to-date default branch and restores the branch you started on.
+description: Sync this rhiza-managed repo to the latest (or a given) template release and open a PR containing only template-owned files. Runs no gates and files no issues — use /rhiza:quality for a score.
 argument-hint: "[version e.g. v1.2.0]  (optional; defaults to the template's latest release)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 ---

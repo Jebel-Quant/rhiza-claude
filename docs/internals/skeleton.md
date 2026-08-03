@@ -78,3 +78,15 @@ The gate is the same idea in each: `cargo metadata` (Rust) or `go list -m` plus
   it from your `git config`. The command flags it if it's missing.
 - **Lower bounds** on every dependency (`httpx>=0.27`, never bare `httpx`), including
   optional and dependency-group entries.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/skeleton.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:init`](../commands/init.md), [`license`](license.md), [`python-version`](python-version.md) |
+
+<!-- generated:end -->

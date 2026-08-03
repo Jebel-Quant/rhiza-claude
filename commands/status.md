@@ -1,5 +1,5 @@
 ---
-description: Report the repo's rhiza state — both halves of it. First validates the configuration via scripts/validate.py (that the target is a git repo with the expected language-specific structure, that `.rhiza/template.yml` exists and parses, and that its required/optional fields are present and well-typed), then reports what was actually synced from `.rhiza/template.lock` (template repository, ref, commit SHA, timestamp, strategy, managed files) via scripts/status.py. Intent versus outcome — the two can disagree, so reporting one alone misleads. Add --files to list the managed files as a tree, or --check to compare the pinned ref against the latest upstream release. Both scripts are stdlib-only, so this works without the rhiza CLI. Read-only; no scoring, no fixes, no issues. Absorbs what used to be /rhiza:validate.
+description: Report this repo's rhiza state — whether the config is valid, and what was actually synced. Read-only. Add --files for a tree of managed files, or --check for upstream drift.
 argument-hint: "[path to a repo root]  (optional; defaults to the current repo)"
 allowed-tools: Bash(uv*), Read
 ---

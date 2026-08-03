@@ -36,3 +36,15 @@ guesses.
 - The function-local import cycle is the finding that matters most in practice: a
   module-level cycle usually crashes and gets fixed, while a deferred one survives for
   years.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/design-analysis.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:quality`](../commands/quality.md), [`scorecard`](scorecard.md) |
+
+<!-- generated:end -->

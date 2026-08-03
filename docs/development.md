@@ -61,6 +61,34 @@ and flags it names exist, and exactly the destructive commands
 keeps the `prompts/` procedures referenced and un-invocable. `docs-nav` requires a
 `docs/` page and an `mkdocs.yml` nav entry for every command and procedure, in
 both directions, so neither an undocumented command nor an orphaned page can ship.
+`docs-reference-blocks` is its content half: each page carries a **Reference** table
+generated from the command's frontmatter by `scripts/render_command_docs.py`, so a
+renamed argument or a widened `allowed-tools` list cannot survive in the docs. Page
+*existence* was checked; page *facts* were not.
+
+Only that block is generated — the pages are hand-written prose, and
+`docs/commands/maffay.md` is longer than the command it documents. The renderer
+appends and never edits a hand-written line.
+
+### Shared hooks from `rhiza-hooks`
+
+[`jebel-quant/rhiza-hooks`](https://github.com/Jebel-Quant/rhiza-hooks) publishes
+pre-commit hooks for rhiza projects. This repo is deliberately **not** rhiza-managed,
+so most of them key off a `.rhiza/` directory that isn't here and would be inert.
+
+Adoption is therefore selective, and each candidate was **negative-tested** — break the
+thing it checks, confirm the hook fails — before being enabled. Only
+`check-workflow-make-targets` earned its place: it fails on
+`run: make totally-not-a-target` in a workflow, and nothing here checked that before.
+`check-makefile-targets` and `check-bumpversion-config` both *passed* with their subject
+deliberately broken, because they look for a `pyproject.toml` this repo doesn't have, so
+they were rejected. An enabled-but-inert hook is worse than no hook: it reads as
+coverage that doesn't exist.
+
+`update-readme-help` overlaps `scripts/sync_readme_help.py` in job but not in consumer.
+The script is a **plugin** script that `/rhiza:docs` runs inside *someone else's* repo,
+which need not have adopted rhiza-hooks; the hook only helps repos that have. Kept
+local.
 
 ## Building the book
 
