@@ -29,7 +29,7 @@ Everything is driven by `make` (run `make help` for the full list):
 ```bash
 make help           # show this list
 make install        # install the rhiza plugin via the Claude Code CLI
-make lint           # run all pre-commit hooks against every file
+make lint           # run all prek hooks against every file
 make test           # run the script test suite with a 100% coverage gate
 make book           # build the documentation site into _book/
 make book-serve     # serve the docs locally with live reload
@@ -41,7 +41,12 @@ make changelog      # regenerate CHANGELOG.md from conventional commits
 
 `make lint` runs every quality hook (mypy, interrogate, the test-layout check,
 and the manifest JSON/version-parity checks included). To run just one, use
-`uvx pre-commit run <hook-id> --all-files`.
+`uvx prek run <hook-id> --all-files`.
+
+The runner is [`prek`](https://prek.j178.dev/) — a drop-in reimplementation of
+`pre-commit`. The config keeps the `.pre-commit-config.yaml` name and schema, so you
+need nothing installed beyond `uv`; `uvx` fetches prek on first use. Bump hook
+revisions with `uvx prek update`.
 
 The two you need before opening a PR are `make lint` and `make test` — the CI
 gates mirror them exactly, so a green pair locally means a green PR.
@@ -78,7 +83,7 @@ prose or scripts, `make lint && make test` is enough.
 - Branch off `main`, open a PR, and let CI run. Keep PRs focused.
 - Never bump the plugin version by hand — `.claude-plugin/plugin.json` and
   `.claude-plugin/marketplace.json` must agree, and the `manifest-version-parity`
-  pre-commit hook enforces it. Both are declared in `[tool.bumpversion]`
+  hook enforces it. Both are declared in `[tool.bumpversion]`
   (`.bumpversion.toml`), so `bump-my-version` writes them together; `/rhiza:release`
   drives it and regenerates the changelog.
 

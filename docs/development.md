@@ -56,7 +56,7 @@ hooks unavailable, so the rules are still stated where they apply.
 
 ```bash
 make help        # list targets
-make lint        # run pre-commit against every file
+make lint        # run prek against every file
 make test        # run the script test suite (100% coverage gate)
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload
@@ -66,8 +66,16 @@ make clean       # remove generated caches and artifacts
 `make lint` runs every quality hook — mypy, interrogate (docstrings), the
 test-layout check, the manifest JSON/version-parity checks, and the three that
 gate the prose (`command-contracts`, `prompt-wiring`, `docs-nav`). To run a
-single one, use `uvx pre-commit run <hook-id> --all-files` (e.g. `mypy`,
+single one, use `uvx prek run <hook-id> --all-files` (e.g. `mypy`,
 `interrogate`, `test-layout`, `manifest-version-parity`, `docs-nav`).
+
+The runner is [`prek`](https://prek.j178.dev/), a drop-in reimplementation of
+`pre-commit` in Rust. The config file keeps the `.pre-commit-config.yaml` name and
+schema — prek reads it unchanged, and nothing in it is prek-specific — so the switch
+shows up only in `make lint`, the CI `lint` job, and `uvx prek update` in place of
+`pre-commit autoupdate`. Note the boundary: rhiza-*managed* repos get `pre-commit` from
+the template, so the plugin's own prose about other people's repos still says
+`pre-commit`, and that is not a leftover.
 
 The prose hooks are the unusual ones. `command-contracts` treats each command as
 a contract — its frontmatter parses, its bash blocks are valid shell, the scripts
@@ -149,9 +157,11 @@ than quietly narrowing it.
 
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`) runs pre-commit (including a strict
-  `mypy` type-check and 100% `interrogate` docstring coverage of `scripts/`)
-  and the test suite under the 100% coverage gate.
+- **CI** (`.github/workflows/ci.yml`) runs the hooks through prek (including a
+  strict `mypy` type-check and 100% `interrogate` docstring coverage of
+  `scripts/`) and the test suite under the 100% coverage gate. Its two jobs,
+  `lint` and `tests`, are the required status checks named in
+  `.github/rulesets/main-protection.json`.
 - **Book** (`.github/workflows/book.yml`) builds the site on every push and
   deploys it to GitHub Pages from the default branch.
 - **CodeQL** (`.github/workflows/codeql.yml`) scans the Python scripts and the

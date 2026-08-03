@@ -20,7 +20,7 @@ anywhere. That has two consequences worth internalising before you touch anythin
 
 ```bash
 make help           # list every target
-make lint           # all pre-commit hooks over every file
+make lint           # all prek hooks over every file
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make book           # build the docs site into _book/ (runs paper + test first)
 make book-serve     # docs with live reload
@@ -38,9 +38,17 @@ you to re-run bare — the arguments, thresholds and exclusions
 live in the target and in `.pre-commit-config.yaml`, so a direct `uvx ruff`/`uvx
 interrogate` invocation measures something else. CI runs these same targets.
 
-To run one hook instead of all of them: `uvx pre-commit run <hook-id> --all-files`
+To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
 (`mypy`, `interrogate`, `test-layout`, `command-contracts`, `prompt-wiring`,
 `manifest-version-parity`).
+
+**The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
+config file keeps its `.pre-commit-config.yaml` name and schema — prek reads that format
+unchanged — so the only places the choice is visible are `make lint` and the CI `lint`
+job. Reach for `uvx prek update` rather than `pre-commit autoupdate` when bumping hook
+revs — as with every other tool here, `uvx` fetches it, so nothing is installed globally.
+Note that rhiza-*managed* repos are a different question: the template drives
+`pre-commit`, which is why the prose under `plugin/` still says so.
 
 `make lint && make test` green locally means a green PR. `make book` additionally needs
 a LaTeX engine, so skip it for prose- or script-only changes.
