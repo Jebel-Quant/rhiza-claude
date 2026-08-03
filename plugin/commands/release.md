@@ -49,18 +49,34 @@ anyway (step 3).
   guessing is exactly what this command refuses to do. Report what's needed: a
   `.bumpversion.toml` with `current_version` and one `[[tool.bumpversion.files]]` entry
   per location (see step 6 for the stub-pin case). Hold the value as `CURRENT`.
-- **Unless the config is tag-derived, which is how Go declares it.** `go-core` ships a
-  `.bumpversion.toml` that deliberately omits `current_version`, because a Go module's
-  version *is* its git tag. On a repo that has not been tagged yet the command above
-  therefore fails with "Unable to determine the current version" — a **declared** version
-  location with nothing to read yet, which is not the same fact as no config at all and
-  must not be reported as one. Tell them apart:
+- **Unless the config is tag-derived, which is how Go *and Rust* declare it.** Both
+  `go-core` and `rust-core` ship a `.bumpversion.toml` that deliberately omits
+  `current_version`: the file is *synced*, so it must not carry a value only the consuming
+  repo can own — the next `/rhiza:update` would reset it. Each therefore derives the
+  current version from the newest matching tag, and on a repo that has not been tagged yet
+  the command above fails with "Unable to determine the current version" — a **declared**
+  version location with nothing to read yet, which is not the same fact as no config at
+  all and must not be reported as one. Tell them apart:
 ```bash
 grep -lq '^\[tool\.bumpversion\]' .bumpversion.toml pyproject.toml 2>/dev/null
 ```
-  A config that exists and no tags → this is the repo's **first** release: hold
-  `CURRENT=0.0.0` (what `internal/version/version.go` ships) and pass it explicitly in
-  step 6. No config → stop, as above.
+  A config that exists and no tags → this is the repo's **first** release. Hold `CURRENT`
+  as whatever that language's declared location actually carries, and pass it explicitly
+  in step 6 — **`0.0.0` is right for Go only**, and passing it to a crate fails the bump:
+
+  | language | `CURRENT` comes from | on a fresh repo |
+  | --- | --- | --- |
+  | Go | `const Version` in `internal/version/version.go` | `0.0.0` |
+  | Rust | `version` under `[package]` in `Cargo.toml` | `0.1.0`, what `cargo init` writes |
+
+  Read the value rather than assuming it:
+```bash
+grep -m1 '^const Version' internal/version/version.go 2>/dev/null
+grep -m1 '^version = ' Cargo.toml 2>/dev/null
+```
+  `-m1` on a manifest cargo wrote finds `[package]`'s, since that table leads the file; if
+  the manifest has been rearranged, `Read` it instead of trusting the first match. No
+  config at all → stop, as above.
 - **On the default branch.** Compare `git branch --show-current` against the remote
   default (`gh repo view --json defaultBranchRef`, else `git remote show origin`). If
   not, warn and ask (`AskUserQuestion`) — releasing off a side branch is unusual, not
@@ -161,11 +177,14 @@ uvx bump-my-version bump --new-version "${TARGET#v}" --no-commit --no-tag
 the release commit contains the version bump and the changelog together. This updates
 every `[[tool.bumpversion.files]]` entry plus `current_version` in the config itself.
 
-**On a tag-derived config (Go), add `--current-version "$CURRENT"`.** With no
+**On a tag-derived config (Go or Rust), add `--current-version "$CURRENT"`.** With no
 `current_version` key and no tag to derive one from, the bump fails exactly as step 1's
-`show` did — and with a tag that disagrees with `internal/version/version.go`, it fails
-differently and more confusingly ("Did not find 'const Version = …'"). Passing the value
-step 1 settled makes both cases deterministic.
+`show` did — and with a value that disagrees with the declared location, it fails
+differently and more confusingly: `Did not find 'const Version = …'` on Go, and on Rust
+`Did not find '(?ms)^\[package\]…version = "…"' in file: 'Cargo.toml'`. That second
+message is precisely what a hardcoded `CURRENT=0.0.0` produces against a crate `cargo
+init` started at `0.1.0`, which is why step 1 *reads* the value instead of assuming one.
+Passing what step 1 settled makes every case deterministic.
 
 Then **show `git diff --stat`** so the user sees exactly which files moved.
 

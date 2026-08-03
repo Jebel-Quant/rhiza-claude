@@ -465,3 +465,80 @@ def test_e2e_the_first_go_release_needs_an_explicit_current_version(go_synced_re
         'const Version = "0.1.0"'
         in (go_synced_repo / "internal" / "version" / "version.go").read_text()
     )
+
+
+# --- end-to-end: where a Rust crate's version lives ---------------------------
+#
+# Rust reaches the same tag-derived state as Go, by a route that hides it: the skeleton
+# writes a `.bumpversion.toml` *with* `current_version`, and the first `/rhiza:update`
+# replaces that file wholesale with `rust-core`'s, which has no such key. So the config a
+# crate ends up releasing from is not the one /init left behind, and only a synced fixture
+# shows it. /release documented the tag-derived case as Go's alone until these ran.
+
+
+def test_e2e_a_synced_crate_has_a_discoverable_version_location(rust_synced_repo):
+    """`rust-core`'s config is root-level, anchored to `[package]`, and owns no version.
+
+    The Rust half of `test_e2e_a_synced_go_module_has_a_discoverable_version_location`:
+    `bump-my-version` auto-discovers four filenames and `/rhiza:release` passes no
+    `--config-file`, so a config anywhere else is silently ignored.
+    """
+    import init_skeleton
+
+    assert init_skeleton.bumpversion_config(rust_synced_repo) == ".bumpversion.toml"
+
+    body = (rust_synced_repo / ".bumpversion.toml").read_text()
+    assert 'filename = "Cargo.toml"' in body
+    # Anchored to `[package]`, or the rewrite would also hit a dependency pinned at the
+    # crate's own version — the reason the entry is `regex = true`.
+    assert r"^\[package\]" in body, "the [package] anchor went missing from rust-core"
+    # Same reasoning as go-core: a synced file must not pin a value the repo alone owns,
+    # so `current_version` is deliberately absent and the version comes from the tag.
+    assignments = [ln for ln in body.splitlines() if ln.strip().startswith("current_version")]
+    assert assignments == [], f"rust-core now pins a version it cannot own: {assignments}"
+
+
+def test_e2e_the_first_rust_release_needs_its_own_explicit_current_version(
+    rust_synced_repo, tmp_path
+):
+    """A tagless crate needs `--current-version`, and Go's `0.0.0` is the wrong value.
+
+    The failure `show` reports is identical to Go's, so `/release` step 1 handles both the
+    same way — but the value it must settle on differs, and guessing costs a confusing
+    second failure deep in step 6 rather than a clean stop. `cargo init` starts a crate at
+    `0.1.0`, so `0.0.0` matches nothing in `Cargo.toml`.
+
+    Works on a copy: the bump rewrites the manifest, and `rust_synced_repo` is
+    session-scoped, so mutating it in place would leak into whatever runs next.
+    """
+    import shutil
+
+    from conftest import assert_ok, run_cmd
+
+    repo = tmp_path / "widget"
+    shutil.copytree(rust_synced_repo, repo)
+
+    assert run_cmd(["git", "tag", "--list"], repo).stdout.strip() == ""
+    show = run_cmd(["uvx", "bump-my-version", "show", "current_version"], repo)
+    assert show.returncode != 0, "a tagless crate cannot report a current version"
+
+    manifest = repo / "Cargo.toml"
+    assert 'version = "0.1.0"' in manifest.read_text(), "the documented starting point moved"
+
+    # Go's answer, applied to a crate: rejected, because it is not what Cargo.toml holds.
+    wrong = run_cmd(
+        ["uvx", "bump-my-version", "bump", "--current-version", "0.0.0",
+         "--new-version", "0.2.0", "--no-commit", "--no-tag", "--allow-dirty"],
+        repo,
+    )  # fmt: skip
+    assert wrong.returncode != 0, "0.0.0 bumped a crate that never held it"
+    assert 'version = "0.1.0"' in manifest.read_text(), "the failed bump still wrote"
+
+    # The value step 1 reads out of the manifest.
+    bump = run_cmd(
+        ["uvx", "bump-my-version", "bump", "--current-version", "0.1.0",
+         "--new-version", "0.2.0", "--no-commit", "--no-tag", "--allow-dirty"],
+        repo,
+    )  # fmt: skip
+    assert_ok(bump, "bump-my-version bump --current-version 0.1.0")
+    assert 'version = "0.2.0"' in manifest.read_text()
