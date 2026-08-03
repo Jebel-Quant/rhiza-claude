@@ -1,7 +1,7 @@
 {
   "name": "rhiza",
   "displayName": "Rhiza",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Slash commands for rhiza-managed repos: init and sync from a pinned template release, score code quality, refresh README/CLAUDE.md/mkdocs, prepare releases, and report sync status.",
   "author": {
     "name": "Jebel-Quant",

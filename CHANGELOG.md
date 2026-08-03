@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.6.2] - 2026-08-03
+
+### New Features
+- *(maffay)* Add /rhiza:maffay, a bonmot from a random Peter Maffay song (#77)
+- *(book)* Publish a measured coverage badge and the HTML report (#82)
+- *(contracts)* Gate the model-invocation policy and docs/nav parity (#92)
+- *(rust)* Teach the plugin a third language (#85)
+- *(language)* Carry the language axis past /init (#94)
+- *(rust)* Run the language axis against a real crate, and check the profile exists (#100)
+- *(go)* Bring Go onto the shared template, with the skeleton path it never had (#101)
+- *(hooks)* Guard Bash at runtime; move the archaeology off the hot path; name the supported language axis (#110)
+
+### Bug Fixes
+- *(yaml)* Make the two readers agree, and measure the one that wasn't (#97)
+
+### Documentation
+- Introduce rhiza-claude before cataloguing it (#74) (#78)
+- *(paper)* Illustrate the paper with captured output, and publish the PDF (#79)
+- *(readme)* Show the CodeFactor grade badge (#81)
+- Add CLAUDE.md and correct the drifted top-of-repo prose (#91)
+- *(readme)* Name Rust in the language list /init actually offers (#93)
+- State the docs/nav rule without dating it (#103)
+
+### Maintenance
+- *(badges)* One function per badge group, not one long build_badges (#80)
+- *(pre-commit)* Gate the prose checks that had no caller (#84)
+- Branch coverage, and a prose gate that reads past commands/ (#95)
+- Compress command descriptions, generate docs reference blocks, adopt rhiza-hooks selectively (#111)
+- Move the shipped plugin into plugin/, separating it from the repo that builds it (#112)
+- *(tests)* Mirror plugin/ in the test tree, and reach the repo through fixtures (#113)
+
+### Other Changes
+- Update README.md (#83)
+
 ## [0.6.1] - 2026-07-29
 
 ### New Features
