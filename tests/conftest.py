@@ -304,6 +304,9 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
     Tests that mutate it must work on a copy (see `synced_repo_copy`), so ordering
     between tests can never matter.
+
+    **The first module is seeded here, not by `/init`.** That makes this the wrong fixture
+    for asking what a fresh repo lacks — `python_synced_repo` is the unseeded counterpart.
     """
     missing = [t for t in E2E_TOOLS if shutil.which(t) is None]
     if missing:
@@ -458,9 +461,21 @@ class LanguageFixture:
     """Binaries the scaffolding needs; absent ones skip rather than fail."""
     init: tuple[str, ...]
     """The language's own initialiser, run before the plugin's scripts."""
+    after_skeleton: tuple[tuple[str, ...], ...] = ()
+    """Extra `scripts/<name>.py` invocations `/init` makes for this language, after the
+    skeleton and before the pointer. Each entry is the script name followed by its flags;
+    the target is passed in. Only Python has one — `/skeleton` applies the Python version
+    through its own procedure, so leaving `uv`'s `requires-python` as the sole record of it
+    would build a repo `/init` never produces."""
 
 
 _LANGUAGE_FIXTURES = {
+    "python": LanguageFixture(
+        name="python",
+        tools=("uv", "git", "make"),
+        init=("uv", "init", "--lib", "--name", "widget", "--python", "3.12"),
+        after_skeleton=(("set_python_version.py", "--python-version", "3.12"),),
+    ),
     "rust": LanguageFixture(
         name="rust",
         tools=("cargo", "git", "make", "uv"),
@@ -542,6 +557,11 @@ def _scaffold(repo: Path, language: str, *, description: str) -> None:
         ),
         f"init_skeleton --language {language}",
     )  # fmt: skip
+    for script, *flags in fixture.after_skeleton:
+        assert_ok(
+            run_cmd([*PY, str(scripts / script), str(repo), *flags], repo),
+            f"{script} {' '.join(flags)}",
+        )
     assert_ok(
         run_cmd(
             [*PY, str(scripts / "init_scaffold.py"), str(repo), "--host", "github",
@@ -588,6 +608,32 @@ def _build_synced(factory: pytest.TempPathFactory, language: str) -> Path:
     assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
     assert (repo / ".rhiza" / "template.lock").is_file(), "sync wrote no lock"
     return repo
+
+
+@pytest.fixture(scope="session")
+def python_package(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A real package built by the /init chain — `uv init --lib` and the scripts after it.
+
+    The Python member of the same family as `rust_crate` and `go_module`, and the one that
+    was missing: every other Python end-to-end fixture (`synced_repo`, `gitlab_synced_repo`)
+    **hand-writes a module and a mirrored test** so the template's coverage gate has
+    something real to measure. That is a fair fixture for what those tests ask, and it is
+    also why nothing here had ever seen what a bare `/init` actually leaves behind — which
+    is a package with no test at all.
+    """
+    return _build_scaffolded(tmp_path_factory, "python")
+
+
+@pytest.fixture(scope="session")
+def python_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A Python repo synced from `github-project`, with **nothing seeded by hand**.
+
+    The unseeded counterpart of `synced_repo`: same profile, same ref, but built by
+    `_build_synced` like the Rust and Go fixtures, so its tree is exactly what a user gets
+    from `/init` then `/update` and no more. Prefer `synced_repo` for anything that needs a
+    module to measure; use this one to ask what a fresh repo *lacks*.
+    """
+    return _build_synced(tmp_path_factory, "python")
 
 
 @pytest.fixture(scope="session")

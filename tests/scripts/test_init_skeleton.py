@@ -1186,6 +1186,81 @@ def test_the_package_fallback_is_never_main(tmp_path):
     assert sk.go_package_name(tmp_path) == "pkg"
 
 
+# --- end-to-end: a real package from `uv init --lib` --------------------------
+#
+# The Python counterpart of the two blocks above, and the last language to get one. Every
+# other Python end-to-end fixture seeds a module and a mirrored test by hand before
+# asserting anything, for good reasons of its own — with the side effect that the tree a
+# bare `/init` leaves had never been looked at. `python_package` is that tree.
+
+
+def test_e2e_the_placeholder_uv_writes_is_replaced_not_appended_to(python_package):
+    """uv's `__init__.py` is a stub with a `hello()` in it; the skeleton substitutes it.
+
+    The opposite of the Rust path, which must *preserve* cargo's stub because cargo's
+    carries the crate's only test. Worth asserting side by side: the two languages differ
+    here on purpose, and a change that unified them would silently break one of them.
+    """
+    init_py = (python_package / "src" / "widget" / "__init__.py").read_text()
+    assert "def hello()" not in init_py, f"uv's placeholder survived:\n{init_py}"
+    assert init_py.startswith('"""'), init_py[:80]
+
+
+def test_e2e_the_metadata_uv_leaves_as_a_placeholder_is_filled_in(python_package):
+    """`uv init` writes "Add your description here" and no URLs at all."""
+    manifest = (python_package / "pyproject.toml").read_text()
+    assert "Add your description here" not in manifest
+    assert 'Homepage = "https://github.com/jebel-quant/widget"' in manifest
+    assert 'Repository = "https://github.com/jebel-quant/widget"' in manifest
+    assert "[dependency-groups]" in manifest
+
+
+def test_e2e_the_python_version_reaches_the_real_package(python_package):
+    """/init applies it through `/python-version`, so the classifiers are its evidence."""
+    manifest = (python_package / "pyproject.toml").read_text()
+    assert 'requires-python = ">=3.12"' in manifest
+    assert "Programming Language :: Python :: 3.12" in manifest
+    assert (python_package / ".python-version").read_text().strip() == "3.12"
+
+
+def test_e2e_the_version_location_for_python_is_the_manifest_itself(python_package):
+    """No `.bumpversion.toml`: `[project] version` is the location, unlike Rust and Go."""
+    assert not (python_package / ".bumpversion.toml").exists()
+    assert sk.bumpversion_config(python_package) == "pyproject.toml"
+    assert "[tool.bumpversion]" in (python_package / "pyproject.toml").read_text()
+
+
+def test_e2e_a_fresh_python_package_has_no_test_of_its_own(python_package):
+    """The cause of the vacuous `make test` gate, recorded next to where it originates.
+
+    `uv init --lib` writes no test and `/init` seeds no first module — deliberately: the
+    package is empty by design, and `/init`'s own report says so. Both halves are fine on
+    their own; together they mean the `test` gate the sync delivers has nothing to collect.
+    The effect is pinned in `test_check_make_targets.py`; this is the antecedent, and if a
+    future skeleton *does* seed a test, this is the test that says so out loud.
+    """
+    assert not list(python_package.glob("tests/**/*.py")), "a test appeared; the gap may be closed"
+    assert (python_package / "src" / "widget" / "__init__.py").is_file()
+
+
+def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_package(
+    python_package, tmp_path, plugin_scripts: Path
+):
+    """The Python half of the Rust idempotence check — /init can be re-run after a failure."""
+    copy = tmp_path / "widget"
+    shutil.copytree(python_package, copy)
+    before = (copy / "pyproject.toml").read_text()
+    assert_ok(
+        run_cmd(
+            [*PY, str(plugin_scripts / "init_skeleton.py"), str(copy), "--language", "python",
+             "--owner", "jebel-quant", "--repo", "widget", "--description", "Anything else."],
+            copy,
+        ),
+        "init_skeleton (second run)",
+    )  # fmt: skip
+    assert (copy / "pyproject.toml").read_text() == before
+
+
 @pytest.mark.parametrize("language", ["python", "rust", "go"])
 def test_a_directory_named_like_the_manifest_fails_the_gate(tmp_path, language):
     """`exists()` would let a *directory* named go.mod pass, then read as absent."""

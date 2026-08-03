@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
 
 import check_make_targets as cmt
@@ -595,3 +596,74 @@ def test_e2e_a_go_repo_is_never_reported_as_having_nothing_to_check(go_synced_re
     assert "deptry" in summary["unavailable"], "deptry is Python's; Go's analogue is `deps`"
     assert "deps" in summary["undeclared"]
     assert summary["exit_code"] == cmt.EXIT_OK
+
+
+# --- end-to-end: a `test` gate that resolves but measures nothing --------------
+#
+# One level past "the target exists". Everything above asks whether `make test` *resolves*;
+# a target that resolves and then collects zero tests passes every check in this file and
+# still measures nothing — which is what `go-core` was fixed for in the template's v1.3.1,
+# by shipping `internal/version/version_test.go` so a fresh Go repo's test gate is not
+# vacuous. Nothing was asking the same question of the other two languages.
+
+
+def _collectible_tests(repo: Path, language: str) -> list[str]:
+    """Return the files *language*'s `test` target would actually collect in *repo*.
+
+    Test-local rather than a `language_profile.py` field: that registry describes the
+    ecosystem facts the *commands* consume, and "what the runner would pick up" is not one
+    of them — it is this suite's yardstick, and putting it in the shipped plugin would be
+    inventing a consumer for it.
+
+    `.rhiza/` is excluded deliberately, and it is the whole point on Python: the sync does
+    deliver tests there (`test_pyproject.py`, `test_docstrings.py`, ...), but they are
+    rhiza's own and run under the separate `rhiza-test` target. Counting them here would
+    report the project's `test` gate as covered by somebody else's tests.
+    """
+    found: Iterable[Path]
+    if language == "python":
+        found = repo.glob("tests/**/test_*.py")
+    elif language == "go":
+        found = repo.rglob("*_test.go")
+    else:
+        # Rust keeps unit tests inline behind `#[cfg(test)]`, so there is no filename to
+        # match: the attribute in the source is the only evidence a file carries tests.
+        found = (p for p in repo.rglob("*.rs") if "#[test]" in p.read_text())
+    return sorted(str(p.relative_to(repo)) for p in found if ".rhiza" not in p.parts)
+
+
+_PYTHON_TEST_GATE_IS_VACUOUS = (
+    "A freshly /init'd and synced Python repo has no test its `test` target can collect: "
+    "`uv init --lib` writes none, /init seeds no first module by design, and rhiza's "
+    "`python-core` ships none under `tests/` — so `make test` prints 'No test files found "
+    "in tests, skipping tests' and exits 0. `go-core` fixed exactly this vacuity in the "
+    "template's v1.3.1 by shipping internal/version/version_test.go; the Python analogue "
+    "has not shipped, and the fix is upstream's rather than this plugin's. strict=True, so "
+    "the day it does ship this test turns red and the marker goes with it."
+)
+
+
+@pytest.mark.parametrize(
+    "language",
+    [
+        "rust",
+        "go",
+        pytest.param(
+            "python",
+            marks=pytest.mark.xfail(strict=True, reason=_PYTHON_TEST_GATE_IS_VACUOUS),
+        ),
+    ],
+)
+def test_e2e_the_test_gate_of_a_fresh_repo_collects_something(language: str, request):
+    """`make test` must have something to run in a repo straight out of /init + /update.
+
+    Asserted on the *unseeded* fixtures — `python_synced_repo`, not `synced_repo`, whose
+    hand-written module is precisely what hides this.
+    """
+    repo = request.getfixturevalue(f"{language}_synced_repo")
+    assert cmt.target_exists(repo, "test"), f"a synced {language} repo defines no `test` target"
+    collectible = _collectible_tests(repo, language)
+    assert collectible, (
+        f"a synced {language} repo's `test` target resolves but would collect nothing, so "
+        "the gate passes while measuring zero code"
+    )

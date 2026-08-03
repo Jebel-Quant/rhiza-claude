@@ -141,6 +141,13 @@ off `main` and open a PR — never push to the default branch.
   needs network, `uv`, and `cargo`/`go` for the Rust and Go fixtures. Anything tool-shaped
   skips when the tool is absent, which is why CI verifies both toolchains explicitly
   rather than letting a whole language axis vanish quietly.
+- **There is exactly one `xfail` in the suite, and it is load-bearing.**
+  `test_e2e_the_test_gate_of_a_fresh_repo_collects_something[python]` asserts that a repo
+  straight out of `/init` + `/update` has a test its `make test` can collect. Rust gets one
+  from `cargo init`, Go one from `go-core`, Python none — so the Python case is
+  `xfail(strict=True)`. When upstream ships the missing test, the suite turns **red**: the
+  fix is deleting the marker, never the test. Note the fixture pairing this rests on —
+  `python_synced_repo` is unseeded, `synced_repo` hand-writes a module and would hide it.
 - **The pinned template ref decides which profiles the suite can exercise.**
   `rust-local` and `go-local` arrived in rhiza **v1.3.0**, so `PINNED_TEMPLATE_REF` names
   that release or later (**v1.3.1** today) — which is why both syncs run on every PR
