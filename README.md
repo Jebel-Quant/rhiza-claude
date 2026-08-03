@@ -226,6 +226,7 @@ anything.
 | `.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
 | `commands/` | The plugin's slash commands (one `.md` per command). |
 | `prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
+| `hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
 | `paper/` | A LaTeX introduction — the long form of the framing above, with figures captured from real command output (`render_figures.py`). `make paper` builds it; CI rebuilds it on every commit and [publishes the PDF with the docs site](https://jebel-quant.github.io/rhiza-claude/paper/rhiza-claude-intro.pdf). |
 

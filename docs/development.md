@@ -10,9 +10,32 @@ stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. |
 | `.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
 | `commands/` | The plugin's slash commands (one `.md` per command). |
+| `hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
 | `scripts/` | Bundled stdlib-only Python scripts backing the commands. |
 | `tests/` | Pytest suite for the scripts. |
 | `docs/` | This book. |
+
+## Runtime hooks
+
+The prose gates below check the commands *before* they ship. They cannot check that a
+correct command is *executed* correctly, which is what `hooks/hooks.json` is for: a
+`PreToolUse` hook on `Bash`, auto-discovered from the plugin root, running
+`scripts/hook_bash_guard.py`.
+
+It reaches exactly three decisions:
+
+| Situation | Decision | Why |
+| --- | --- | --- |
+| `make` combined with a pipe, redirect, or chain | `deny` | Breaks the allow-listed `Bash(make *)` match, so the user gets a permission prompt on every gate. The model reads the reason and re-runs bare — no human involved. |
+| `git push --force`, `git tag -f` | `deny` | Irreversible, and no rhiza command needs either. `--force-with-lease` is deliberately *not* blocked. |
+| A push whose target resolves to the default branch | `ask` | Escalated, not denied: a session with this plugin installed may be doing unrelated work in an unrelated repo. |
+
+**It fails open by design.** Unparseable input, a missing `git`, an unreadable repo —
+every one returns no decision, so the normal permission flow applies. A guard that
+blocks when it is confused cannot be argued with, and would brick a session.
+
+The hook hardens the prose; it does not replace it. Every command stays correct with
+hooks unavailable, so the rules are still stated where they apply.
 
 ## Make targets
 

@@ -113,13 +113,12 @@ worth scoring.
 
 Guidelines:
 
-- Run each gate as a single, bare `make <target>` command — one Bash call per
-  gate. Do **not** pipe (`| tee`, `| tail`), redirect (`2>&1 >`), chain
-  (`make fmt && make typecheck`), or prefix with `cd`. This is a tooling
-  constraint, not methodology: bare invocations match the allow-listed
-  `Bash(make *)` rule and run without a permission prompt, while compound or piped
-  commands prompt on *every* gate. Read the output directly from each call rather
-  than capturing it to a file.
+- Run each gate as a single, bare `make <target>` command — one Bash call per gate, no
+  pipe, redirect, chain or `cd` prefix. Read the output directly from the tool result
+  rather than capturing it to a file. **The plugin's `PreToolUse` hook enforces this**
+  (`hooks/hooks.json` → `scripts/hook_bash_guard.py`): a compound `make` is denied with
+  the reason, so re-run it bare. The hook is a backstop, not a substitute — it may be
+  absent in an older Claude Code, and the rule holds either way.
 - Run all available gates even after an early failure, so the full picture is
   visible rather than stopping at the first red.
 - If something fails, show the relevant output and diagnose the root cause.
