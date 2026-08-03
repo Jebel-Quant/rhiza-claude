@@ -32,7 +32,9 @@ make install        # install the plugin via the claude CLI
 ```
 
 **Prefer a bare `make <target>`.** Don't pipe, redirect, chain, or `cd`-prefix it, and
-don't reach past it to the underlying tool — the arguments, thresholds and exclusions
+don't reach past it to the underlying tool. The plugin's own `PreToolUse` hook
+(`hooks/hooks.json` → `scripts/hook_bash_guard.py`) denies a compound `make` and tells
+you to re-run bare — the arguments, thresholds and exclusions
 live in the target and in `.pre-commit-config.yaml`, so a direct `uvx ruff`/`uvx
 interrogate` invocation measures something else. CI runs these same targets.
 
@@ -50,7 +52,8 @@ The plugin is **two kinds of markdown plus the Python they drive**.
 | Path | What it is |
 | --- | --- |
 | `commands/*.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. |
-| `prompts/*.md` | Seven **internal procedures** commands reach with `Read`. |
+| `prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
+| `hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
 | `tests/*.py` | Pytest suite mirroring `scripts/` 1:1. |
 | `docs/` | The MkDocs site: `commands/`, `internals/`, `index.md`, `development.md`. |

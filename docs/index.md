@@ -18,6 +18,14 @@ Go alike) holding that scaffolding once. **rhiza-claude** — this plugin — is
 how a repo adopts it, keeps up with it, and gets told how it's doing: it syncs your
 repo from a pinned template release and scores the result.
 
+!!! note "Python is the fully-supported axis"
+    All three languages sync, update, release and report the same way. What differs is
+    the far end: **Rust and Go have no hosted CI workflows yet**, and
+    [`/rhiza:quality`](commands/quality.md)'s gate list is the Python profile, so on a
+    Rust or Go repo it scores the targets it *discovers* in your Makefile and marks
+    language-specific subcategories out-of-scope. A worked first run below is Python;
+    see [Language support](#language-support) for the full comparison.
+
 ## The two-repo model
 
 Two repositories, and the boundary between them is the whole idea:
@@ -113,6 +121,38 @@ both `/init` and `/update` offer to install it as their first step. `git` and `m
 are used and are near-universal. The plugin's own scripts are **stdlib-only Python** —
 there is no `rhiza` CLI to install, which is the most common point of confusion about
 what this needs.
+
+## Language support
+
+`/rhiza:init` offers Python, Go and Rust, and all three point at the same
+multi-language template — the language selects a *profile* (`github-project`,
+`rust-local`, `go-local`), never a different repository. They are **not equally
+supported**, and the difference is worth knowing before the bootstrap, not after.
+
+| | Python | Rust | Go |
+| --- | --- | --- | --- |
+| `/init`, `/update`, `/status`, `/release`, `/uninstall` | ✅ | ✅ | ✅ |
+| Local toolchain from the template | ✅ | ✅ cargo, clippy, nextest, llvm-cov, cargo-deny | ✅ go test, golangci-lint, govulncheck, revive |
+| Hosted CI workflows | ✅ | ❌ none yet | ❌ none yet |
+| `/quality` gate list | ✅ known and named | ⚠️ discovered at runtime | ⚠️ discovered at runtime |
+| Test-layout parity subcategory | ✅ | n/a | n/a |
+
+**Python is the fully-supported axis.** [`/rhiza:quality`](commands/quality.md)'s gate
+list *is* the Python profile — the one this plugin has actually run against. On a Rust
+or Go repo it probes the Makefile with `check_make_targets.py`, scores the targets it
+discovers, and marks language-specific subcategories out-of-scope.
+
+That is a deliberate trade. A hand-written table of targets for templates the plugin has
+never run against would be prose asserting things it cannot back; discovery degrades
+honestly where a guessed table would lie. The cost is that a Rust or Go scorecard rests
+on a narrower base than a Python one — so `/quality` states in its own output which
+gates it discovered and which subcategories it skipped.
+
+There is deliberately no `rust-github-project` or `go-github-project` profile: those are
+almost entirely CI workflows, and rhiza's `github`/`gitlab` bundles still ship Python
+ones. Until those land, add hosted CI yourself.
+
+The worked first run below is Python.
 
 ## Install
 
