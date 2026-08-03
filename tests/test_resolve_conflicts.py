@@ -22,7 +22,7 @@ import pytest
 import resolve_conflicts as rc
 from conftest import PY, run_cmd
 
-_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+_SCRIPTS = Path(__file__).resolve().parents[1] / "plugin" / "scripts"
 
 CONFLICT = """\
 before

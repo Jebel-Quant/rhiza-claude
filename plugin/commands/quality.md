@@ -90,7 +90,7 @@ surface before the slow test suite — and collect results:
 7. `make test` — full test suite **with** its coverage gate (slowest, run last)
 8. **Test-layout parity** — run the bundled checker
    `uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_test_layout.py"` (fall back to
-   `uv run --python 3.12 --no-project python scripts/check_test_layout.py` in a source checkout). It fails when a
+   `uv run --python 3.12 --no-project python plugin/scripts/check_test_layout.py` in a source checkout). It fails when a
    source module has no mirrored `test_<name>.py`, a source `class A` has no
    `TestA`, or a test file/`Test*` class has no source counterpart. A repo that
    deliberately organises tests by behaviour (and guarantees per-module
@@ -116,14 +116,14 @@ Guidelines:
 - Run each gate as a single, bare `make <target>` command — one Bash call per gate, no
   pipe, redirect, chain or `cd` prefix. Read the output directly from the tool result
   rather than capturing it to a file. **The plugin's `PreToolUse` hook enforces this**
-  (`hooks/hooks.json` → `scripts/hook_bash_guard.py`): a compound `make` is denied with
+  (`plugin/hooks/hooks.json` → `plugin/scripts/hook_bash_guard.py`): a compound `make` is denied with
   the reason, so re-run it bare. The hook is a backstop, not a substitute — it may be
   absent in an older Claude Code, and the rule holds either way.
 - Run all available gates even after an early failure, so the full picture is
   visible rather than stopping at the first red.
 - **If a gate fails, `Read`
   `${CLAUDE_PLUGIN_ROOT}/prompts/known-issues.md` before diagnosing** (in a source
-  checkout, `prompts/known-issues.md`). Some failures are upstream and unsatisfiable
+  checkout, `plugin/prompts/known-issues.md`). Some failures are upstream and unsatisfiable
   here, and it says which, keyed by the template ref in `.rhiza/template.lock`. A listed
   one is scored **out-of-scope**, not FAIL — and one of them must specifically *not* be
   "fixed", because the obvious fix makes the package unbuildable. A failure that isn't
@@ -139,7 +139,7 @@ Guidelines:
 **`make rhiza-test`.** Runs the test-suite the template syncs into `.rhiza/tests/` —
 the `[project]` structure gate, docstring coverage, README validation. A failure there
 is usually a *local* gap the template is checking for, so it is in scope; a failure in
-the synced test files themselves is upstream — and `prompts/known-issues.md` names the
+the synced test files themselves is upstream — and `plugin/prompts/known-issues.md` names the
 one that is unsatisfiable rather than merely upstream.
 
 ## 2. Report the gate results
@@ -167,7 +167,7 @@ costs three lines and is the difference between a narrower score and a misleadin
 ## 3. Gather the design evidence
 
 `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/design-analysis.md`** and follow it (in a
-source checkout, `prompts/design-analysis.md`). Complexity and architecture are the two
+source checkout, `plugin/prompts/design-analysis.md`). Complexity and architecture are the two
 subcategories `/quality` must *always* score, and **no `make` gate measures either** —
 so that evidence is gathered by hand, or the marks are guesses.
 

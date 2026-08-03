@@ -13,7 +13,7 @@ anywhere. That has two consequences worth internalising before you touch anythin
   is `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`; both are absent. The gates below
   are this repo's own, not the template's.
 - **The "locally-owned vs Rhiza-owned" scoping rule doesn't apply.** Every file here is
-  locally owned. When you read that rule in `prompts/scorecard.md`, you're reading a
+  locally owned. When you read that rule in `plugin/prompts/scorecard.md`, you're reading a
   rule *this repo ships for other repos*, not one that governs it.
 
 ## Commands
@@ -33,7 +33,7 @@ make install        # install the plugin via the claude CLI
 
 **Prefer a bare `make <target>`.** Don't pipe, redirect, chain, or `cd`-prefix it, and
 don't reach past it to the underlying tool. The plugin's own `PreToolUse` hook
-(`hooks/hooks.json` → `scripts/hook_bash_guard.py`) denies a compound `make` and tells
+(`plugin/hooks/hooks.json` → `plugin/scripts/hook_bash_guard.py`) denies a compound `make` and tells
 you to re-run bare — the arguments, thresholds and exclusions
 live in the target and in `.pre-commit-config.yaml`, so a direct `uvx ruff`/`uvx
 interrogate` invocation measures something else. CI runs these same targets.
@@ -49,27 +49,40 @@ a LaTeX engine, so skip it for prose- or script-only changes.
 
 The plugin is **two kinds of markdown plus the Python they drive**.
 
+**The shipped plugin is `plugin/`. The repo that builds it is everything else.**
+`.claude-plugin/marketplace.json` stays at the root and points inward with
+`"source": "./plugin"`. The four directories inside `plugin/` are mandated by the plugin
+spec, which requires `commands/`, `hooks/`, `prompts/` and `scripts/` at the *plugin*
+root — so that grouping is not a choice you can tidy further.
+
 | Path | What it is |
 | --- | --- |
-| `commands/*.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. |
-| `prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
-| `hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
-| `scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
-| `tests/*.py` | Pytest suite mirroring `scripts/` 1:1. |
+| `plugin/commands/*.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. |
+| `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
+| `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
+| `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
+| `plugin/.claude-plugin/plugin.json` | The plugin manifest. |
+| `tests/*.py` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
 | `docs/` | The MkDocs site: `commands/`, `internals/`, `index.md`, `development.md`. |
 | `paper/` | A LaTeX introduction, rebuilt by CI and published with the site. |
-| `.claude-plugin/` | `plugin.json` + `marketplace.json`. |
+| `.claude-plugin/marketplace.json` | The marketplace catalogue. |
+
+**`${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`**, so every
+`"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py"` in the prose is unaffected by the layout.
+Only the *source-checkout fallback* carries the prefix now — `plugin/scripts/<name>.py`.
+`plugin/scripts/_rhiza_layout.py` holds the one definition of where things live; the
+three checkers that span both halves import it rather than hardcoding `plugin/`.
 
 **`commands/` vs `prompts/` is the load-bearing distinction.** Procedures live outside
 `commands/` *specifically* so they cannot be invoked as slash commands — that's the
-guarantee, not an organisational preference. `scripts/check_prompt_wiring.py` enforces
+guarantee, not an organisational preference. `plugin/scripts/check_prompt_wiring.py` enforces
 five rules about it: each procedure declares it isn't a slash command, carries no
 command frontmatter, never collides with a command name, is actually referenced
 somewhere, and is never invoked as a command. Don't "tidy" a procedure into
 `commands/`.
 
 Shared behaviour lives in the procedures, which is why `/init` and `/update` behave
-identically where they overlap. `commands/init.md` alone does not explain `/rhiza:init`.
+identically where they overlap. `plugin/commands/init.md` alone does not explain `/rhiza:init`.
 
 **The design split:** deterministic work belongs in tested Python; judgement belongs in
 markdown. Parsing a lock file, merging synced files, comparing versions, drawing a
@@ -103,7 +116,7 @@ rather than breaking in front of a user mid-task.
 1. Edit `commands/<name>.md`; keep the frontmatter accurate.
 2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/test_<name>.py`.
 3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
-   only — run `scripts/render_command_docs.py` for the **Reference** block, which is
+   only — run `plugin/scripts/render_command_docs.py` for the **Reference** block, which is
    generated from the frontmatter and gated by `docs-reference-blocks`.
 4. Update `README.md` if it's a headline command.
 
@@ -131,7 +144,7 @@ off `main` and open a PR — never push to the default branch.
 - **The pinned template ref decides which profiles the suite can exercise.**
   `rust-local` and `go-local` arrived in rhiza **v1.3.0**, which is what
   `PINNED_TEMPLATE_REF` names and why both syncs run on every PR. Before bumping it, check
-  the new ref still defines what `/init` writes: `scripts/check_template_profile.py
+  the new ref still defines what `/init` writes: `plugin/scripts/check_template_profile.py
   rust-local go-local github-project gitlab-project --template-repo jebel-quant/rhiza
   --ref <tag>`. A ref that doesn't now **fails** those fixtures rather than skipping them
   — see `require_language_profile`.

@@ -24,7 +24,7 @@ $ /rhiza:maffay nessaja
 Because a model asked to "pick a random song" doesn't. It reaches for the two or three
 best-known titles, so by the third run the command feels broken — the same reason
 [`/rhiza:release`](release.md) hands its version arithmetic to a script rather than
-deriving it in prose. `scripts/maffay.py` owns the draw, and `random.choice` over the
+deriving it in prose. `plugin/scripts/maffay.py` owns the draw, and `random.choice` over the
 catalogue is uniform where prose isn't. A test asserts every entry is reachable, so an
 entry that could never be drawn fails the suite rather than quietly never appearing.
 
@@ -44,7 +44,7 @@ the format exists to prevent.
 
 ## Adding a song
 
-One entry appended to `BONMOTS` in `scripts/maffay.py`:
+One entry appended to `BONMOTS` in `plugin/scripts/maffay.py`:
 
 ```python
 {
@@ -68,13 +68,13 @@ is worse than a shorter catalogue. `themes` must be non-empty (a test enforces i
 - *Über sieben Brücken musst du gehn* is a Karat song (1978); the catalogue attributes
   the year of **Maffay's** recording, 1980.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `commands/maffay.md` |
+| **Source** | `plugin/commands/maffay.md` |
 | **Invocation** | `/rhiza:maffay [theme keyword e.g. mut]  (optional; omit for the whole catalogue)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(uv*)` |

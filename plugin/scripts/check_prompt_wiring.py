@@ -34,6 +34,8 @@ import re
 import sys
 from pathlib import Path
 
+from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR
+
 _NOT_A_COMMAND = "Not a slash command"
 _FRONTMATTER_KEYS = ("allowed-tools:", "argument-hint:")
 _PROMPT_REF = re.compile(r"prompts/([a-zA-Z0-9_-]+)\.md")
@@ -51,8 +53,8 @@ def _prose_files(root: Path) -> list[Path]:
     """Return every markdown file whose prompt references should resolve."""
     return sorted(
         [
-            *(root / "commands").glob("*.md"),
-            *(root / "prompts").glob("*.md"),
+            *(root / COMMANDS_DIR).glob("*.md"),
+            *(root / PROMPTS_DIR).glob("*.md"),
             *root.glob("*.md"),
         ]
     )
@@ -93,7 +95,7 @@ def check_references_resolve(root: Path) -> list[str]:
     violations = []
     for path in _prose_files(root):
         for name in sorted(set(_PROMPT_REF.findall(path.read_text()))):
-            if not (root / "prompts" / f"{name}.md").is_file():
+            if not (root / PROMPTS_DIR / f"{name}.md").is_file():
                 rel = path.relative_to(root)
                 violations.append(f"{rel} references missing prompts/{name}.md")
     return violations
@@ -101,7 +103,7 @@ def check_references_resolve(root: Path) -> list[str]:
 
 def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
     """Rule 5: every procedure is referenced, and none is invoked as a command."""
-    prompts = set(_names(root / "prompts"))
+    prompts = set(_names(root / PROMPTS_DIR))
     referenced: set[str] = set()
     violations = []
 
@@ -127,7 +129,7 @@ def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
 
 def check_wiring(root: Path) -> list[str]:
     """Run every rule against *root*; return all violations."""
-    commands_dir, prompts_dir = root / "commands", root / "prompts"
+    commands_dir, prompts_dir = root / COMMANDS_DIR, root / PROMPTS_DIR
     return [
         *check_declares_internal(prompts_dir),
         *check_no_command_frontmatter(prompts_dir),
@@ -151,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ✗ {violation}", file=sys.stderr)
         return 1
 
-    count = len(_names(root / "prompts"))
+    count = len(_names(root / PROMPTS_DIR))
     print(f"prompt wiring is sound ({count} internal procedure(s))")
     return 0
 

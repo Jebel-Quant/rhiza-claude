@@ -4,7 +4,7 @@ Apply a project's **license** — sets the SPDX `license` / `license-files` meta
 `pyproject.toml` and writes the `LICENSE` file's full text.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/license.md`), not something you
+    This is an **internal procedure** (`plugin/prompts/license.md`), not something you
     invoke. [`/rhiza:init`](../commands/init.md) reads and follows it at its step 5c,
     right after the [skeleton](skeleton.md).
 
@@ -15,7 +15,7 @@ refuses and **exits 3**, changing nothing at all, metadata included.
 
 ## What it does
 
-Runs the bundled `scripts/set_license.py` — stdlib-only — which:
+Runs the bundled `plugin/scripts/set_license.py` — stdlib-only — which:
 
 - **replaces** (not just adds) the SPDX `license` / `license-files` fields in the
   `[project]` table — the PEP 639 expression field, never a deprecated
@@ -38,13 +38,13 @@ change — an **overwrite confirmation**.
 - A non-bundled SPDX id still sets the metadata; the script tells you to add the
   `LICENSE` text by hand.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/license.md` |
+| **Source** | `plugin/prompts/license.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:init`](../commands/init.md), [`known-issues`](known-issues.md), [`skeleton`](skeleton.md) |
 

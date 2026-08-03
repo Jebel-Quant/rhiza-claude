@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: markdownlint
         # Command .md files are prompts, not docs; CHANGELOG is generated.
-        exclude: '^(commands/|CHANGELOG\.md|\.github/)'
+        exclude: '^(plugin/commands/|CHANGELOG\.md|\.github/)'
         args: ["--disable", "MD013", "MD041"]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
@@ -55,64 +55,67 @@ repos:
     hooks:
       - id: manifest-version-parity
         name: plugin.json and marketplace.json versions must match
-        entry: uv run --python 3.12 --no-project python scripts/check_version_parity.py
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_version_parity.py
         language: system
         pass_filenames: false
-        files: '^\.claude-plugin/(plugin|marketplace)\.json$'
+        files: '^(plugin/\.claude-plugin/plugin|\.claude-plugin/marketplace)\.json$'
       - id: mypy
         name: mypy (strict type check of scripts/)
         entry: uvx mypy
         language: system
         pass_filenames: false
-        files: '^(scripts/.*\.py|mypy\.ini)$'
+        files: '^(plugin/scripts/.*\.py|mypy\.ini)$'
       - id: interrogate
         name: interrogate (100% docstring coverage of scripts/)
-        entry: uvx interrogate --ignore-nested-functions --fail-under=100 scripts
+        entry: uvx interrogate --ignore-nested-functions --fail-under=100 plugin/scripts
         language: system
         pass_filenames: false
-        files: '^scripts/.*\.py$'
+        files: '^plugin/scripts/.*\.py$'
       - id: test-layout
         name: test layout mirrors sources (1:1 files + Test classes)
-        entry: uv run --python 3.12 --no-project python scripts/check_test_layout.py --src scripts --tests tests
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_test_layout.py --src plugin/scripts --tests tests
         language: system
         pass_filenames: false
-        files: '^(scripts|tests)/.*\.py$'
+        files: '^(plugin/scripts|tests)/.*\.py$'
       # The prose is the other half of this plugin, and it fails differently: a stale
       # instruction doesn't halt anything, it gets improvised around mid-task in front
       # of a user. These two gate it. They also depend on scripts/, since a renamed
       # flag breaks the prose that passes it.
       - id: command-contracts
         name: prose commands are executable (scripts, flags, slash commands exist)
-        entry: uv run --python 3.12 --no-project python scripts/check_command_contracts.py
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_command_contracts.py
         language: system
         pass_filenames: false
         # Includes the top-of-repo prose and the docs site: a dead script reference in
         # CONTRIBUTING.md used to survive precisely because no gate read that far.
-        files: '^((commands|prompts)/.*\.md|scripts/.*\.py|docs/.*\.md|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
+        files: '^(plugin/(commands|prompts)/.*\.md|plugin/scripts/.*\.py|docs/.*\.md|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
       - id: prompt-wiring
         name: internal procedures under prompts/ stay wired up
-        entry: uv run --python 3.12 --no-project python scripts/check_prompt_wiring.py
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_prompt_wiring.py
         language: system
         pass_filenames: false
-        files: '^((commands|prompts)/.*\.md|scripts/.*\.py)$'
+        # Rule 4 reads the top-of-repo prose too, so a README edit that names a
+        # procedure must trigger it. That was missing, and it is how a bad
+        # `plugin/prompts/…` rewrite reached a commit.
+        files: '^(plugin/((commands|prompts)/.*\.md|scripts/.*\.py)|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
       # `mkdocs build --strict` catches a nav entry with no page; it cannot catch a
       # command with no page, or a page missing from the nav. Those are the likely
       # directions, and CONTRIBUTING has required both since before anything checked.
       - id: docs-nav
         name: every command and procedure has a docs page, wired into the nav
-        entry: uv run --python 3.12 --no-project python scripts/check_docs_nav.py
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_docs_nav.py
         language: system
         pass_filenames: false
-        files: '^((commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md|mkdocs\.yml)$'
+        files: '^(plugin/(commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md|mkdocs\.yml)$'
       # docs-nav checks a page *exists*; this checks its facts are current. The
       # reference block on each page is generated from the frontmatter, so a renamed
       # argument or a widened allowed-tools list can't survive in the docs.
       - id: docs-reference-blocks
         name: generated docs reference blocks are up to date
-        entry: uv run --python 3.12 --no-project python scripts/render_command_docs.py --check
+        entry: uv run --python 3.12 --no-project python plugin/scripts/render_command_docs.py --check
         language: system
         pass_filenames: false
-        files: '^((commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
+        files: '^(plugin/(commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
 
   # Shared hooks from the sibling repo. Selective by necessity: rhiza-claude is
   # deliberately *not* rhiza-managed, so most of what rhiza-hooks ships keys off a

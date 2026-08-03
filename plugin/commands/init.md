@@ -14,10 +14,10 @@ which template repository this repo follows and at which ref. Everything else it
 
 | what | procedure | step |
 | --- | --- | --- |
-| `uv` on the machine | `prompts/install-uv.md` | 1 |
-| work branch off an untouched default | `prompts/pr-base.md` | 4 |
-| skeleton + the `pyproject.toml` shape the gates need | `prompts/skeleton.md` (applies `prompts/python-version.md`) | 6 |
-| SPDX metadata + the `LICENSE` file | `prompts/license.md` | 6 |
+| `uv` on the machine | `plugin/prompts/install-uv.md` | 1 |
+| work branch off an untouched default | `plugin/prompts/pr-base.md` | 4 |
+| skeleton + the `pyproject.toml` shape the gates need | `plugin/prompts/skeleton.md` (applies `plugin/prompts/python-version.md`) | 6 |
+| SPDX metadata + the `LICENSE` file | `plugin/prompts/license.md` | 6 |
 
 Those are **internal procedures, not slash commands** — deliberately outside
 `commands/` so the user can't invoke them. `Read` each at the step that calls for it
@@ -43,7 +43,7 @@ Work through these steps. Stop and report if a precondition fails.
   (`test -d .rhiza`), **invoke the `update` command via the Skill tool** and stop.
   Don't write or touch anything under `.rhiza/` yourself — bumping an existing config
   is `/update`'s job. This holds even for a stray `.rhiza/` with no `template.yml`.
-- **`uv`** — `Read` `prompts/install-uv.md` and follow it, every run. A one-line
+- **`uv`** — `Read` `plugin/prompts/install-uv.md` and follow it, every run. A one-line
   no-op when `uv` is present; otherwise it installs it. If `uv --version` still fails,
   stop.
 - **Git** — `git rev-parse --is-inside-work-tree` (ignore the error if absent). No
@@ -118,7 +118,7 @@ uv run --python 3.12 --no-project python \
 
 ## 4. Work branch
 
-`Read` `prompts/pr-base.md` and follow it with `BRANCH_PREFIX=rhiza_init`, passing
+`Read` `plugin/prompts/pr-base.md` and follow it with `BRANCH_PREFIX=rhiza_init`, passing
 `OWNER`/`NAME`/visibility for the brand-new-repo path. It settles `$DEFAULT`, gets
 `origin/$DEFAULT` to exist (asking *the user* to create the repo with an empty README
 rather than ever pushing to the default branch), and leaves you on `$BRANCH`. If it
@@ -126,7 +126,7 @@ can't, it stops `/init` — don't work around that.
 
 ## 5. Write the pointer
 
-`scripts/init_scaffold.py` writes `.rhiza/template.yml` and only that, only if absent:
+`plugin/scripts/init_scaffold.py` writes `.rhiza/template.yml` and only that, only if absent:
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_scaffold.py" . \
   --host <github|gitlab> --language <python|rust|go> \
@@ -147,7 +147,7 @@ git commit -m "chore: point repo at $TEMPLATE_REPO@$TARGET"
 
 ## 6. Skeleton, then license
 
-- `Read` `prompts/skeleton.md` and follow it, telling it the language — it covers
+- `Read` `plugin/prompts/skeleton.md` and follow it, telling it the language — it covers
   python, rust and go. **Not optional:** the template never ships a manifest, so without
   one `/update`'s gates fail outright — on python `make test` depends on `install` (a
   `uv sync`) and the synced `.rhiza/tests/test_pyproject.py` asserts a specific
@@ -159,7 +159,7 @@ git commit -m "chore: point repo at $TEMPLATE_REPO@$TARGET"
   Cargo.toml` (rust) or `test -f go.mod` (go). The procedure checks too, but check
   again: if it's missing, **stop and report**. Don't hand-write one, and don't commit or
   open a PR on a repo whose skeleton step failed.
-- `Read` `prompts/license.md` and follow it. Skip only if the user wants the repo
+- `Read` `plugin/prompts/license.md` and follow it. Skip only if the user wants the repo
   unlicensed.
 - Commit what they produced:
   ```bash

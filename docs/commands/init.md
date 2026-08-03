@@ -43,7 +43,7 @@ So a new repo is **two PRs**: **#1 (`/init`)** makes it rhiza-managed; **#2
 2. **Settles platform, owner, and name** — all three are derived from an existing
    `origin` remote when there is one (no questions asked); otherwise it asks GitHub
    vs GitLab, the owner/namespace, the name, and the visibility. It then checks the
-   platform CLI is logged in with `scripts/platform_cli.py auth-status`, which picks
+   platform CLI is logged in with `plugin/scripts/platform_cli.py auth-status`, which picks
    `gh auth status` or `glab auth status` for you; not being logged in doesn't stop the
    local work, it just defers the remote steps.
 3. **Picks the template repo and ref** — language (`python`, `rust` or `go`) selects
@@ -52,7 +52,7 @@ So a new repo is **two PRs**: **#1 (`/init`)** makes it rhiza-managed; **#2
    checks the repo is reachable and pins the ref to its latest release. Nothing is
    synced from it here — that's just the initial pin, which `/update` bumps later.
 
-    It then checks, with `scripts/check_template_profile.py`, that the pinned ref
+    It then checks, with `plugin/scripts/check_template_profile.py`, that the pinned ref
     actually **defines the profile** the pointer is about to name, and stops rather than
     writing one it doesn't. That check exists because the failure lands so far from the
     mistake: a pointer naming an undefined profile is written happily, merges happily,
@@ -61,7 +61,7 @@ So a new repo is **two PRs**: **#1 (`/init`)** makes it rhiza-managed; **#2
     does define it, pick one it lists, or wait for a release. A template that can't be
     read at all (offline, unknown ref) is a warning, not a stop: nothing was learned
     either way.
-4. **Writes the pointer** via `scripts/init_scaffold.py` — `.rhiza/template.yml` and
+4. **Writes the pointer** via `plugin/scripts/init_scaffold.py` — `.rhiza/template.yml` and
    only that, and only if absent — on a `rhiza_init_<date>` branch. It **never**
    pushes to the default branch: for a brand-new repo it asks you to create it,
    initialised with an empty README, as the PR base rather than pushing one itself.
@@ -86,13 +86,13 @@ no-op if `uv` is already there and otherwise offers to install it.
 - `/init` never overwrites anything, so running it in an empty folder and in a mature
   repo are the same case.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `commands/init.md` |
+| **Source** | `plugin/commands/init.md` |
 | **Invocation** | `/rhiza:init [repo name]  (optional; defaults to the current folder name)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(curl*)`, `Bash(brew*)`, `Bash(ls*)`, `Bash(basename*)`, `Bash(pwd*)`, `Bash(date*)`, `Read`, `Write`, `Edit`, `AskUserQuestion`, `Skill` |

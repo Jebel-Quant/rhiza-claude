@@ -284,7 +284,7 @@ def test_e2e_status_files_lists_what_the_template_delivered(synced_repo, capsys)
 
 def test_e2e_the_config_half_validates(synced_repo):
     """/status runs validate.py first; a real synced repo must pass its checks."""
-    validate = Path(__file__).resolve().parents[1] / "scripts" / "validate.py"
+    validate = Path(__file__).resolve().parents[1] / "plugin" / "scripts" / "validate.py"
     assert_ok(run_cmd([*PY, str(validate), str(synced_repo)], synced_repo), "validate.py")
 
 

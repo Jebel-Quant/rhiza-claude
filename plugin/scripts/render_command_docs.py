@@ -29,7 +29,7 @@ appends a reference table and never touches a hand-written line.
 
 Usage:
   uv run --python 3.12 --no-project python \
-      scripts/render_command_docs.py [--root DIR] [--check]
+      plugin/scripts/render_command_docs.py [--root DIR] [--check]
 
 Writes the blocks by default. With ``--check`` it writes nothing and exits 1 if any
 page is out of date, which is how the pre-commit hook runs it.
@@ -42,7 +42,9 @@ import re
 import sys
 from pathlib import Path
 
-_BEGIN = "<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->"
+from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR
+
+_BEGIN = "<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->"
 _END = "<!-- generated:end -->"
 
 # The frontmatter block, and one `key: value` line inside it.
@@ -86,7 +88,7 @@ def command_block(name: str, meta: dict[str, str]) -> str:
         else "yes"
     )
     rows = [
-        ("Source", f"`commands/{name}.md`"),
+        ("Source", f"`{COMMANDS_DIR}/{name}.md`"),
         ("Invocation", f"`{invocation}`"),
         ("Model-invocable", invocable),
         ("Allowed tools", _tools(meta.get("allowed-tools", ""))),
@@ -109,7 +111,7 @@ def procedure_block(name: str, readers: list[str]) -> str:
         # empty cell if that gate is ever loosened.
         read_by = "_nothing — this procedure is an orphan_"
     rows = [
-        ("Source", f"`prompts/{name}.md`"),
+        ("Source", f"`{PROMPTS_DIR}/{name}.md`"),
         ("Invocation", "**not a slash command** — reached with `Read`, never invoked"),
         ("Read by", read_by),
     ]
@@ -133,12 +135,15 @@ def _table(rows: list[tuple[str, str]]) -> str:
 def readers_of(name: str, root: Path) -> list[str]:
     """Which commands and procedures reference ``prompts/<name>.md``, sorted."""
     found = set()
-    for directory in ("commands", "prompts"):
+    # The returned prefix is the *kind* ("commands"/"prompts"), not the directory —
+    # _classify keys off it to build the right relative link, and the directory now
+    # carries a `plugin/` segment that has no place in a docs URL.
+    for kind, directory in (("commands", COMMANDS_DIR), ("prompts", PROMPTS_DIR)):
         for path in sorted((root / directory).glob("*.md")):
             if path.stem == name:
                 continue
             if name in _PROMPT_REF.findall(path.read_text(encoding="utf-8")):
-                found.add(f"{directory}/{path.stem}")
+                found.add(f"{kind}/{path.stem}")
     return sorted(found)
 
 
@@ -152,14 +157,14 @@ def splice(page: str, block: str) -> str:
 def render(root: Path) -> dict[Path, str]:
     """Map every docs page to the text it should have."""
     wanted: dict[Path, str] = {}
-    for source, docs_dir in (("commands", "commands"), ("prompts", "internals")):
+    for source, docs_dir in ((COMMANDS_DIR, "commands"), (PROMPTS_DIR, "internals")):
         for path in sorted((root / source).glob("*.md")):
             page = root / "docs" / docs_dir / f"{path.stem}.md"
             if not page.is_file():
                 continue
             block = (
                 command_block(path.stem, frontmatter(path.read_text(encoding="utf-8")))
-                if source == "commands"
+                if source == COMMANDS_DIR
                 else procedure_block(path.stem, readers_of(path.stem, root))
             )
             wanted[page] = splice(page.read_text(encoding="utf-8"), block)

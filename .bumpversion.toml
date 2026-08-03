@@ -22,7 +22,7 @@ allow_dirty = false        # a release is cut from a clean tree
 # safe here; a file with a second one would need `regex = true` and an anchored
 # pattern (as a `pyproject.toml` does — see /rhiza:release step 6).
 [[tool.bumpversion.files]]
-filename = ".claude-plugin/plugin.json"
+filename = "plugin/.claude-plugin/plugin.json"
 search = '"version": "{current_version}"'
 replace = '"version": "{new_version}"'
 

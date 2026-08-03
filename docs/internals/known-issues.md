@@ -12,7 +12,7 @@ non-issue is marked out-of-scope rather than FAIL — and, in one case, so the o
 
 ## Why it is a separate file
 
-These notes used to sit inline in `commands/quality.md`, as two long block quotes on the
+These notes used to sit inline in `plugin/commands/quality.md`, as two long block quotes on the
 path between "run the gates" and "report the results". That was wrong twice over.
 
 **They were loaded on every run.** Around eighteen lines describing failures most runs
@@ -44,13 +44,13 @@ real, in-scope finding — adopt the hook — rather than a manifest to edit.
 - [quality](../commands/quality.md) — the only command that reads this.
 - [scorecard](scorecard.md) — owns the scoping rule that turns "out-of-scope" into marks.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/known-issues.md` |
+| **Source** | `plugin/prompts/known-issues.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:quality`](../commands/quality.md) |
 

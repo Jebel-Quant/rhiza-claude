@@ -8,6 +8,7 @@ tests below assert exactly that.
 
 from __future__ import annotations
 
+import _rhiza_layout as layout
 import render_command_docs as rcd
 
 COMMAND = """---
@@ -42,19 +43,19 @@ A hand-written explanation that the generator must not touch.
 def _repo(tmp_path, commands=None, prompts=None, pages=None, internals=None):
     """Build a miniature repo with the directory shape the renderer expects."""
     for name, text in (commands or {}).items():
-        (tmp_path / "commands").mkdir(exist_ok=True)
-        (tmp_path / "commands" / f"{name}.md").write_text(text)
+        (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True, exist_ok=True)
+        (tmp_path / layout.COMMANDS_DIR / f"{name}.md").write_text(text)
     for name, text in (prompts or {}).items():
-        (tmp_path / "prompts").mkdir(exist_ok=True)
-        (tmp_path / "prompts" / f"{name}.md").write_text(text)
+        (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True, exist_ok=True)
+        (tmp_path / layout.PROMPTS_DIR / f"{name}.md").write_text(text)
     for name, text in (pages or {}).items():
         (tmp_path / "docs" / "commands").mkdir(parents=True, exist_ok=True)
         (tmp_path / "docs" / "commands" / f"{name}.md").write_text(text)
     for name, text in (internals or {}).items():
         (tmp_path / "docs" / "internals").mkdir(parents=True, exist_ok=True)
         (tmp_path / "docs" / "internals" / f"{name}.md").write_text(text)
-    for directory in ("commands", "prompts"):
-        (tmp_path / directory).mkdir(exist_ok=True)
+    for directory in (layout.COMMANDS_DIR, layout.PROMPTS_DIR):
+        (tmp_path / directory).mkdir(parents=True, exist_ok=True)
     return tmp_path
 
 
@@ -92,7 +93,7 @@ def test_tools_with_nothing_declared():
 
 def test_command_block_carries_the_facts_that_drift():
     block = rcd.command_block("thing", rcd.frontmatter(COMMAND))
-    assert "`commands/thing.md`" in block
+    assert f"`{layout.COMMANDS_DIR}/thing.md`" in block
     assert "`/rhiza:thing [a path]  (optional)`" in block
     assert "| **Model-invocable** | yes |" in block
     assert "`Bash(git*)`, `Read`" in block

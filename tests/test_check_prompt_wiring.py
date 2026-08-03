@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import _rhiza_layout as layout
 import check_prompt_wiring as cw
 import pytest
 
@@ -23,12 +24,12 @@ _INTERNAL = """\
 @pytest.fixture
 def plugin(tmp_path: Path) -> Path:
     """A minimal, sound plugin root: one command referencing one procedure."""
-    (tmp_path / "commands").mkdir()
-    (tmp_path / "prompts").mkdir()
-    (tmp_path / "commands" / "init.md").write_text(
+    (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
+    (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True)
+    (tmp_path / layout.COMMANDS_DIR / "init.md").write_text(
         "---\ndescription: x\n---\n\n`Read` prompts/skeleton.md and follow it.\n"
     )
-    (tmp_path / "prompts" / "skeleton.md").write_text(_INTERNAL)
+    (tmp_path / layout.PROMPTS_DIR / "skeleton.md").write_text(_INTERNAL)
     return tmp_path
 
 
@@ -40,7 +41,7 @@ def test_a_sound_root_has_no_violations(plugin):
 
 
 def test_flags_a_procedure_that_does_not_declare_itself(plugin):
-    (plugin / "prompts" / "skeleton.md").write_text("# Skeleton\n\nJust prose.\n")
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text("# Skeleton\n\nJust prose.\n")
     (violation,) = cw.check_wiring(plugin)
     assert "does not say" in violation
 
@@ -49,7 +50,7 @@ def test_flags_a_procedure_that_does_not_declare_itself(plugin):
 
 
 def test_flags_command_frontmatter_on_a_procedure(plugin):
-    (plugin / "prompts" / "skeleton.md").write_text(
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
         '---\ndescription: x\nargument-hint: "[n]"\nallowed-tools: Read\n---\n\n'
         "> **Not a slash command.**\n"
     )
@@ -63,7 +64,7 @@ def test_flags_command_frontmatter_on_a_procedure(plugin):
 
 
 def test_flags_a_name_that_is_both_a_command_and_a_procedure(plugin):
-    (plugin / "commands" / "skeleton.md").write_text("---\ndescription: x\n---\n")
+    (plugin / layout.COMMANDS_DIR / "skeleton.md").write_text("---\ndescription: x\n---\n")
     violations = cw.check_wiring(plugin)
     assert any("both a command and a procedure" in v for v in violations)
 
@@ -72,7 +73,7 @@ def test_flags_a_name_that_is_both_a_command_and_a_procedure(plugin):
 
 
 def test_flags_a_dangling_reference(plugin):
-    (plugin / "commands" / "init.md").write_text("`Read` prompts/gone.md and follow it.\n")
+    (plugin / layout.COMMANDS_DIR / "init.md").write_text("`Read` prompts/gone.md and follow it.\n")
     violations = cw.check_wiring(plugin)
     assert any("references missing prompts/gone.md" in v for v in violations)
 
@@ -87,29 +88,29 @@ def test_checks_references_in_root_markdown_too(plugin):
 
 
 def test_flags_an_orphaned_procedure(plugin):
-    (plugin / "prompts" / "stray.md").write_text(_INTERNAL)
+    (plugin / layout.PROMPTS_DIR / "stray.md").write_text(_INTERNAL)
     violations = cw.check_wiring(plugin)
     assert any("prompts/stray.md is never referenced" in v for v in violations)
 
 
 def test_a_self_reference_does_not_make_a_procedure_reachable(plugin):
     """Mentioning your own path is not a caller."""
-    (plugin / "prompts" / "stray.md").write_text(_INTERNAL + "\nSee prompts/stray.md.\n")
+    (plugin / layout.PROMPTS_DIR / "stray.md").write_text(_INTERNAL + "\nSee prompts/stray.md.\n")
     violations = cw.check_wiring(plugin)
     assert any("prompts/stray.md is never referenced" in v for v in violations)
 
 
 def test_a_procedure_may_be_reached_from_another_procedure(plugin):
     """skeleton -> python-version is the real chain, and must be allowed."""
-    (plugin / "prompts" / "python-version.md").write_text(_INTERNAL)
-    (plugin / "prompts" / "skeleton.md").write_text(
+    (plugin / layout.PROMPTS_DIR / "python-version.md").write_text(_INTERNAL)
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
         _INTERNAL + "\n`Read` prompts/python-version.md and follow it.\n"
     )
     assert cw.check_wiring(plugin) == []
 
 
 def test_flags_a_procedure_invoked_via_the_skill_tool(plugin):
-    (plugin / "commands" / "init.md").write_text(
+    (plugin / layout.COMMANDS_DIR / "init.md").write_text(
         "prompts/skeleton.md exists, but this line invokes the "
         "`skeleton` command via the Skill tool instead.\n"
     )
@@ -119,8 +120,8 @@ def test_flags_a_procedure_invoked_via_the_skill_tool(plugin):
 
 def test_allows_skill_invocation_of_a_real_command(plugin):
     """Commands may legitimately delegate to other commands."""
-    (plugin / "commands" / "update.md").write_text("---\ndescription: x\n---\n")
-    (plugin / "commands" / "init.md").write_text(
+    (plugin / layout.COMMANDS_DIR / "update.md").write_text("---\ndescription: x\n---\n")
+    (plugin / layout.COMMANDS_DIR / "init.md").write_text(
         "`Read` prompts/skeleton.md, and invoke the `update` command via the Skill tool.\n"
     )
     assert cw.check_wiring(plugin) == []
@@ -130,7 +131,7 @@ def test_allows_skill_invocation_of_a_real_command(plugin):
 
 
 def test_a_root_without_a_prompts_directory_is_vacuously_sound(tmp_path):
-    (tmp_path / "commands").mkdir()
+    (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
     assert cw.check_wiring(tmp_path) == []
 
 
@@ -143,7 +144,7 @@ def test_main_passes_on_a_sound_root(plugin, capsys):
 
 
 def test_main_reports_each_violation(plugin, capsys):
-    (plugin / "prompts" / "stray.md").write_text("# Stray\n")
+    (plugin / layout.PROMPTS_DIR / "stray.md").write_text("# Stray\n")
     assert cw.main(["--root", str(plugin)]) == 1
     err = capsys.readouterr().err
     assert "Prompt-wiring check failed" in err
@@ -172,38 +173,38 @@ def test_this_repo_is_wired_correctly():
 )
 def test_the_expected_procedures_exist(name):
     """Pins the current set, so adding or removing one is a deliberate edit here."""
-    assert (_ROOT / "prompts" / f"{name}.md").is_file()
-    assert not (_ROOT / "commands" / f"{name}.md").exists()
+    assert (_ROOT / layout.PROMPTS_DIR / f"{name}.md").is_file()
+    assert not (_ROOT / layout.COMMANDS_DIR / f"{name}.md").exists()
 
 
 def test_init_and_update_both_start_with_install_uv():
     """Both entry points must install `uv` before anything that depends on it."""
     for command, dependent in (("init.md", "init_scaffold.py"), ("update.md", "sync.py")):
-        text = (_ROOT / "commands" / command).read_text()
+        text = (_ROOT / layout.COMMANDS_DIR / command).read_text()
         assert "prompts/install-uv.md" in text, f"{command} does not follow install-uv"
         assert text.index("prompts/install-uv.md") < text.index(dependent)
 
 
 def test_skeleton_reaches_python_version():
     """The Python metadata step hangs off the skeleton, not off /init."""
-    assert "prompts/python-version.md" in (_ROOT / "prompts" / "skeleton.md").read_text()
+    assert "prompts/python-version.md" in (_ROOT / layout.PROMPTS_DIR / "skeleton.md").read_text()
 
 
 @pytest.mark.parametrize("command", ["init.md", "update.md"])
 def test_both_entry_points_share_the_pr_base_procedure(command):
     """The 'never push to the default branch' rule lives in one place, not two."""
-    assert "prompts/pr-base.md" in (_ROOT / "commands" / command).read_text()
+    assert "prompts/pr-base.md" in (_ROOT / layout.COMMANDS_DIR / command).read_text()
 
 
 @pytest.mark.parametrize("name", ["design-analysis", "scorecard"])
 def test_quality_reads_its_two_procedures(name):
     """The judgement-heavy halves of /quality live in prompts/, not inline."""
-    assert f"prompts/{name}.md" in (_ROOT / "commands" / "quality.md").read_text()
+    assert f"prompts/{name}.md" in (_ROOT / layout.COMMANDS_DIR / "quality.md").read_text()
 
 
 def test_quality_gathers_evidence_before_scoring():
     """Marks must follow the evidence, so design-analysis is read before scorecard."""
-    text = (_ROOT / "commands" / "quality.md").read_text()
+    text = (_ROOT / layout.COMMANDS_DIR / "quality.md").read_text()
     assert text.index("prompts/design-analysis.md") < text.index("prompts/scorecard.md")
 
 
@@ -213,8 +214,8 @@ def test_the_scoping_rule_lives_only_in_the_scorecard():
     /quality restating it would let the two drift, and a drifted scoping rule silently
     changes every score.
     """
-    quality = (_ROOT / "commands" / "quality.md").read_text()
-    scorecard = (_ROOT / "prompts" / "scorecard.md").read_text()
+    quality = (_ROOT / layout.COMMANDS_DIR / "quality.md").read_text()
+    scorecard = (_ROOT / layout.PROMPTS_DIR / "scorecard.md").read_text()
     assert "In scope:" in scorecard
     assert "In scope:" not in quality
 
@@ -222,5 +223,5 @@ def test_the_scoping_rule_lives_only_in_the_scorecard():
 def test_pr_base_is_reached_before_any_commit_is_pushed():
     """The branch must exist before the push, in both callers."""
     for command in ("init.md", "update.md"):
-        text = (_ROOT / "commands" / command).read_text()
+        text = (_ROOT / layout.COMMANDS_DIR / command).read_text()
         assert text.index("prompts/pr-base.md") < text.index("git push")

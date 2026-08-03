@@ -23,7 +23,7 @@ import pytest
 from conftest import assert_ok, run_cmd
 
 _ROOT = Path(__file__).resolve().parents[1]
-_QUALITY = _ROOT / "commands" / "quality.md"
+_QUALITY = _ROOT / "plugin" / "commands" / "quality.md"
 
 pytestmark = pytest.mark.skipif(shutil.which("make") is None, reason="make not available")
 

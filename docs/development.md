@@ -5,22 +5,37 @@ stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 
 ## Layout
 
+The repo separates **what ships** from **what builds it**: the plugin is `plugin/`,
+everything else is tooling. `.claude-plugin/marketplace.json` stays at the root and
+points inward with `"source": "./plugin"`.
+
 | Path | Purpose |
 | --- | --- |
-| `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. |
-| `.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `commands/` | The plugin's slash commands (one `.md` per command). |
-| `hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
-| `scripts/` | Bundled stdlib-only Python scripts backing the commands. |
-| `tests/` | Pytest suite for the scripts. |
-| `docs/` | This book. |
+| `.claude-plugin/marketplace.json` | Marketplace manifest. Root, because that's where `marketplace add` looks. |
+| `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
+| `plugin/commands/` | The plugin's slash commands (one `.md` per command). |
+| `plugin/prompts/` | Internal procedures the commands `Read`. |
+| `plugin/hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
+| `plugin/scripts/` | Bundled stdlib-only Python scripts backing the commands. |
+| `tests/` | Pytest suite for the scripts. Not shipped. |
+| `docs/` | This book. Not shipped. |
+| `paper/` | The LaTeX introduction. Not shipped. |
+
+Those four directories sit inside `plugin/` because the plugin spec requires
+`commands/`, `hooks/`, `prompts/` and `scripts/` at the *plugin* root. `plugin/` itself
+is the choice — it keeps eight top-level directories down to four and makes "is this
+shipped?" answerable from the path.
+
+`${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`, so command prose is unchanged; only
+source-checkout fallbacks gained the prefix. `plugin/scripts/_rhiza_layout.py` is the
+single definition of the layout, imported by the checkers that span both halves.
 
 ## Runtime hooks
 
 The prose gates below check the commands *before* they ship. They cannot check that a
-correct command is *executed* correctly, which is what `hooks/hooks.json` is for: a
+correct command is *executed* correctly, which is what `plugin/hooks/hooks.json` is for: a
 `PreToolUse` hook on `Bash`, auto-discovered from the plugin root, running
-`scripts/hook_bash_guard.py`.
+`plugin/scripts/hook_bash_guard.py`.
 
 It reaches exactly three decisions:
 
@@ -62,7 +77,7 @@ keeps the `prompts/` procedures referenced and un-invocable. `docs-nav` requires
 `docs/` page and an `mkdocs.yml` nav entry for every command and procedure, in
 both directions, so neither an undocumented command nor an orphaned page can ship.
 `docs-reference-blocks` is its content half: each page carries a **Reference** table
-generated from the command's frontmatter by `scripts/render_command_docs.py`, so a
+generated from the command's frontmatter by `plugin/scripts/render_command_docs.py`, so a
 renamed argument or a widened `allowed-tools` list cannot survive in the docs. Page
 *existence* was checked; page *facts* were not.
 
@@ -85,7 +100,7 @@ deliberately broken, because they look for a `pyproject.toml` this repo doesn't 
 they were rejected. An enabled-but-inert hook is worse than no hook: it reads as
 coverage that doesn't exist.
 
-`update-readme-help` overlaps `scripts/sync_readme_help.py` in job but not in consumer.
+`update-readme-help` overlaps `plugin/scripts/sync_readme_help.py` in job but not in consumer.
 The script is a **plugin** script that `/rhiza:docs` runs inside *someone else's* repo,
 which need not have adopted rhiza-hooks; the hook only helps repos that have. Kept
 local.
@@ -116,7 +131,7 @@ repo on `github-project`, one on `gitlab-project`, a Rust crate and a Go module.
 used to be opt-in behind `RHIZA_E2E=1`, which is how `/rhiza:quality` shipped unable to run at
 all: a suite nobody runs still reads as coverage. The fixtures are parameterised by
 language — `(init command, profile, tools)` per language, with the assertions reading
-their expectations from `scripts/language_profile.py` and from the synced tree.
+their expectations from `plugin/scripts/language_profile.py` and from the synced tree.
 
 The template ref they sync from is **pinned** in `tests/conftest.py`
 (`PINNED_TEMPLATE_REF`), so a PR run never goes red merely because upstream released.

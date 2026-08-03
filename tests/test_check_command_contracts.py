@@ -14,6 +14,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+import _rhiza_layout as layout
 import check_command_contracts as ccc
 import pytest
 
@@ -31,11 +32,11 @@ allowed-tools: Bash(uv*), Bash(git*), Read
 @pytest.fixture
 def plugin(tmp_path: Path) -> Path:
     """A minimal, contract-clean plugin root with one real bundled script."""
-    (tmp_path / "commands").mkdir()
-    (tmp_path / "prompts").mkdir()
-    (tmp_path / "scripts").mkdir()
-    shutil.copy(_ROOT / "scripts" / "init_scaffold.py", tmp_path / "scripts")
-    (tmp_path / "commands" / "demo.md").write_text(
+    (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
+    (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True)
+    (tmp_path / layout.SCRIPTS_DIR).mkdir(parents=True)
+    shutil.copy(_ROOT / layout.SCRIPTS_DIR / "init_scaffold.py", tmp_path / layout.SCRIPTS_DIR)
+    (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text(
         _GOOD_FRONTMATTER + "\nRun it:\n\n```bash\n"
         "uv run python scripts/init_scaffold.py . --host github --ref v1.0.0\n"
         "```\n"
@@ -50,7 +51,7 @@ def _write_prose(plugin: Path, name: str, body: str) -> None:
 
 def _write(plugin: Path, body: str, *, name: str = "demo.md") -> None:
     """Replace the demo command's body, keeping valid frontmatter."""
-    (plugin / "commands" / name).write_text(_GOOD_FRONTMATTER + body)
+    (plugin / layout.COMMANDS_DIR / name).write_text(_GOOD_FRONTMATTER + body)
 
 
 # --- the sound baseline -------------------------------------------------------
@@ -67,23 +68,23 @@ def test_a_clean_plugin_has_no_violations(plugin):
 def test_flags_a_command_missing_a_frontmatter_key(plugin, missing):
     kept = [k for k in ("description", "argument-hint", "allowed-tools") if k != missing]
     front = "---\n" + "".join(f"{k}: x\n" for k in kept) + "---\n"
-    (plugin / "commands" / "demo.md").write_text(front + "\nbody\n")
+    (plugin / layout.COMMANDS_DIR / "demo.md").write_text(front + "\nbody\n")
     assert any(missing in v for v in ccc.check_contracts(plugin))
 
 
 def test_flags_a_command_with_no_frontmatter_at_all(plugin):
-    (plugin / "commands" / "demo.md").write_text("# no frontmatter\n")
+    (plugin / layout.COMMANDS_DIR / "demo.md").write_text("# no frontmatter\n")
     assert any("missing frontmatter" in v for v in ccc.check_contracts(plugin))
 
 
 def test_flags_a_procedure_that_has_command_frontmatter(plugin):
     """A procedure isn't invocable, so frontmatter on one is misleading."""
-    (plugin / "prompts" / "p.md").write_text(_GOOD_FRONTMATTER + "\nbody\n")
+    (plugin / layout.PROMPTS_DIR / "p.md").write_text(_GOOD_FRONTMATTER + "\nbody\n")
     assert any("not invocable" in v for v in ccc.check_contracts(plugin))
 
 
 def test_a_procedure_without_frontmatter_is_fine(plugin):
-    (plugin / "prompts" / "p.md").write_text("# Procedure\n\nbody\n")
+    (plugin / layout.PROMPTS_DIR / "p.md").write_text("# Procedure\n\nbody\n")
     assert ccc.check_contracts(plugin) == []
 
 
@@ -172,13 +173,13 @@ def test_a_quoted_path_with_valid_flags_still_passes(plugin):
 
 def test_script_flags_extracts_multi_line_add_argument():
     """The scripts use both single- and multi-line argparse styles."""
-    flags = ccc.script_flags(_ROOT / "scripts" / "status.py")
+    flags = ccc.script_flags(_ROOT / layout.SCRIPTS_DIR / "status.py")
     assert {"--json", "--files", "--tree", "--check"} <= flags
 
 
 def test_script_flags_does_not_leak_between_calls():
     """A flag declared for one argument must not be attributed to the previous one."""
-    flags = ccc.script_flags(_ROOT / "scripts" / "check_version_bump.py")
+    flags = ccc.script_flags(_ROOT / layout.SCRIPTS_DIR / "check_version_bump.py")
     assert {"--current", "--target-dir", "--json"} <= flags
     assert "--host" not in flags  # belongs to other scripts entirely
 
@@ -198,7 +199,7 @@ def test_the_invocation_phrase_is_matched_case_insensitively(plugin):
 
 
 def test_an_invocation_of_a_real_command_is_fine(plugin):
-    (plugin / "commands" / "other.md").write_text(_GOOD_FRONTMATTER + "\nbody\n")
+    (plugin / layout.COMMANDS_DIR / "other.md").write_text(_GOOD_FRONTMATTER + "\nbody\n")
     _write(plugin, "\nInvoke the `other` command via the Skill tool.\n")
     assert ccc.check_contracts(plugin) == []
 
@@ -234,7 +235,9 @@ def test_variable_assignments_are_not_binaries(plugin):
 
 def test_a_procedure_is_not_checked_for_allowed_tools(plugin):
     """Procedures have no frontmatter, so they inherit the caller's permissions."""
-    (plugin / "prompts" / "p.md").write_text("# P\n\n```bash\ncurl https://example.com\n```\n")
+    (plugin / layout.PROMPTS_DIR / "p.md").write_text(
+        "# P\n\n```bash\ncurl https://example.com\n```\n"
+    )
     assert ccc.check_contracts(plugin) == []
 
 
@@ -245,7 +248,7 @@ def _write_opt_out_command(plugin: Path, name: str, declared: str | None) -> Non
     """Write `commands/<name>.md`, optionally declaring the opt-out key."""
     key = f"{ccc._OPT_OUT_KEY}: {declared}\n" if declared is not None else ""
     frontmatter = _GOOD_FRONTMATTER.rstrip("\n").removesuffix("---") + key + "---\n"
-    (plugin / "commands" / f"{name}.md").write_text(frontmatter + "\nBody.\n")
+    (plugin / layout.COMMANDS_DIR / f"{name}.md").write_text(frontmatter + "\nBody.\n")
 
 
 @pytest.mark.parametrize("name", sorted(ccc._MODEL_INVOCATION_OPT_OUT))
@@ -282,13 +285,13 @@ def test_an_ordinary_command_without_the_key_is_fine(plugin):
 
 def test_the_policy_is_not_applied_to_procedures(plugin):
     """Rule 1 already rejects frontmatter under prompts/; rule 7 must not double-report."""
-    (plugin / "prompts" / "release.md").write_text("Not a slash command.\n")
+    (plugin / layout.PROMPTS_DIR / "release.md").write_text("Not a slash command.\n")
     assert ccc.check_contracts(plugin) == []
 
 
 def test_a_command_with_no_frontmatter_is_left_to_rule_one(plugin):
     """Rule 7 stays silent rather than piling a second error onto the same cause."""
-    (plugin / "commands" / "release.md").write_text("# No frontmatter\n")
+    (plugin / layout.COMMANDS_DIR / "release.md").write_text("# No frontmatter\n")
     violations = ccc.check_contracts(plugin)
     assert any("missing frontmatter" in v for v in violations)
     assert not any(ccc._OPT_OUT_KEY in v for v in violations)
@@ -345,7 +348,7 @@ def test_flags_a_description_with_an_unquoted_colon(plugin):
     `: ` reads as a nested mapping, so the whole block fails to load and the command's
     metadata is lost. The original key check was a substring search, which passed.
     """
-    (plugin / "commands" / "demo.md").write_text(
+    (plugin / layout.COMMANDS_DIR / "demo.md").write_text(
         "---\n"
         "description: delegates to internal procedures: install-uv, skeleton\n"
         'argument-hint: "[x]"\n'
@@ -358,7 +361,7 @@ def test_flags_a_description_with_an_unquoted_colon(plugin):
 
 def test_a_quoted_value_may_contain_a_colon(plugin):
     """Quoting is the escape hatch, so the rule must not forbid colons outright."""
-    (plugin / "commands" / "demo.md").write_text(
+    (plugin / layout.COMMANDS_DIR / "demo.md").write_text(
         "---\n"
         'description: "delegates to internal procedures: install-uv"\n'
         'argument-hint: "[x]"\n'
@@ -369,7 +372,7 @@ def test_a_quoted_value_may_contain_a_colon(plugin):
 
 
 def test_a_block_scalar_may_contain_a_colon(plugin):
-    (plugin / "commands" / "demo.md").write_text(
+    (plugin / layout.COMMANDS_DIR / "demo.md").write_text(
         "---\n"
         "description: >-\n"
         "  delegates to internal procedures: install-uv\n"
@@ -413,7 +416,7 @@ def test_parse_frontmatter_ignores_continuations_and_comments():
 
 def test_this_plugins_frontmatter_all_parses():
     """The assertion that would have caught it: every shipped command loads."""
-    for path in sorted((_ROOT / "commands").glob("*.md")):
+    for path in sorted((_ROOT / layout.COMMANDS_DIR).glob("*.md")):
         block = ccc.frontmatter(path.read_text())
         assert block is not None, f"{path.name} has no frontmatter"
         mapping, problems = ccc.parse_frontmatter(block)
@@ -471,7 +474,7 @@ def test_prose_files_absent_is_not_a_violation(plugin):
 
 def test_this_repos_prose_references_all_resolve():
     """The assertion that matters: no dead script reference anywhere a reader looks."""
-    scripts_dir = _ROOT / "scripts"
+    scripts_dir = _ROOT / layout.SCRIPTS_DIR
     violations = [
         v
         for path in ccc.prose_files(_ROOT)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import _rhiza_layout as layout
 import check_docs_nav as cdn
 import pytest
 
@@ -33,10 +34,10 @@ theme:
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A minimal tree in parity: one command, one procedure, both paged and navigable."""
-    for directory in ("commands", "prompts", "docs/commands", "docs/internals"):
+    for directory in (layout.COMMANDS_DIR, layout.PROMPTS_DIR, "docs/commands", "docs/internals"):
         (tmp_path / directory).mkdir(parents=True)
-    (tmp_path / "commands" / "demo.md").write_text("# demo\n")
-    (tmp_path / "prompts" / "proc.md").write_text("# proc\n")
+    (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text("# demo\n")
+    (tmp_path / layout.PROMPTS_DIR / "proc.md").write_text("# proc\n")
     (tmp_path / "docs" / "commands" / "demo.md").write_text("# demo page\n")
     (tmp_path / "docs" / "internals" / "proc.md").write_text("# proc page\n")
     (tmp_path / "mkdocs.yml").write_text(_MKDOCS)
@@ -54,13 +55,19 @@ def test_a_tree_in_parity_has_no_violations(repo):
 
 
 def test_flags_a_command_with_no_docs_page(repo):
-    (repo / "commands" / "fresh.md").write_text("# fresh\n")
-    assert "commands/fresh.md has no page at docs/commands/fresh.md" in cdn.check_docs_nav(repo)
+    (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n")
+    assert (
+        f"{layout.COMMANDS_DIR}/fresh.md has no page at docs/commands/fresh.md"
+        in cdn.check_docs_nav(repo)
+    )
 
 
 def test_flags_a_procedure_with_no_docs_page(repo):
-    (repo / "prompts" / "fresh.md").write_text("# fresh\n")
-    assert "prompts/fresh.md has no page at docs/internals/fresh.md" in cdn.check_docs_nav(repo)
+    (repo / layout.PROMPTS_DIR / "fresh.md").write_text("# fresh\n")
+    assert (
+        f"{layout.PROMPTS_DIR}/fresh.md has no page at docs/internals/fresh.md"
+        in cdn.check_docs_nav(repo)
+    )
 
 
 # --- rule 2: the page is in the nav -------------------------------------------
@@ -68,7 +75,7 @@ def test_flags_a_procedure_with_no_docs_page(repo):
 
 def test_flags_a_page_that_is_not_in_the_nav(repo):
     """The orphan direction mkdocs --strict cannot see."""
-    (repo / "commands" / "extra.md").write_text("# extra\n")
+    (repo / layout.COMMANDS_DIR / "extra.md").write_text("# extra\n")
     (repo / "docs" / "commands" / "extra.md").write_text("# extra page\n")
     violations = cdn.check_docs_nav(repo)
     assert "docs/commands/extra.md exists but is not in mkdocs.yml's nav" in violations
@@ -87,7 +94,8 @@ def test_flags_a_page_whose_command_was_removed(repo):
     (repo / "docs" / "commands" / "retired.md").write_text("# stale instructions\n")
     violations = cdn.check_docs_nav(repo)
     assert (
-        "docs/commands/retired.md has no matching commands/retired.md — orphan page" in violations
+        f"docs/commands/retired.md has no matching {layout.COMMANDS_DIR}/retired.md — orphan page"
+        in violations
     )
 
 
@@ -96,7 +104,7 @@ def test_flags_a_page_whose_command_was_removed(repo):
 
 def test_flags_a_nav_entry_pointing_at_a_missing_page(repo):
     (repo / "docs" / "commands" / "demo.md").unlink()
-    (repo / "commands" / "demo.md").unlink()
+    (repo / layout.COMMANDS_DIR / "demo.md").unlink()
     violations = cdn.check_docs_nav(repo)
     assert "mkdocs.yml nav points at docs/commands/demo.md, which does not exist" in violations
 
@@ -148,7 +156,7 @@ def test_main_passes_on_a_tree_in_parity(repo, capsys):
 
 
 def test_main_reports_each_violation(repo, capsys):
-    (repo / "commands" / "fresh.md").write_text("# fresh\n")
+    (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n")
     assert cdn.main(["--root", str(repo)]) == 1
     err = capsys.readouterr().err
     assert "Docs/nav parity check failed" in err

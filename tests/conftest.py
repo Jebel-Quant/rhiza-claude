@@ -1,7 +1,7 @@
 """Shared test fixtures for the rhiza-config plugin scripts.
 
-The scripts under `scripts/` are standalone (run as
-`uv run --python 3.12 --no-project python scripts/<x>.py`), not an installed
+The scripts under `plugin/scripts/` are standalone (run as
+`uv run --python 3.12 --no-project python plugin/scripts/<x>.py`), not an installed
 package, so put that directory on `sys.path` to import them.
 """
 
@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "plugin" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
@@ -263,7 +263,7 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if missing:
         pytest.skip(f"end-to-end tests need {', '.join(missing)}")
 
-    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    scripts = SCRIPTS
     repo = tmp_path_factory.mktemp("e2e") / "widget"
     repo.mkdir()
 
@@ -342,7 +342,7 @@ def gitlab_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if missing:
         pytest.skip(f"end-to-end tests need {', '.join(missing)}")
 
-    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    scripts = SCRIPTS
     repo = tmp_path_factory.mktemp("e2e-gitlab") / "widget"
     repo.mkdir()
 
@@ -479,7 +479,7 @@ def require_language_profile(language: str, ref: str) -> None:
 def _scaffold(repo: Path, language: str, *, description: str) -> None:
     """Run the /init chain for *language* in *repo*: init, skeleton, pointer, licence."""
     fixture = _LANGUAGE_FIXTURES[language]
-    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    scripts = SCRIPTS
     # `git init` first: cargo initialises a repo itself, but only when it decides the
     # directory needs one, and the skeleton's author metadata comes from git identity.
     assert_ok(run_cmd(["git", "init", "-q", "-b", "main", "."], repo), "git init")
@@ -529,7 +529,7 @@ def _build_synced(factory: pytest.TempPathFactory, language: str) -> Path:
     ref = language_template_ref(language)
     require_language_profile(language, ref)
 
-    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    scripts = SCRIPTS
     repo = factory.mktemp(f"e2e-{language}-synced") / "widget"
     repo.mkdir()
     _scaffold(repo, language, description=f"Synced {language} fixture for the rhiza plugin.")

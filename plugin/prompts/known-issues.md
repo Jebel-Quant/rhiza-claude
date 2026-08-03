@@ -10,7 +10,7 @@ makes the repo worse. Each entry below says what the failure looks like, why it 
 out-of-scope, and what **not** to do about it.
 
 **Nothing here re-runs a gate.** If a failure isn't listed, it is in scope — diagnose it
-normally and follow `prompts/scorecard.md`.
+normally and follow `plugin/prompts/scorecard.md`.
 
 ## How to read the version column
 
@@ -34,7 +34,7 @@ stale entry here is the exact failure mode this file was extracted to contain.
 | **Upstream** | [jebel-quant/rhiza#1440](https://github.com/jebel-quant/rhiza/issues/1440) |
 
 The synced test asserts a `License :: OSI Approved :: …` trove classifier. PEP 639
-superseded those with the SPDX `license` field that `prompts/license.md` writes.
+superseded those with the SPDX `license` field that `plugin/prompts/license.md` writes.
 
 The two are not merely redundant. Declaring **both** makes `setuptools>=77` refuse to
 build the project — *"License classifiers have been superseded by license expressions …
@@ -66,6 +66,6 @@ If you meet an older template that still has it, `check_make_targets.py` reports
 available and it can be run like any other discovered target. Nothing needs to change
 here for that to work.
 
-> Unrelated to `scripts/validate.py`, which `/rhiza:status` runs to check that
+> Unrelated to `plugin/scripts/validate.py`, which `/rhiza:status` runs to check that
 > `template.yml` itself is well-formed. The name collision is unfortunate and has
 > confused this before.

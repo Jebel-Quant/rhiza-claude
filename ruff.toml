@@ -1,4 +1,4 @@
-# Ruff configuration — lints and formats the Python helper scripts in scripts/.
+# Ruff configuration — lints and formats the Python helper scripts in plugin/scripts/.
 line-length = 100
 target-version = "py311"
 

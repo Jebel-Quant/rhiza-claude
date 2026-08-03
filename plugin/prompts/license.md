@@ -3,7 +3,7 @@
 > **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
 > user cannot invoke it. `/rhiza:init` reads it and follows it at its step 5c.
 
-**This is a thin wrapper around the bundled `scripts/set_license.py`.** The metadata
+**This is a thin wrapper around the bundled `plugin/scripts/set_license.py`.** The metadata
 edit, the bundled license texts, and the safe-overwrite logic all live in that
 deterministic, stdlib-only script. The job here is to settle three inputs — the
 license, the copyright holder, and whether to overwrite — then run it and relay the
@@ -43,7 +43,7 @@ differing `LICENSE` and **exits 3**, changing nothing (metadata included).
 ## 4. Run the script
 Invoke the bundled script with the plugin-root path (`${CLAUDE_PLUGIN_ROOT}`
 resolves at runtime — **keep the quotes**; in a source checkout of this repo it's
-empty, so fall back to the repo-relative `scripts/set_license.py`):
+empty, so fall back to the repo-relative `plugin/scripts/set_license.py`):
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/set_license.py" . \
   --license "$LICENSE" --owner "$OWNER" [--force]
@@ -57,5 +57,5 @@ left untouched and offer to re-run with `--force`.
 
 **No `License ::` trove classifier.** The script writes the PEP 639 SPDX `license`
 field and never a classifier, and neither should you — see the note at the end of
-`prompts/skeleton.md` for why the template's stale assertion is not a reason to add
+`plugin/prompts/skeleton.md` for why the template's stale assertion is not a reason to add
 one.

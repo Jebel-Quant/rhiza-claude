@@ -13,7 +13,7 @@ the synced `.rhiza/tests/test_pyproject.py` asserts a specific `[project]` shape
 This produces that shape.
 
 **It is a thin wrapper around `uv init --lib` plus the bundled
-`scripts/init_skeleton.py`.** `uv` creates the skeleton; the deterministic,
+`plugin/scripts/init_skeleton.py`.** `uv` creates the skeleton; the deterministic,
 stdlib-only script finishes it. Every edit is **idempotent and additive** — running
 it twice changes nothing the second time, and it never overwrites real code or
 metadata a human wrote.
@@ -28,7 +28,7 @@ The project name is `NAME` — whatever `/init` settled, else `basename "$PWD"`.
 
 ## 1. Settle the inputs
 
-- **`uv`** — `/init` has already followed `prompts/install-uv.md` by the time you get
+- **`uv`** — `/init` has already followed `plugin/prompts/install-uv.md` by the time you get
   here, so `uv` is present. If `uv --version` somehow fails, `Read`
   `${CLAUDE_PLUGIN_ROOT}/prompts/install-uv.md` and follow it, then stop if it still
   fails.
@@ -64,7 +64,7 @@ a mature repo.
 
 Invoke the bundled script with the plugin-root path (`${CLAUDE_PLUGIN_ROOT}` resolves
 at runtime — **keep the quotes**; in a source checkout it's empty, so fall back to
-the repo-relative `scripts/init_skeleton.py`):
+the repo-relative `plugin/scripts/init_skeleton.py`):
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_skeleton.py" . \
   --owner "$OWNER" --repo "$REPO" --host <github|gitlab> \
@@ -133,12 +133,12 @@ a self-reference in `.github/`.
 ## 6. Delegate the Python metadata
 
 `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/python-version.md`** and follow it with
-`$PYTHON_VERSION` (in a source checkout, `prompts/python-version.md`). It pins
+`$PYTHON_VERSION` (in a source checkout, `plugin/prompts/python-version.md`). It pins
 `requires-python`, rewrites the `Programming Language :: Python :: X.Y` classifiers
 to the supported range, and syncs `.python-version`. That's its job, so don't
 hand-edit those fields here.
 
-**The license is not this procedure's job either.** `prompts/license.md` owns the
+**The license is not this procedure's job either.** `plugin/prompts/license.md` owns the
 SPDX metadata and the `LICENSE` file, and `/init` follows it right after this one.
 
 ## 7. Report
@@ -153,7 +153,7 @@ and which `uv init` only populates from `git config`.
 ## Rust
 
 The python path above, with cargo in uv's place. Everything general still holds — the
-edits are idempotent and additive, the license is `prompts/license.md`'s job, and the
+edits are idempotent and additive, the license is `plugin/prompts/license.md`'s job, and the
 gate in step 4 is not optional.
 
 ### R1. Settle the inputs
@@ -250,7 +250,7 @@ The shortest of the three, and short for a reason: `go mod init` writes exactly 
 and `go.mod` holds a module path and a Go version — **no description, repository,
 homepage, author or licence field exists in the format**. There is no manifest-filling
 step here because there is nothing to fill. Everything general still holds: the edits are
-idempotent and additive, the licence is `prompts/license.md`'s job, and the gate in G4 is
+idempotent and additive, the licence is `plugin/prompts/license.md`'s job, and the gate in G4 is
 not optional.
 
 ### G1. Settle the inputs
@@ -334,7 +334,7 @@ whether `doc.go` and the README were written or already present, **that `go list
   one — `httpx>=0.27`, never a bare `httpx`. Prefer `uv add <pkg>` (it writes a `>=`
   bound); if you hand-edit `[project].dependencies`, add the bound yourself. This
   applies to optional and dependency-group entries too.
-- **No license classifiers — ever.** Neither this procedure nor `prompts/license.md`
+- **No license classifiers — ever.** Neither this procedure nor `plugin/prompts/license.md`
   writes a `License :: …` trove classifier: PEP 639 replaced it with the SPDX
   `license` field, which is what the license step sets. The template's
   `test_pyproject.py` still

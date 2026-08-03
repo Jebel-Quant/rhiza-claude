@@ -21,7 +21,7 @@ repo from a pinned template release and scores the result.
 !!! note "Python is the fully-supported axis"
     All three languages sync, update, release and report the same way. What differs is
     the far end: **Rust and Go have no hosted CI workflows yet**, and
-    [`/rhiza:quality`](commands/quality.md)'s gate list is the Python profile, so on a
+    [`/rhiza:quality`](plugin/commands/quality.md)'s gate list is the Python profile, so on a
     Rust or Go repo it scores the targets it *discovers* in your Makefile and marks
     language-specific subcategories out-of-scope. A worked first run below is Python;
     see [Language support](#language-support) for the full comparison.
@@ -52,11 +52,11 @@ Two files under `.rhiza/`, and they answer different questions:
 **Intent versus outcome.** They can disagree in both directions: a freshly `/init`-ed
 repo has a valid pointer and no lock at all, and a long-synced repo can have a lock
 beside a pointer someone has since broken by hand. That's why
-[`/rhiza:status`](commands/status.md) reports both halves, and why
-[`/rhiza:quality`](commands/quality.md) checks for `.rhiza/template.yml` **and**
+[`/rhiza:status`](plugin/commands/status.md) reports both halves, and why
+[`/rhiza:quality`](plugin/commands/quality.md) checks for `.rhiza/template.yml` **and**
 `.rhiza/rhiza.mk` before it runs: every gate it scores is a `make` target the sync
 delivers, so scoring an unsynced repo would report it as broken rather than as
-unsynced. (By contrast [`/rhiza:release`](commands/release.md) requires neither — it
+unsynced. (By contrast [`/rhiza:release`](plugin/commands/release.md) requires neither — it
 reads the repo's own `[tool.bumpversion]` config, so it works on any git repo.)
 
 ## The intended path
@@ -137,7 +137,7 @@ supported**, and the difference is worth knowing before the bootstrap, not after
 | `/quality` gate list | ✅ known and named | ⚠️ discovered at runtime | ⚠️ discovered at runtime |
 | Test-layout parity subcategory | ✅ | n/a | n/a |
 
-**Python is the fully-supported axis.** [`/rhiza:quality`](commands/quality.md)'s gate
+**Python is the fully-supported axis.** [`/rhiza:quality`](plugin/commands/quality.md)'s gate
 list *is* the Python profile — the one this plugin has actually run against. On a Rust
 or Go repo it probes the Makefile with `check_make_targets.py`, scores the targets it
 discovers, and marks language-specific subcategories out-of-scope.
@@ -256,11 +256,11 @@ These are the AI-driven workflow commands. Each has its own page.
 
 | Command | What it does |
 | --- | --- |
-| [`/rhiza:init`](commands/init.md) | Make the repo rhiza-managed: write `.rhiza/template.yml`, delegate the skeleton + license, open a PR. |
-| [`/rhiza:update`](commands/update.md) | Sync to the latest template release and open a PR with **only** template-owned files. |
-| [`/rhiza:quality`](commands/quality.md) | Run the code-quality gate and score the repo 1–10 across eight categories. |
-| [`/rhiza:docs`](commands/docs.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
-| [`/rhiza:release`](commands/release.md) | Prepare a release: pick the next version from a table, bump, changelog, commit, tag (no push). |
+| [`/rhiza:init`](plugin/commands/init.md) | Make the repo rhiza-managed: write `.rhiza/template.yml`, delegate the skeleton + license, open a PR. |
+| [`/rhiza:update`](plugin/commands/update.md) | Sync to the latest template release and open a PR with **only** template-owned files. |
+| [`/rhiza:quality`](plugin/commands/quality.md) | Run the code-quality gate and score the repo 1–10 across eight categories. |
+| [`/rhiza:docs`](plugin/commands/docs.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
+| [`/rhiza:release`](plugin/commands/release.md) | Prepare a release: pick the next version from a table, bump, changelog, commit, tag (no push). |
 
 ## Repo utilities
 
@@ -270,14 +270,14 @@ Thin, **read-only**, stdlib-only commands backed by bundled scripts — they rea
 
 | Command | What it does |
 | --- | --- |
-| [`/rhiza:status`](commands/status.md) | Report both halves of the repo's rhiza state: is `template.yml` valid, and what did the last sync record. `--files` lists managed files as a tree; `--check` compares the pinned ref against the latest release. |
-| [`/rhiza:maffay`](commands/maffay.md) | Return a bonmot from a random Peter Maffay song. Takes an optional theme keyword. Needs no repo at all. |
+| [`/rhiza:status`](plugin/commands/status.md) | Report both halves of the repo's rhiza state: is `template.yml` valid, and what did the last sync record. `--files` lists managed files as a tree; `--check` compares the pinned ref against the latest release. |
+| [`/rhiza:maffay`](plugin/commands/maffay.md) | Return a bonmot from a random Peter Maffay song. Takes an optional theme keyword. Needs no repo at all. |
 
 ## Destructive
 
 | Command | What it does |
 | --- | --- |
-| [`/rhiza:uninstall`](commands/uninstall.md) | Delete every rhiza-managed file listed in `.rhiza/template.lock`, prune the emptied directories, and remove the lock. Prompts for confirmation unless `--force` is passed. |
+| [`/rhiza:uninstall`](plugin/commands/uninstall.md) | Delete every rhiza-managed file listed in `.rhiza/template.lock`, prune the emptied directories, and remove the lock. Prompts for confirmation unless `--force` is passed. |
 
 ## Internals
 

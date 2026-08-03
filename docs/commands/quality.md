@@ -87,16 +87,16 @@ one worth scoring.
   can't be polluted by `make fmt` rewriting your files. Run this yourself when you want
   a score.
 - Don't confuse `make validate` (repo drifted from the template) with
-  `scripts/validate.py`, which [`/rhiza:status`](status.md) runs (is `template.yml`
+  `plugin/scripts/validate.py`, which [`/rhiza:status`](status.md) runs (is `template.yml`
   well-formed). A repo can pass one and fail the other.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `commands/quality.md` |
+| **Source** | `plugin/commands/quality.md` |
 | **Invocation** | `/rhiza:quality [path or topic to scope the assessment to]  (optional; defaults to the whole repo)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(make*)`, `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(python3*)`, `Bash(grep*)`, `Bash(find*)`, `Bash(wc*)`, `Bash(sed*)`, `Bash(sort*)`, `Bash(uniq*)`, `Grep`, `Glob`, `Read`, `Edit`, `Write`, `AskUserQuestion` |

@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 You are running `/uninstall` in the **current working directory's repo**.
 
-**This command is a thin wrapper around the bundled `scripts/uninstall.py`.** All
+**This command is a thin wrapper around the bundled `plugin/scripts/uninstall.py`.** All
 the deletion logic lives in that script — a deterministic, stdlib-only Python
 program that reads `.rhiza/template.lock` directly (no `rhiza` CLI, no PyYAML
 required). Do **not** re-implement it or delete files yourself; run the script.
@@ -41,7 +41,7 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/uninstal
 
 ## 3. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
-  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python scripts/uninstall.py $ARGUMENTS --force`.
+  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python plugin/scripts/uninstall.py $ARGUMENTS --force`.
 - If `uv` is missing, or the script is genuinely not found at either path, report
   that plainly and stop — never hand-roll the deletions as a substitute.
 
