@@ -159,11 +159,14 @@ def push_positionals(args: list[str]) -> list[str]:
 
 def _git(cwd: str, *args: str) -> str | None:
     """Run a read-only git command in ``cwd``; ``None`` on any failure at all."""
-    if shutil.which("git") is None:
+    # The resolved absolute path, not the bare name: it is needed anyway to know git
+    # exists, and passing it avoids resolving the command against PATH a second time.
+    git = shutil.which("git")
+    if git is None:
         return None
     try:
         result = subprocess.run(  # nosec B603
-            ["git", "-C", cwd, *args],
+            [git, "-C", cwd, *args],
             capture_output=True,
             text=True,
             timeout=5,

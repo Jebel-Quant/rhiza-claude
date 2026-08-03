@@ -112,9 +112,9 @@ def test_segments_of_blank_command():
     [
         (["git", "push"], ("push", [])),
         (["sudo", "git", "push", "origin"], ("push", ["origin"])),
-        (["git", "-C", "/tmp", "push", "origin"], ("push", ["origin"])),
+        (["git", "-C", "/repo", "push", "origin"], ("push", ["origin"])),
         (["git", "--no-pager", "log"], ("log", [])),
-        (["git", "-c", "a=b", "-C", "/tmp", "tag", "-f", "v1"], ("tag", ["-f", "v1"])),
+        (["git", "-c", "a=b", "-C", "/repo", "tag", "-f", "v1"], ("tag", ["-f", "v1"])),
     ],
 )
 def test_git_subcommand_parses(tokens, expected):
@@ -127,7 +127,7 @@ def test_git_subcommand_parses(tokens, expected):
         ["ls", "-la"],
         ["gitk"],
         ["git"],
-        ["git", "-C", "/tmp"],
+        ["git", "-C", "/repo"],
         ["sudo"],
     ],
 )
