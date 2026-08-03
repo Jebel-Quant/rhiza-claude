@@ -150,6 +150,20 @@ Before any scoring, report what the gates said:
 - failures grouped by file, with the specific rule or error and the line;
 - a prioritized list of what to fix first — blocking errors before style nits.
 
+**On a Rust or Go repo, say what the score rests on.** The numbered gate list above is
+the **Python** profile — it is the one this plugin has actually run against. On another
+language most of those targets are unavailable, the marks come from the targets
+`check_make_targets.py` *discovered*, and language-specific subcategories (test-layout
+parity above all) are out-of-scope rather than measured. So state, in the report:
+
+- that the gates were **discovered**, and which ones ran;
+- which subcategories were skipped as not applicable to the language;
+- that the result therefore rests on a narrower base than a Python run and the two
+  numbers are not comparable.
+
+A scorecard that silently rests on fewer gates reads as an equivalent number. Saying so
+costs three lines and is the difference between a narrower score and a misleading one.
+
 ## 3. Gather the design evidence
 
 `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/design-analysis.md`** and follow it (in a

@@ -118,7 +118,8 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   itself — `.rhiza/template.yml`, the pointer at a template repo and pinned ref — and
   delegates the rest to the internal procedures (see [Internals](#internals)):
   install-uv, then skeleton, then license. It detects platform/owner/name from an
-  existing `origin` (or asks), picks the language (Python, Go or Rust) and template
+  existing `origin` (or asks), picks the language (Python, Go or Rust — **the three are
+  not equally supported; see [Language support](#language-support)**) and template
   repo (`jebel-quant/rhiza` for all three — the template is multi-language, layering
   a `python-core`/`rust-core`/`go-core` bundle on a neutral `core` — or a fork) plus
   its latest release as the initial pin —
@@ -217,6 +218,32 @@ anything.
   `.rhiza/template.lock`, prune the emptied directories, and remove the lock. This is
   the only command that removes files wholesale; it prompts for confirmation unless
   `--force` is passed.
+
+## Language support
+
+`/rhiza:init` offers Python, Go and Rust, and all three point at the same multi-language
+template. They are **not equally supported**, and it is worth knowing which you're
+signing up for before the four-step bootstrap rather than after.
+
+| | Python | Rust | Go |
+| --- | --- | --- | --- |
+| `/init`, `/update`, `/status`, `/release`, `/uninstall` | ✅ | ✅ | ✅ |
+| Local toolchain from the template | ✅ | ✅ cargo, clippy, nextest, llvm-cov, cargo-deny | ✅ go test, golangci-lint, govulncheck, revive |
+| Hosted CI workflows | ✅ | ❌ none yet | ❌ none yet |
+| `/quality` gate list | ✅ known and named | ⚠️ discovered at runtime | ⚠️ discovered at runtime |
+| Test-layout parity subcategory | ✅ | n/a | n/a |
+
+**Python is the fully-supported axis.** `/rhiza:quality`'s gate list *is* the Python
+profile — the one the plugin has actually run against. On a Rust or Go repo it probes
+the Makefile with `check_make_targets.py`, scores the targets it discovers, and marks
+the language-specific subcategories out-of-scope. That is deliberate: a hand-written
+table of targets for templates this plugin has never run against would be prose
+asserting things it can't back. But it does mean a Rust or Go scorecard rests on a
+narrower base than a Python one, and `/quality` now says so in its own output.
+
+There is deliberately no `rust-github-project` or `go-github-project` profile — those
+are almost entirely CI workflows, and rhiza's `github`/`gitlab` bundles still ship
+Python ones. Add hosted CI yourself until those land.
 
 ## Layout
 

@@ -42,6 +42,24 @@ The optional argument scopes the assessment; it defaults to the whole repo.
 5. **Optionally files issues** for them — via a multi-select menu, never free text,
    and nothing created without an explicit selection.
 
+## Language support: the gate list is the Python profile
+
+!!! warning "A Rust or Go scorecard rests on a narrower base"
+    The numbered gate list above is the **Python** profile — the one this plugin has
+    actually run against. On a Rust or Go repo most of those targets are unavailable,
+    so `/quality` probes the Makefile with `check_make_targets.py`, scores the targets
+    it **discovers**, and marks language-specific subcategories (test-layout parity
+    above all) out-of-scope rather than measuring them.
+
+    That is deliberate — a hand-written table of targets for templates the plugin has
+    never run against would be prose asserting things it cannot back, and discovery
+    degrades honestly where a guessed table would lie. But it means a Rust or Go score
+    is **not comparable** to a Python one, so the command states in its own output which
+    gates were discovered and which subcategories were skipped.
+
+    See [Language support](../index.md) for what else differs — notably that neither
+    Rust nor Go has hosted CI workflows yet.
+
 ## Why gates run through `make`
 
 Invoking the tools directly (`uvx ruff check`, `uvx interrogate`, …) would let
