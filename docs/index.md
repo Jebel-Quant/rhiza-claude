@@ -131,7 +131,7 @@ supported**, and the difference is worth knowing before the bootstrap, not after
 
 | | Python | Rust | Go |
 | --- | --- | --- | --- |
-| `/init`, `/update`, `/status`, `/release`, `/uninstall` | ✅ | ✅ | ✅ |
+| `/init`, `/update`, `/status`, `/release`, `/detach` | ✅ | ✅ | ✅ |
 | Local toolchain from the template | ✅ | ✅ cargo, clippy, nextest, llvm-cov, cargo-deny | ✅ go test, golangci-lint, govulncheck, revive |
 | Hosted CI workflows | ✅ | ❌ none yet | ❌ none yet |
 | `/quality` gate list | ✅ known and named | ⚠️ discovered at runtime | ⚠️ discovered at runtime |
@@ -277,7 +277,7 @@ Thin, **read-only**, stdlib-only commands backed by bundled scripts — they rea
 
 | Command | What it does |
 | --- | --- |
-| [`/rhiza:uninstall`](commands/uninstall.md) | Delete every rhiza-managed file listed in `.rhiza/template.lock`, prune the emptied directories, and remove the lock. Prompts for confirmation unless `--force` is passed. |
+| [`/rhiza:detach`](commands/detach.md) | Detach the repo from rhiza: delete every rhiza-managed file listed in `.rhiza/template.lock`, prune the emptied directories, and remove the lock. Prompts for confirmation unless `--force` is passed. Detaches a repo, not the plugin. |
 
 ## Internals
 

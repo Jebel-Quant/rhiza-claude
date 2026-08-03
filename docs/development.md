@@ -72,7 +72,7 @@ single one, use `uvx pre-commit run <hook-id> --all-files` (e.g. `mypy`,
 The prose hooks are the unusual ones. `command-contracts` treats each command as
 a contract — its frontmatter parses, its bash blocks are valid shell, the scripts
 and flags it names exist, and exactly the destructive commands
-(`release`, `uninstall`) declare `disable-model-invocation: true`. `prompt-wiring`
+(`detach`, `release`) declare `disable-model-invocation: true`. `prompt-wiring`
 keeps the `prompts/` procedures referenced and un-invocable. `docs-nav` requires a
 `docs/` page and an `mkdocs.yml` nav entry for every command and procedure, in
 both directions, so neither an undocumented command nor an orphaned page can ship.

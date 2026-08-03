@@ -20,7 +20,7 @@ nav:
       - status: commands/status.md
       - maffay: commands/maffay.md
   - Destructive:
-      - uninstall: commands/uninstall.md
+      - detach: commands/detach.md
   - Internals:
       - install-uv: internals/install-uv.md
       - pr-base: internals/pr-base.md

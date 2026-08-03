@@ -264,7 +264,7 @@ def test_an_opt_out_command_declaring_true_is_fine(plugin, name):
 
 def test_flags_an_opt_out_command_that_declares_false(plugin):
     """`false` is not merely redundant here — it reverses the policy."""
-    _write_opt_out_command(plugin, "uninstall", "false")
+    _write_opt_out_command(plugin, "detach", "false")
     violations = ccc.check_contracts(plugin)
     assert any("must declare" in v and "found: false" in v for v in violations)
 

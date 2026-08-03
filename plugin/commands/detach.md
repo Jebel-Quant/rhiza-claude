@@ -1,13 +1,13 @@
 ---
-description: Delete every rhiza-managed file listed in .rhiza/template.lock, prune the emptied directories, and remove the lock file. DESTRUCTIVE; prompts for confirmation unless --force is passed.
+description: Detach this repo from rhiza — delete every rhiza-managed file listed in .rhiza/template.lock, prune the emptied directories, and remove the lock file. DESTRUCTIVE; prompts for confirmation unless --force is passed.
 argument-hint: "[path to a repo root]  (optional; defaults to the current repo)"
 allowed-tools: Bash(uv*), Bash(python3*), Read
 disable-model-invocation: true
 ---
 
-You are running `/uninstall` in the **current working directory's repo**.
+You are running `/detach` in the **current working directory's repo**.
 
-**This command is a thin wrapper around the bundled `plugin/scripts/uninstall.py`.** All
+**This command is a thin wrapper around the bundled `plugin/scripts/detach.py`.** All
 the deletion logic lives in that script — a deterministic, stdlib-only Python
 program that reads `.rhiza/template.lock` directly (no `rhiza` CLI, no PyYAML
 required). Do **not** re-implement it or delete files yourself; run the script.
@@ -16,12 +16,17 @@ required). Do **not** re-implement it or delete files yourself; run the script.
 repo, removes the directories they leave empty, and deletes `.rhiza/template.lock`
 so the repo is no longer rhiza-managed. Files you added yourself are untouched.
 
+**This detaches a repo, not the plugin.** It is the inverse of the *sync*, not of the
+installation — the rhiza plugin stays installed and every other repo stays managed. A
+user who wants the plugin itself gone from Claude Code wants `/plugin`, not this. If
+that is what they appear to be asking for, say so rather than deleting their files.
+
 Argument (optional): `$ARGUMENTS` — a path to the repo root to clean; default is
 the current directory.
 
 ## 1. Confirm intent first
 Because this deletes files, **confirm with the user before running** unless they
-have already clearly asked to proceed (e.g. said "yes, uninstall" or passed
+have already clearly asked to proceed (e.g. said "yes, detach" or passed
 `--force`). Recommend they have a clean git tree / committed work first, so the
 deletion is easy to review and revert.
 
@@ -30,7 +35,7 @@ Invoke it with the plugin-root path (it ships inside this plugin, so
 `${CLAUDE_PLUGIN_ROOT}` resolves at runtime — **keep the quotes**):
 
 ```bash
-uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/uninstall.py" $ARGUMENTS --force
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/detach.py" $ARGUMENTS --force
 ```
 
 - Pass `$ARGUMENTS` through as the optional target path. If it's empty, just omit it.
@@ -41,16 +46,16 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/uninstal
 
 ## 3. If the script can't run
 - If `${CLAUDE_PLUGIN_ROOT}` is empty (e.g. you're in a source checkout of this repo,
-  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python plugin/scripts/uninstall.py $ARGUMENTS --force`.
+  not an installed plugin), fall back to the repo-relative path: `uv run --python 3.12 --no-project python plugin/scripts/detach.py $ARGUMENTS --force`.
 - If `uv` is missing, or the script is genuinely not found at either path, report
   that plainly and stop — never hand-roll the deletions as a substitute.
 
 ## 4. Relay the results
-- Show the script's output as-is — it prints each `[DEL]` line and an uninstall
+- Show the script's output as-is — it prints each `[DEL]` line and a detach
   summary (files removed / skipped / empty dirs removed / errors).
 - The script exits **0 on success or a clean no-op, 1 if any deletion failed**. If it
   exited 1, surface the error lines.
-- If it reported `No lock file found` or `Nothing to uninstall`, the repo wasn't
+- If it reported `No lock file found` or `Nothing to detach`, the repo wasn't
   rhiza-managed — say so; it's not an error.
 - Afterwards, point the user at the printed next steps: review with `git status` /
   `git diff`, then commit the removal.

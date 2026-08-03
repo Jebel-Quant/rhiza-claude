@@ -100,7 +100,7 @@ def test_command_block_carries_the_facts_that_drift():
 
 
 def test_command_block_reports_a_model_invocation_opt_out():
-    block = rcd.command_block("uninstall", rcd.frontmatter(DESTRUCTIVE))
+    block = rcd.command_block("detach", rcd.frontmatter(DESTRUCTIVE))
     assert "no — excluded from model invocation" in block
 
 
