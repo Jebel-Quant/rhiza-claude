@@ -9,9 +9,9 @@ whole reason this procedure exists: without it, the two subcategories `/quality`
 required to always score would be guesses.
 
 **Scope: the repo's locally-owned source only.** Skip Rhiza-managed files — see the
-scoping rule in `prompts/scorecard.md`. A synced file's complexity is upstream's problem.
+scoping rule in `plugin/prompts/scorecard.md`. A synced file's complexity is upstream's problem.
 
-**Gather, don't judge.** Produce evidence and let `prompts/scorecard.md` turn it into
+**Gather, don't judge.** Produce evidence and let `plugin/prompts/scorecard.md` turn it into
 marks. Every claim must name what you actually read or ran; if a number is unavailable,
 say so rather than estimating silently.
 
@@ -88,7 +88,7 @@ layers, cycles and hotspots:
 
 ## 3. The other judgement-based criteria
 
-`prompts/scorecard.md` lists subcategories that no gate measures either — test design
+`plugin/prompts/scorecard.md` lists subcategories that no gate measures either — test design
 quality, error handling and CLI UX, security posture, semver discipline,
 cross-platform robustness, idempotency, user-facing docs. Sample the code for each.
 

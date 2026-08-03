@@ -10,7 +10,7 @@ files** in it.
 
 **Only files that come from the template repository may be touched.** The sync
 records exactly which paths it materialized in `.rhiza/template.lock`'s `files` list,
-and `scripts/stage_synced.py` (step 7) stages precisely that set — so the guarantee is
+and `plugin/scripts/stage_synced.py` (step 7) stages precisely that set — so the guarantee is
 mechanical, not something this prose has to be trusted to honour. **Never
 `git add --all`** and never fold in unrelated edits: no reformatting of the repo's own
 source, no dependency changes, no test fixes. Anything outside the set stays in the
@@ -28,7 +28,7 @@ Work through these steps. Stop and report if a precondition fails.
 
 ## 1. Preconditions
 - **`uv` first.** `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/install-uv.md`** and follow
-  it before anything else (in a source checkout, `prompts/install-uv.md`). It's a
+  it before anything else (in a source checkout, `plugin/prompts/install-uv.md`). It's a
   one-line no-op when `uv` is already present. The sync runs through
   `uv run --python 3.12`, so if `uv --version` still fails afterwards, **stop** —
   don't fall back to a system `python3`, which on macOS is 3.9 and crashes `sync.py`
@@ -86,7 +86,7 @@ git commit -m "chore: bump rhiza to $TARGET"
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/sync.py" .
 ```
 (**Keep the quotes.** In a source checkout `${CLAUDE_PLUGIN_ROOT}` is empty — fall
-back to `scripts/sync.py`. `--no-project` stops `uv` resolving the target repo's env
+back to `plugin/scripts/sync.py`. `--no-project` stops `uv` resolving the target repo's env
 for this stdlib-only script.)
 
 **Capture the exit code before doing anything else:**

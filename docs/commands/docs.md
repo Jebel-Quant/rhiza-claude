@@ -26,18 +26,18 @@ The optional argument limits the run to one file; it defaults to all three.
    default branch, project metadata from `pyproject.toml`, the template `ref` from
    `.rhiza/template.yml`, the CI workflow file, the licence, a coverage service,
    visibility, and whether the repo uses ruff and uv. Nothing is hardcoded. The
-   default branch and visibility come from `scripts/platform_cli.py repo-view`, which
+   default branch and visibility come from `plugin/scripts/platform_cli.py repo-view`, which
    normalises the two CLIs' disagreeing shapes — `gh` answers `PUBLIC`, `glab`
    `public` — and so answers on GitLab, which the bare `gh repo view` it replaced
    could not.
-2. **Renders the badge block** via `scripts/render_badges.py`, which enforces **omit,
+2. **Renders the badge block** via `plugin/scripts/render_badges.py`, which enforces **omit,
    don't fake**: a badge whose backing fact wasn't detected is never emitted, and every
    omission comes back with a reason for the report. So a README never advertises a
    workflow, licence, or coverage service that doesn't exist.
 3. **Writes or refreshes the README body** — scaffolding `Installation`, `Usage`,
    `Development`, `License` when the file is new; otherwise adding only *missing*
    standard sections.
-4. **Syncs the `make help` target block** via `scripts/sync_readme_help.py` — see
+4. **Syncs the `make help` target block** via `plugin/scripts/sync_readme_help.py` — see
    below.
 5. **Writes or refreshes `CLAUDE.md`** — build commands, architecture read from the
    real tree, and the **locally-owned vs. Rhiza-owned** split that
@@ -51,7 +51,7 @@ The optional argument limits the run to one file; it defaults to all three.
 ## The `make help` block
 
 The README's list of `make` targets is kept in lockstep with the real `Makefile`, so
-contributors never read a stale list. `scripts/sync_readme_help.py` finds the marker
+contributors never read a stale list. `plugin/scripts/sync_readme_help.py` finds the marker
 line — `` Run `make help` to see all available targets: `` — and the fenced block right
 after it, then replaces **only that block's contents** with sanitised live `make help`
 output (ANSI colour and recursive-make chatter stripped).
@@ -69,13 +69,13 @@ output (ANSI colour and recursive-make chatter stripped).
 - A dirty working tree is fine, but the report tells you what your docs changes are
   mixed in with.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `commands/docs.md` |
+| **Source** | `plugin/commands/docs.md` |
 | **Invocation** | `/rhiza:docs [readme | claude | mkdocs | all]  (optional; defaults to all)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(grep*)`, `Bash(find*)`, `Bash(cat*)`, `Bash(head*)`, `Bash(make*)`, `Bash(uv*)`, `Read`, `Edit`, `Write`, `AskUserQuestion` |

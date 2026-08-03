@@ -14,7 +14,7 @@ repo.
 
 ## What it does
 
-Runs the bundled `scripts/uninstall.py` — stdlib-only — which:
+Runs the bundled `plugin/scripts/uninstall.py` — stdlib-only — which:
 
 - deletes every file listed in `.rhiza/template.lock`,
 - prunes the directories left empty by those deletions,
@@ -26,13 +26,13 @@ Runs the bundled `scripts/uninstall.py` — stdlib-only — which:
 - Undoes what a sync materialized; it does not touch your own hand-written files
   (only those tracked in the lock).
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `commands/uninstall.md` |
+| **Source** | `plugin/commands/uninstall.md` |
 | **Invocation** | `/rhiza:uninstall [path to a repo root]  (optional; defaults to the current repo)` |
 | **Model-invocable** | no — excluded from model invocation |
 | **Allowed tools** | `Bash(uv*)`, `Bash(python3*)`, `Read` |

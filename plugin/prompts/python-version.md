@@ -1,10 +1,10 @@
 # Python version (internal procedure)
 
 > **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `prompts/skeleton.md` reads it and follows it at its
+> user cannot invoke it. `plugin/prompts/skeleton.md` reads it and follows it at its
 > step 5, which is itself reached from `/rhiza:init`.
 
-**This is a thin wrapper around the bundled `scripts/set_python_version.py`.**
+**This is a thin wrapper around the bundled `plugin/scripts/set_python_version.py`.**
 The `pyproject.toml` editing — pinning `requires-python` and rewriting the Python
 version classifiers to the supported range while preserving other classifiers —
 lives in that deterministic, stdlib-only script. **The supported floor is Python
@@ -24,7 +24,7 @@ the rest follows.
 ## 2. Retarget pyproject.toml
 Invoke the bundled script with the plugin-root path (`${CLAUDE_PLUGIN_ROOT}`
 resolves at runtime — **keep the quotes**; in a source checkout it's empty, so fall
-back to the repo-relative `scripts/set_python_version.py`):
+back to the repo-relative `plugin/scripts/set_python_version.py`):
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/set_python_version.py" . \
   --python-version "$PYTHON_VERSION"

@@ -167,10 +167,13 @@ FIGURES: dict[str, dict] = {
         #         repo, then `cat .rhiza/template.yml`, `git status --short`,
         #         `ls .rhiza/`
         "lines": [
-            ("prompt", "python3 scripts/init_scaffold.py --host github --language python ."),
+            ("prompt", "python3 plugin/scripts/init_scaffold.py --host github --language python ."),
             ("out", "created  .rhiza/template.yml"),
             ("out", ""),
-            ("prompt", "python3 scripts/init_skeleton.py --owner jebel-quant --repo my-lib ."),
+            (
+                "prompt",
+                "python3 plugin/scripts/init_skeleton.py --owner jebel-quant --repo my-lib .",
+            ),
             ("dim", "note     normalised uv's placeholder hello() to a package docstring"),
             (
                 "dim",
@@ -204,7 +207,7 @@ FIGURES: dict[str, dict] = {
         # source: validate.py and status.py against the repo left behind by the
         #         init run above (paths elided)
         "lines": [
-            ("prompt", "python3 scripts/validate.py …/my-lib"),
+            ("prompt", "python3 plugin/scripts/validate.py …/my-lib"),
             ("dim", "  Validating template configuration in: …/my-lib"),
             ("ok", "✓ Template file exists: .rhiza/template.yml"),
             ("ok", "✓ YAML syntax is valid"),
@@ -217,7 +220,7 @@ FIGURES: dict[str, dict] = {
             ("ok", "✓ ref is valid: main"),
             ("ok", "✓ Validation passed: template.yml is valid"),
             ("out", ""),
-            ("prompt", "python3 scripts/status.py …/my-lib"),
+            ("prompt", "python3 plugin/scripts/status.py …/my-lib"),
             ("out", "No template.lock found — run /rhiza:update to perform the first sync"),
         ],
     },
@@ -226,7 +229,7 @@ FIGURES: dict[str, dict] = {
         # source: status.py --files against a real synced repo
         #         (jebel-quant/greeks); the tree is truncated at the … markers
         "lines": [
-            ("prompt", "python3 scripts/status.py --files ."),
+            ("prompt", "python3 plugin/scripts/status.py --files ."),
             ("kv", "Repository : github/Jebel-Quant/rhiza"),
             ("kv", "Ref        : v1.2.1"),
             ("kv", "SHA        : e0fe02300840"),
@@ -262,7 +265,7 @@ FIGURES: dict[str, dict] = {
         "title": "/rhiza:status --check — the pin against the latest release",
         # source: status.py --check against the same synced repo (needs network)
         "lines": [
-            ("prompt", "python3 scripts/status.py --check ."),
+            ("prompt", "python3 plugin/scripts/status.py --check ."),
             ("kv", "Repository : github/Jebel-Quant/rhiza"),
             ("kv", "Ref        : v1.2.1"),
             ("kv", "SHA        : e0fe02300840"),
@@ -276,7 +279,7 @@ FIGURES: dict[str, dict] = {
         "title": "/rhiza:release — the legal next versions, with no recommendation",
         # source: check_version_bump.py --current 0.6.1 in this repo
         "lines": [
-            ("prompt", "python3 scripts/check_version_bump.py --current 0.6.1"),
+            ("prompt", "python3 plugin/scripts/check_version_bump.py --current 0.6.1"),
             ("kv", "current  : 0.6.1"),
             ("kv", "floor    : v0.6.1"),
             ("kv", "patch    : v0.6.2"),

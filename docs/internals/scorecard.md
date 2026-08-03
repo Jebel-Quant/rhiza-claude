@@ -3,7 +3,7 @@
 Turn gate results and design evidence into 1–10 marks, findings, and optionally issues.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/scorecard.md`), not something you
+    This is an **internal procedure** (`plugin/prompts/scorecard.md`), not something you
     invoke. [`/rhiza:quality`](../commands/quality.md) reads and follows it once the
     gates have run and [design-analysis](design-analysis.md) has produced its evidence.
 
@@ -37,7 +37,7 @@ never a FAIL.
    and an evidence snippet, ordered by leverage.
 4. **Offers to file them** — via an `AskUserQuestion` multi-select, never free text.
    Nothing is created without an explicit selection. Filing goes through
-   `scripts/platform_cli.py issue-create`, which maps to `gh issue create` or
+   `plugin/scripts/platform_cli.py issue-create`, which maps to `gh issue create` or
    `glab issue create` — and matters because `glab issue create` has **no** body-file
    flag, so the body has to be passed inline.
 
@@ -50,13 +50,13 @@ never a FAIL.
 - It re-runs nothing and gathers nothing. A missing number means an unscored
   subcategory, not a guess.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/scorecard.md` |
+| **Source** | `plugin/prompts/scorecard.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:quality`](../commands/quality.md), [`design-analysis`](design-analysis.md), [`known-issues`](known-issues.md) |
 

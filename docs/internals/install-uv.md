@@ -4,7 +4,7 @@ Make sure [`uv`](https://docs.astral.sh/uv/) is available on this machine,
 installing it if it isn't.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/install-uv.md`), not something you
+    This is an **internal procedure** (`plugin/prompts/install-uv.md`), not something you
     invoke. Both [`/rhiza:init`](../commands/init.md) and
     [`/rhiza:update`](../commands/update.md) follow it as their **first** step, so
     `uv` gets installed as part of using them — there's nothing to run yourself.
@@ -43,13 +43,13 @@ prompt.
 - It installs `uv` itself, nothing else — no Python toolchains, no project
   environments. Those come from the commands that use `uv`.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/install-uv.md` |
+| **Source** | `plugin/prompts/install-uv.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:init`](../commands/init.md), [`/rhiza:update`](../commands/update.md), [`skeleton`](skeleton.md) |
 

@@ -33,12 +33,12 @@ not a target.
    require `.rhiza/`: nothing in the release flow comes from the template, which is why
    this works on the plugin repo too.
 2. **Gathers candidates** — the `patch`/`minor`/`major` versions computed from the floor
-   by `scripts/check_version_bump.py`, so every option offered is guaranteed legal, plus
+   by `plugin/scripts/check_version_bump.py`, so every option offered is guaranteed legal, plus
    a count of the unreleased `feat`/`fix`/breaking commits as evidence for the table.
 3. **Prints them as a table** — every legal candidate in ascending order, each labelled
    with its consequence and the commits pointing at it, then asks you to choose. No
    recommended row, no default, no ordering that implies one. See below for why.
-4. **Guards the choice** — via `scripts/check_version_bump.py`. The floor is the greater
+4. **Guards the choice** — via `plugin/scripts/check_version_bump.py`. The floor is the greater
    of the declared current version *and* the highest existing tag, compared **as semver**
    (so `v1.10.0` beats `v1.9.0`), and an existing tag is refused outright. A hand-typed
    value is guarded too.
@@ -132,17 +132,17 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
   every bundled script is gated at 100% coverage.
 - Needs `uvx` for `bump-my-version` and `git-cliff`; no `gh`/`glab` required to prepare.
 - Publishing manually (only needed when the repo has no release workflow) goes through
-  `scripts/platform_cli.py release-create`. On GitLab `--notes-file` is **required**:
+  `plugin/scripts/platform_cli.py release-create`. On GitLab `--notes-file` is **required**:
   `glab` has no `--generate-notes`, so the mapper refuses rather than publishing a
   release with empty notes.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `commands/release.md` |
+| **Source** | `plugin/commands/release.md` |
 | **Invocation** | `/rhiza:release [version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)` |
 | **Model-invocable** | no — excluded from model invocation |
 | **Allowed tools** | `Bash(git*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(make*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |

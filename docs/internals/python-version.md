@@ -3,7 +3,7 @@
 Set a rhiza-managed Python project's standard interpreter version.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/python-version.md`), not something
+    This is an **internal procedure** (`plugin/prompts/python-version.md`), not something
     you invoke. The [skeleton](skeleton.md) procedure reads and follows it at its
     step 6, which is itself reached from [`/rhiza:init`](../commands/init.md).
 
@@ -26,7 +26,7 @@ the script rejects them.
 
 ## What it does
 
-Runs the bundled `scripts/set_python_version.py` — stdlib-only — which edits the
+Runs the bundled `plugin/scripts/set_python_version.py` — stdlib-only — which edits the
 `pyproject.toml` `[project]` table:
 
 - pins `requires-python = ">=X.Y"` (corrected in place);
@@ -50,13 +50,13 @@ metadata step has no business doing; with it, `uv` refuses a pin that contradict
 - Out of scope: CI version matrices and other version references elsewhere in the
   repo. Check those separately when you drop or add a version.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/python-version.md` |
+| **Source** | `plugin/prompts/python-version.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:init`](../commands/init.md), [`skeleton`](skeleton.md) |
 

@@ -64,7 +64,7 @@ jobs:
           # Every command .md we ship must surface as a registered command.
           missing=0
           total=0
-          for f in commands/*.md; do
+          for f in plugin/commands/*.md; do
             total=$((total + 1))
             name="$(basename "$f" .md)"
             if ! grep -qw "$name" <<<"$details"; then

@@ -18,7 +18,7 @@ misleads: a freshly `/init`-ed repo has a valid config and **no lock at all**, a
 long-synced repo can have a lock alongside a config someone has since broken by hand.
 
 **This command is a thin wrapper around two bundled scripts** —
-`scripts/validate.py` and `scripts/status.py`, both deterministic and stdlib-only (no
+`plugin/scripts/validate.py` and `plugin/scripts/status.py`, both deterministic and stdlib-only (no
 `rhiza` CLI, no PyYAML). Do **not** re-implement the parsing or gather fields
 yourself; run them and relay the output.
 

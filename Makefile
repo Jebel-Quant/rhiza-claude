@@ -27,7 +27,7 @@ lint:  ## Run all pre-commit hooks against every file
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
 # with it absent, half of that module's behaviour was invisible to the coverage gate.
 test:  ## Run the script test suite with a 100% coverage gate
-	uvx --with pytest-cov --with pyyaml pytest tests/ --cov=scripts --cov-report=term-missing \
+	uvx --with pytest-cov --with pyyaml pytest tests/ --cov=plugin/scripts --cov-report=term-missing \
 		--cov-report=xml:$(TESTS)/coverage.xml \
 		--cov-report=html:$(TESTS)/html-coverage \
 		--cov-fail-under=100 $(ARGS)

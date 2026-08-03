@@ -37,7 +37,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           VER="${TAG#v}"
-          PLUGIN=$(jq -r '.version' .claude-plugin/plugin.json)
+          PLUGIN=$(jq -r '.version' plugin/.claude-plugin/plugin.json)
           MKT=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
           if [ "$PLUGIN" != "$VER" ] || [ "$MKT" != "$VER" ]; then
             echo "::error::Version mismatch — tag=$VER plugin.json=$PLUGIN marketplace.json=$MKT. Run /rhiza:release and retag."

@@ -10,11 +10,10 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from pathlib import Path
 
 import init_skeleton as sk
 import pytest
-from conftest import PY, assert_ok, run_cmd
+from conftest import PY, SCRIPTS, assert_ok, run_cmd
 
 # `pyproject.toml` exactly as `uv init --lib --python 3.12` leaves it.
 _UV_PYPROJECT = """\
@@ -740,7 +739,7 @@ def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_crate(rust_crate, tmp
     copy = tmp_path / "widget"
     shutil.copytree(rust_crate, copy)
     before = (copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()
-    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    scripts = SCRIPTS
     assert_ok(
         run_cmd(
             [*PY, str(scripts / "init_skeleton.py"), str(copy), "--language", "rust",

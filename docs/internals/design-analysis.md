@@ -3,7 +3,7 @@
 Gather the complexity and architecture evidence that **no `make` gate measures**.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/design-analysis.md`), not something you
+    This is an **internal procedure** (`plugin/prompts/design-analysis.md`), not something you
     invoke. [`/rhiza:quality`](../commands/quality.md) reads and follows it after the
     gates have run.
 
@@ -37,13 +37,13 @@ guesses.
   module-level cycle usually crashes and gets fixed, while a deferred one survives for
   years.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/design-analysis.md` |
+| **Source** | `plugin/prompts/design-analysis.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:quality`](../commands/quality.md), [`scorecard`](scorecard.md) |
 

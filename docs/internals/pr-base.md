@@ -4,7 +4,7 @@ Get a work branch based on an up-to-date remote default branch — **without eve
 pushing to that default branch**.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/pr-base.md`), not something you
+    This is an **internal procedure** (`plugin/prompts/pr-base.md`), not something you
     invoke. Both [`/rhiza:init`](../commands/init.md) and
     [`/rhiza:update`](../commands/update.md) read and follow it, which is why they
     behave identically here.
@@ -30,13 +30,13 @@ stops the calling command if you don't. It will not push one itself.
    Uncommitted work that predates the command is left strictly alone: never stashed,
    never discarded.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/pr-base.md` |
+| **Source** | `plugin/prompts/pr-base.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:init`](../commands/init.md), [`/rhiza:update`](../commands/update.md) |
 

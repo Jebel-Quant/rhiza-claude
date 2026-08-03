@@ -160,33 +160,33 @@ deliberately outside `commands/` so they can't be invoked directly. `/rhiza:init
 `/rhiza:update` read and follow them, and most are backed by a deterministic,
 stdlib-only script.
 
-- **install-uv** (`prompts/install-uv.md`) — make sure `uv`, the plugin's one hard
+- **install-uv** (`plugin/prompts/install-uv.md`) — make sure `uv`, the plugin's one hard
   dependency, is installed, via the official astral.sh installer, Homebrew, or
   winget. Never installs without approval; sorts out the `PATH` step the installer
   leaves behind. The **first step of both `/rhiza:init` and `/rhiza:update`**.
-- **pr-base** (`prompts/pr-base.md`) — a work branch based on an up-to-date remote
+- **pr-base** (`plugin/prompts/pr-base.md`) — a work branch based on an up-to-date remote
   default branch, which is **never pushed to**: when it doesn't exist yet, *you* create
   the repo with an empty README rather than the command pushing one. Shared by
   `/rhiza:init` and `/rhiza:update`, so both behave identically.
-- **skeleton** (`prompts/skeleton.md` → `scripts/init_skeleton.py`) — `uv init --lib`
+- **skeleton** (`plugin/prompts/skeleton.md` → `plugin/scripts/init_skeleton.py`) — `uv init --lib`
   when there's no `pyproject.toml`, then the shape the template's gates require: a
   package docstring in place of uv's `hello()` placeholder, the description, and the
   `[project.urls]` and `[dependency-groups]` entries the synced pyproject gate
   asserts. Idempotent and additive. The template never ships a `pyproject.toml`, so
   the quality gates need this to have run.
-- **license** (`prompts/license.md` → `scripts/set_license.py`) — the SPDX
+- **license** (`plugin/prompts/license.md` → `plugin/scripts/set_license.py`) — the SPDX
   `license`/`license-files` metadata in `pyproject.toml` plus the `LICENSE` file's
   full text (MIT, Apache-2.0, BSD-3-Clause bundled). Overwriting an existing
   `LICENSE` needs `--force`; `none` clears the metadata. Never writes a deprecated
   `License ::` trove classifier.
-- **design-analysis** (`prompts/design-analysis.md`) — the complexity and architecture
+- **design-analysis** (`plugin/prompts/design-analysis.md`) — the complexity and architecture
   evidence no `make` gate measures: radon CC/MI, module sizes, the import graph, layering
   direction, and cycles including ones hidden behind function-local imports. Gathers
   evidence; doesn't judge.
-- **scorecard** (`prompts/scorecard.md`) — the 1–10 rubric: the subcategory list, the
+- **scorecard** (`plugin/prompts/scorecard.md`) — the 1–10 rubric: the subcategory list, the
   coverage bar, the findings format, the issue menu, and the **scoping rule** that stops
   a managed repo being marked down for its own template.
-- **python-version** (`prompts/python-version.md` → `scripts/set_python_version.py`)
+- **python-version** (`plugin/prompts/python-version.md` → `plugin/scripts/set_python_version.py`)
   — pin `requires-python` and rewrite the `Programming Language :: Python :: X.Y`
   classifiers to the supported range (3.11–3.14; never a bare `:: 3`), and sync
   `.python-version`.
@@ -207,7 +207,7 @@ anything.
   Read-only.
 - **`/rhiza:maffay`** — return a bonmot from a random Peter Maffay song, for the middle
   of a long refactor. Takes an optional theme keyword (`mut`, `sommer`, `nessaja`, …) or
-  part of a song title. The draw lives in `scripts/maffay.py` because a model asked for
+  part of a song title. The draw lives in `plugin/scripts/maffay.py` because a model asked for
   a random song reaches for the same two hits every time. Quotes the **title line**
   only, attributed — no lyric bodies — and the `Für uns:` gloss beside it is ours, not
   Maffay's. Needs no repo, no git and no network.
@@ -247,15 +247,29 @@ Python ones. Add hosted CI yourself until those land.
 
 ## Layout
 
+**The shipped plugin lives in `plugin/`; everything that builds or checks it stays at
+the repository root.** `.claude-plugin/marketplace.json` points at it with
+`"source": "./plugin"`, which is the documented way to keep a plugin in a subdirectory
+of its marketplace repo. The four directories inside are there because the plugin spec
+requires `commands/`, `hooks/`, `prompts/` and `scripts/` at the *plugin* root — not
+because the repo chose to scatter them.
+
 | Path | Purpose |
 | --- | --- |
-| `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. |
-| `.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `commands/` | The plugin's slash commands (one `.md` per command). |
-| `prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
-| `hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
-| `scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
+| `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
+| `plugin/` | **The plugin as shipped.** Everything below is inside it. |
+| `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
+| `plugin/commands/` | The plugin's slash commands (one `.md` per command). |
+| `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
+| `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
+| `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
+| `tests/` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
+| `docs/` | The MkDocs site. Not shipped. |
 | `paper/` | A LaTeX introduction — the long form of the framing above, with figures captured from real command output (`render_figures.py`). `make paper` builds it; CI rebuilds it on every commit and [publishes the PDF with the docs site](https://jebel-quant.github.io/rhiza-claude/paper/rhiza-claude-intro.pdf). |
+
+Inside a command, `${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`, so
+`"${CLAUDE_PLUGIN_ROOT}/scripts/sync.py"` is unchanged by the move. Only the
+**source-checkout fallback** paths gained the prefix: `plugin/scripts/sync.py`.
 
 ## Contributing
 

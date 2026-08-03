@@ -4,7 +4,7 @@ Create the project skeleton a rhiza-managed repo needs — in Python, Rust or Go
 finish it into the shape the template's gates require.
 
 !!! note "Not a slash command"
-    This is an **internal procedure** (`prompts/skeleton.md`), not something you
+    This is an **internal procedure** (`plugin/prompts/skeleton.md`), not something you
     invoke. [`/rhiza:init`](../commands/init.md) reads and follows it at its step 5b.
 
 ## Why it exists
@@ -17,7 +17,7 @@ but the project metadata is always the repo's own. So without one,
 specific `[project]` shape. This command produces that shape.
 
 It's a thin wrapper around the language's own initialiser (`uv init --lib`,
-`cargo init --lib`, `go mod init`) plus the bundled `scripts/init_skeleton.py`.
+`cargo init --lib`, `go mod init`) plus the bundled `plugin/scripts/init_skeleton.py`.
 The steps below are the Python path; see [Rust and Go](#rust-and-go).
 
 ## What it does
@@ -30,7 +30,7 @@ The steps below are the Python path; see [Rust and Go](#rust-and-go).
    `pyproject.toml`, `src/<pkg>/__init__.py` (+ `py.typed`), `README.md`,
    `.gitignore`, and `.python-version`, and initialises a git repo if needed. An
    existing `pyproject.toml` is never touched by `uv init`.
-3. **Finishes it** via `scripts/init_skeleton.py` — four idempotent, additive edits:
+3. **Finishes it** via `plugin/scripts/init_skeleton.py` — four idempotent, additive edits:
    - **`src/<pkg>/__init__.py`** — replaces uv's `hello()` placeholder with a package
      docstring (it's undocumented *and* untested, so it fails both the interrogate
      and coverage gates). Rewritten **only while it's still uv's placeholder**.
@@ -79,13 +79,13 @@ The gate is the same idea in each: `cargo metadata` (Rust) or `go list -m` plus
 - **Lower bounds** on every dependency (`httpx>=0.27`, never bare `httpx`), including
   optional and dependency-group entries.
 
-<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
 
 ## Reference
 
 | | |
 | --- | --- |
-| **Source** | `prompts/skeleton.md` |
+| **Source** | `plugin/prompts/skeleton.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
 | **Read by** | [`/rhiza:init`](../commands/init.md), [`license`](license.md), [`python-version`](python-version.md) |
 

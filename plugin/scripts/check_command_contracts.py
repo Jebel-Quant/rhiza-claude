@@ -57,6 +57,8 @@ import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
+from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR, SCRIPTS_DIR
+
 _FRONTMATTER_KEYS = ("description", "argument-hint", "allowed-tools")
 # Commands the model may not invoke off a description match — the user has to name them.
 # The line is drawn at side effects that are not a reviewable proposal: `uninstall`
@@ -374,7 +376,9 @@ def check_script_references(rel: str, text: str, scripts_dir: Path) -> list[str]
 
 def check_contracts(root: Path) -> list[str]:
     """Run every rule over the plugin at *root*; return all violations."""
-    commands_dir, prompts_dir, scripts_dir = root / "commands", root / "prompts", root / "scripts"
+    commands_dir = root / COMMANDS_DIR
+    prompts_dir = root / PROMPTS_DIR
+    scripts_dir = root / SCRIPTS_DIR
     violations: list[str] = []
 
     for directory, is_command in ((commands_dir, True), (prompts_dir, False)):
@@ -392,7 +396,7 @@ def check_contracts(root: Path) -> list[str]:
                 violations += check_allowed_tools(rel, text, blocks)
                 violations += check_model_invocation(rel, path.stem, text)
 
-    scripts_dir, tests_dir = root / "scripts", root / "tests"
+    scripts_dir, tests_dir = root / SCRIPTS_DIR, root / "tests"
     for path in prose_files(root):
         rel = path.relative_to(root).as_posix()
         text = path.read_text()
@@ -416,8 +420,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     count = (
-        len(list((root / "commands").glob("*.md")))
-        + len(list((root / "prompts").glob("*.md")))
+        len(list((root / COMMANDS_DIR).glob("*.md")))
+        + len(list((root / PROMPTS_DIR).glob("*.md")))
         + len(prose_files(root))
     )
     print(f"command contracts hold ({count} file(s) checked)")

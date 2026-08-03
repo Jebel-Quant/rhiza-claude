@@ -65,7 +65,7 @@ prose or scripts, `make lint && make test` is enough.
    `nav` in `mkdocs.yml`. Write the **prose** — what the command is for, and why.
    Don't hand-write the facts that come from the frontmatter (invocation,
    allowed-tools, model-invocability): run
-   `uv run --python 3.12 --no-project python scripts/render_command_docs.py` and it
+   `uv run --python 3.12 --no-project python plugin/scripts/render_command_docs.py` and it
    appends a **Reference** block for those. The `docs-reference-blocks` hook fails
    if it's stale, so a renamed argument can't linger in the docs.
 4. Update `README.md` if it's a headline command.

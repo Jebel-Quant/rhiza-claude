@@ -44,8 +44,10 @@ import re
 import sys
 from pathlib import Path
 
+from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR
+
 # source directory -> the docs directory whose pages mirror it
-_MIRRORS = (("commands", "docs/commands"), ("prompts", "docs/internals"))
+_MIRRORS = ((COMMANDS_DIR, "docs/commands"), (PROMPTS_DIR, "docs/internals"))
 # A top-level `nav:` key, and the next top-level key that ends the block.
 _NAV_START = re.compile(r"^nav:\s*$", re.M)
 _TOP_LEVEL_KEY = re.compile(r"^[A-Za-z_]", re.M)

@@ -4,7 +4,7 @@
 # ever entered, the `for` that never ran dry — which is where the interesting bugs sit.
 branch = true
 omit =
-    scripts/release.sh
+    plugin/scripts/release.sh
 
 [report]
 exclude_also =

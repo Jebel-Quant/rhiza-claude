@@ -1,6 +1,6 @@
 name: CodeQL
 
-# Automated code scanning for Python (scripts/) and GitHub Actions workflows.
+# Automated code scanning for Python (plugin/scripts/) and GitHub Actions workflows.
 # Free for public repositories. Auto-enables on public repos; set the
 # CODEQL_ENABLED repo variable to 'true'/'false' to override.
 

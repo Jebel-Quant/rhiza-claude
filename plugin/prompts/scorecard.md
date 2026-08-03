@@ -2,7 +2,7 @@
 
 > **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
 > user cannot invoke it. `/rhiza:quality` reads it and follows it once the gates have
-> run and `prompts/design-analysis.md` has produced its evidence.
+> run and `plugin/prompts/design-analysis.md` has produced its evidence.
 
 Turn gate results and design evidence into 1–10 marks, then into a findings list, then
 optionally into issues. **Nothing here re-runs a gate or gathers new evidence** — if a
@@ -18,7 +18,7 @@ block of `.rhiza/template.lock` is the machine-generated list of synced paths.
   project-specific docs, `.rhiza/template.yml`, and any locally-hardened config. The
   source root and manifest are language-dependent — `src/` + `pyproject.toml` for
   Python, `.` + `go.mod` for Go, `src/` + `Cargo.toml` for Rust — and
-  `scripts/language_profile.py` reports which apply, so don't assume the Python pair.
+  `plugin/scripts/language_profile.py` reports which apply, so don't assume the Python pair.
 - **Out of scope:** `.github/workflows/*`, `Makefile`, `.pre-commit-config.yaml`,
   `pytest.ini`, `ruff.toml`, the typecheck/mutation/fuzzing targets — everything the
   template delivers.
@@ -39,7 +39,7 @@ Python convention is the same mistake as scoring a managed repo down for its tem
 
 ## 2. Subcategories
 
-**Always score both design subcategories**, from `prompts/design-analysis.md`'s
+**Always score both design subcategories**, from `plugin/prompts/design-analysis.md`'s
 evidence. Add the others that fit what you actually observed.
 
 - **Gate-derived:** linting/style, type safety, docstring/API-doc coverage, test pass
