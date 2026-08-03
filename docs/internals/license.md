@@ -37,3 +37,15 @@ change — an **overwrite confirmation**.
   file and the metadata never diverge.
 - A non-bundled SPDX id still sets the metadata; the script tells you to add the
   `LICENSE` text by hand.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/license.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:init`](../commands/init.md), [`known-issues`](known-issues.md), [`skeleton`](skeleton.md) |
+
+<!-- generated:end -->

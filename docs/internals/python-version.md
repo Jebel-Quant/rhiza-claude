@@ -49,3 +49,15 @@ metadata step has no business doing; with it, `uv` refuses a pin that contradict
   validation layer — the bundled script is, and it rejects anything outside 3.11–3.14.
 - Out of scope: CI version matrices and other version references elsewhere in the
   repo. Check those separately when you drop or add a version.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/python-version.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:init`](../commands/init.md), [`skeleton`](skeleton.md) |
+
+<!-- generated:end -->

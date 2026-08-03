@@ -42,3 +42,15 @@ prompt.
 - Read-only when `uv` is already installed.
 - It installs `uv` itself, nothing else — no Python toolchains, no project
   environments. Those come from the commands that use `uv`.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/install-uv.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:init`](../commands/init.md), [`/rhiza:update`](../commands/update.md), [`skeleton`](skeleton.md) |
+
+<!-- generated:end -->

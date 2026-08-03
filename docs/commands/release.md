@@ -135,3 +135,16 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
   `scripts/platform_cli.py release-create`. On GitLab `--notes-file` is **required**:
   `glab` has no `--generate-notes`, so the mapper refuses rather than publishing a
   release with empty notes.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `commands/release.md` |
+| **Invocation** | `/rhiza:release [version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)` |
+| **Model-invocable** | no — excluded from model invocation |
+| **Allowed tools** | `Bash(git*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(make*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |
+
+<!-- generated:end -->

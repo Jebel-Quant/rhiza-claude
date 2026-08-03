@@ -29,3 +29,15 @@ stops the calling command if you don't. It will not push one itself.
    `/init`, `rhiza_<target>` for `/update`, with a time suffix if the name is taken.
    Uncommitted work that predates the command is left strictly alone: never stashed,
    never discarded.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/pr-base.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:init`](../commands/init.md), [`/rhiza:update`](../commands/update.md) |
+
+<!-- generated:end -->

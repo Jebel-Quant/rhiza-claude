@@ -52,3 +52,16 @@ template's latest release.
   template-only rule.
 - Bumps the **template content** version (`ref` / `template-branch`).
 - [`/rhiza:status`](status.md) shows what's synced afterwards.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `commands/update.md` |
+| **Invocation** | `/rhiza:update [version e.g. v1.2.0]  (optional; defaults to the template's latest release)` |
+| **Model-invocable** | yes |
+| **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |
+
+<!-- generated:end -->

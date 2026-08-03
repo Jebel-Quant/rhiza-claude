@@ -68,3 +68,16 @@ output (ANSI colour and recursive-make chatter stripped).
   for you to review and stage.
 - A dirty working tree is fine, but the report tells you what your docs changes are
   mixed in with.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `commands/docs.md` |
+| **Invocation** | `/rhiza:docs [readme | claude | mkdocs | all]  (optional; defaults to all)` |
+| **Model-invocable** | yes |
+| **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(grep*)`, `Bash(find*)`, `Bash(cat*)`, `Bash(head*)`, `Bash(make*)`, `Bash(uv*)`, `Read`, `Edit`, `Write`, `AskUserQuestion` |
+
+<!-- generated:end -->

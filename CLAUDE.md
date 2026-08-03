@@ -102,7 +102,9 @@ rather than breaking in front of a user mid-task.
 
 1. Edit `commands/<name>.md`; keep the frontmatter accurate.
 2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/test_<name>.py`.
-3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry.
+3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
+   only — run `scripts/render_command_docs.py` for the **Reference** block, which is
+   generated from the frontmatter and gated by `docs-reference-blocks`.
 4. Update `README.md` if it's a headline command.
 
 **Versioning.** The two manifests must agree; `manifest-version-parity` enforces it.

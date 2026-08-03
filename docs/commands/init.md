@@ -85,3 +85,16 @@ no-op if `uv` is already there and otherwise offers to install it.
   to [`/rhiza:update`](update.md).
 - `/init` never overwrites anything, so running it in an empty folder and in a mature
   repo are the same case.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `commands/init.md` |
+| **Invocation** | `/rhiza:init [repo name]  (optional; defaults to the current folder name)` |
+| **Model-invocable** | yes |
+| **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(curl*)`, `Bash(brew*)`, `Bash(ls*)`, `Bash(basename*)`, `Bash(pwd*)`, `Bash(date*)`, `Read`, `Write`, `Edit`, `AskUserQuestion`, `Skill` |
+
+<!-- generated:end -->

@@ -104,3 +104,12 @@ repos:
         language: system
         pass_filenames: false
         files: '^((commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md|mkdocs\.yml)$'
+      # docs-nav checks a page *exists*; this checks its facts are current. The
+      # reference block on each page is generated from the frontmatter, so a renamed
+      # argument or a widened allowed-tools list can't survive in the docs.
+      - id: docs-reference-blocks
+        name: generated docs reference blocks are up to date
+        entry: uv run --python 3.12 --no-project python scripts/render_command_docs.py --check
+        language: system
+        pass_filenames: false
+        files: '^((commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'

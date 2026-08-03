@@ -49,3 +49,15 @@ never a FAIL.
   and still pin internals.
 - It re-runs nothing and gathers nothing. A missing number means an unscored
   subcategory, not a guess.
+
+<!-- generated:begin — rendered by scripts/render_command_docs.py; do not edit -->
+
+## Reference
+
+| | |
+| --- | --- |
+| **Source** | `prompts/scorecard.md` |
+| **Invocation** | **not a slash command** — reached with `Read`, never invoked |
+| **Read by** | [`/rhiza:quality`](../commands/quality.md), [`design-analysis`](design-analysis.md), [`known-issues`](known-issues.md) |
+
+<!-- generated:end -->
