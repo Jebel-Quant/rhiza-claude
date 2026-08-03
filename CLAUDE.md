@@ -142,8 +142,9 @@ off `main` and open a PR — never push to the default branch.
   skips when the tool is absent, which is why CI verifies both toolchains explicitly
   rather than letting a whole language axis vanish quietly.
 - **The pinned template ref decides which profiles the suite can exercise.**
-  `rust-local` and `go-local` arrived in rhiza **v1.3.0**, which is what
-  `PINNED_TEMPLATE_REF` names and why both syncs run on every PR. Before bumping it, check
+  `rust-local` and `go-local` arrived in rhiza **v1.3.0**, so `PINNED_TEMPLATE_REF` names
+  that release or later (**v1.3.1** today) — which is why both syncs run on every PR
+  instead of skipping for want of a released profile. Before bumping it, check
   the new ref still defines what `/init` writes: `plugin/scripts/check_template_profile.py
   rust-local go-local github-project gitlab-project --template-repo jebel-quant/rhiza
   --ref <tag>`. A ref that doesn't now **fails** those fixtures rather than skipping them

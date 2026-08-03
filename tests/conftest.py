@@ -130,10 +130,13 @@ class Repo:
 # and v1.2.1, /quality scored the missing gate FAIL, and it surfaced only because
 # somebody bumped the pin by hand. Nothing was watching.
 TEMPLATE_REPO = "jebel-quant/rhiza"
-# v1.3.0 is the first release carrying the language layers (`python-core`, `rust-core`,
-# `go-core`) and the `rust-local`/`go-local` profiles. Pinning it is what lets the Rust
-# end-to-end sync run on every PR instead of skipping for want of a released profile.
-PINNED_TEMPLATE_REF = "v1.3.0"
+# v1.3.0 was the first release carrying the language layers (`python-core`, `rust-core`,
+# `go-core`) and the `rust-local`/`go-local` profiles. Pinning at or above it is what lets
+# the Rust and Go end-to-end syncs run on every PR instead of skipping for want of a
+# released profile. v1.3.1 is a patch on top, fixing two things these fixtures exercise
+# directly: `cargo-tools` no longer assumes the cargo bin dir is on PATH, and `go-core`
+# ships `internal/version/version_test.go` so a fresh Go repo's test gate is not vacuous.
+PINNED_TEMPLATE_REF = "v1.3.1"
 
 
 def resolve_template_ref() -> str:
