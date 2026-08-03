@@ -142,7 +142,7 @@ did.
 
 Two things need tools the plugin itself does not: the Rust and Go fixtures need `cargo`
 and `go` (`cargo init --lib` and `go mod init` build them), and half of
-`tests/test_platform_cli.py` needs `glab`. Each skips when its tool is absent, and CI
+`tests/scripts/test_platform_cli.py` needs `glab`. Each skips when its tool is absent, and CI
 installs or verifies all three so that never happens there. Nothing else skips: the pin is a rhiza release that defines every
 profile `/rhiza:init` writes, so a ref that stops defining one **fails** the suite rather
 than quietly narrowing it.

@@ -18,8 +18,6 @@ import _rhiza_layout as layout
 import check_command_contracts as ccc
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-
 _GOOD_FRONTMATTER = """\
 ---
 description: A test command.
@@ -30,12 +28,12 @@ allowed-tools: Bash(uv*), Bash(git*), Read
 
 
 @pytest.fixture
-def plugin(tmp_path: Path) -> Path:
+def plugin(tmp_path: Path, repo_root: Path) -> Path:
     """A minimal, contract-clean plugin root with one real bundled script."""
     (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
     (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True)
     (tmp_path / layout.SCRIPTS_DIR).mkdir(parents=True)
-    shutil.copy(_ROOT / layout.SCRIPTS_DIR / "init_scaffold.py", tmp_path / layout.SCRIPTS_DIR)
+    shutil.copy(repo_root / layout.SCRIPTS_DIR / "init_scaffold.py", tmp_path / layout.SCRIPTS_DIR)
     (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text(
         _GOOD_FRONTMATTER + "\nRun it:\n\n```bash\n"
         "uv run python scripts/init_scaffold.py . --host github --ref v1.0.0\n"
@@ -150,13 +148,13 @@ def test_flags_are_checked_across_a_continuation(plugin):
 def test_flags_are_checked_when_the_script_path_is_quoted(plugin):
     """The shape every real invocation uses — and one that silently checked nothing.
 
-    With `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py" --flag`, a closing quote sits right
+    With `"${CLAUDE_PLUGINrepo_root}/scripts/x.py" --flag`, a closing quote sits right
     after `.py`. An argument pattern that demanded whitespace there captured nothing,
     so the checker reported success while verifying no flags at all.
     """
     _write(
         plugin,
-        '\n```bash\nuv run python "${CLAUDE_PLUGIN_ROOT}/scripts/init_scaffold.py" . \\\n'
+        '\n```bash\nuv run python "${CLAUDE_PLUGINrepo_root}/scripts/init_scaffold.py" . \\\n'
         "  --nope x\n```\n",
     )
     assert any("passes --nope" in v for v in ccc.check_contracts(plugin))
@@ -166,20 +164,20 @@ def test_a_quoted_path_with_valid_flags_still_passes(plugin):
     _write(
         plugin,
         "\n```bash\nuv run python "
-        '"${CLAUDE_PLUGIN_ROOT}/scripts/init_scaffold.py" . --host github\n```\n',
+        '"${CLAUDE_PLUGINrepo_root}/scripts/init_scaffold.py" . --host github\n```\n',
     )
     assert ccc.check_contracts(plugin) == []
 
 
-def test_script_flags_extracts_multi_line_add_argument():
+def test_script_flags_extracts_multi_line_add_argument(repo_root: Path):
     """The scripts use both single- and multi-line argparse styles."""
-    flags = ccc.script_flags(_ROOT / layout.SCRIPTS_DIR / "status.py")
+    flags = ccc.script_flags(repo_root / layout.SCRIPTS_DIR / "status.py")
     assert {"--json", "--files", "--tree", "--check"} <= flags
 
 
-def test_script_flags_does_not_leak_between_calls():
+def test_script_flags_does_not_leak_between_calls(repo_root: Path):
     """A flag declared for one argument must not be attributed to the previous one."""
-    flags = ccc.script_flags(_ROOT / layout.SCRIPTS_DIR / "check_version_bump.py")
+    flags = ccc.script_flags(repo_root / layout.SCRIPTS_DIR / "check_version_bump.py")
     assert {"--current", "--target-dir", "--json"} <= flags
     assert "--host" not in flags  # belongs to other scripts entirely
 
@@ -333,9 +331,9 @@ def test_main_reports_each_violation(plugin, capsys):
 # --- the real repo ------------------------------------------------------------
 
 
-def test_this_plugins_commands_are_executable():
+def test_this_plugins_commands_are_executable(repo_root: Path):
     """The assertion that matters: every shipped command's contract holds."""
-    assert ccc.check_contracts(_ROOT) == []
+    assert ccc.check_contracts(repo_root) == []
 
 
 # --- rule 1b: the frontmatter must actually parse ------------------------------
@@ -414,9 +412,9 @@ def test_parse_frontmatter_ignores_continuations_and_comments():
     assert problems == []
 
 
-def test_this_plugins_frontmatter_all_parses():
+def test_this_plugins_frontmatter_all_parses(repo_root: Path):
     """The assertion that would have caught it: every shipped command loads."""
-    for path in sorted((_ROOT / layout.COMMANDS_DIR).glob("*.md")):
+    for path in sorted((repo_root / layout.COMMANDS_DIR).glob("*.md")):
         block = ccc.frontmatter(path.read_text())
         assert block is not None, f"{path.name} has no frontmatter"
         mapping, problems = ccc.parse_frontmatter(block)
@@ -451,6 +449,18 @@ def test_a_real_script_and_flag_in_prose_is_fine(plugin):
     assert ccc.check_contracts(plugin) == []
 
 
+def test_a_tests_scripts_path_is_not_read_as_a_shipped_script(plugin):
+    """Prose naming a test file must not be mistaken for a missing script.
+
+    `tests/scripts/test_platform_cli.py` ends in the same `scripts/<name>.py` shape a
+    shipped script does, so the reference scanner matched its tail and demanded
+    `plugin/scripts/test_platform_cli.py`. Real regression: it broke `make lint` the
+    moment the suite moved to `tests/scripts/` to mirror the plugin.
+    """
+    _write_prose(plugin, "README.md", "Half of `tests/scripts/test_platform_cli.py` needs glab.\n")
+    assert ccc.check_contracts(plugin) == []
+
+
 def test_the_docs_site_is_checked_too(plugin):
     page = plugin / "docs" / "commands" / "demo.md"
     page.parent.mkdir(parents=True)
@@ -472,14 +482,14 @@ def test_prose_files_absent_is_not_a_violation(plugin):
     assert ccc.check_contracts(plugin) == []
 
 
-def test_this_repos_prose_references_all_resolve():
+def test_this_repos_prose_references_all_resolve(repo_root: Path):
     """The assertion that matters: no dead script reference anywhere a reader looks."""
-    scripts_dir = _ROOT / layout.SCRIPTS_DIR
+    scripts_dir = repo_root / layout.SCRIPTS_DIR
     violations = [
         v
-        for path in ccc.prose_files(_ROOT)
+        for path in ccc.prose_files(repo_root)
         for v in ccc.check_script_references(
-            path.relative_to(_ROOT).as_posix(), path.read_text(), scripts_dir
+            path.relative_to(repo_root).as_posix(), path.read_text(), scripts_dir
         )
     ]
     assert violations == []
@@ -531,14 +541,14 @@ def test_a_test_glob_or_placeholder_is_not_a_reference(plugin):
     assert ccc.check_contracts(plugin) == []
 
 
-def test_this_repos_prose_test_references_all_resolve():
+def test_this_repos_prose_test_references_all_resolve(repo_root: Path):
     """No dead test reference anywhere a contributor looks."""
-    tests_dir = _ROOT / "tests"
+    tests_dir = repo_root / "tests"
     violations = [
         v
-        for path in ccc.prose_files(_ROOT)
+        for path in ccc.prose_files(repo_root)
         for v in ccc.check_test_references(
-            path.relative_to(_ROOT).as_posix(), path.read_text(), tests_dir
+            path.relative_to(repo_root).as_posix(), path.read_text(), tests_dir
         )
     ]
     assert violations == []

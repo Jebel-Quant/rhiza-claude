@@ -14,8 +14,6 @@ import _rhiza_layout as layout
 import check_docs_nav as cdn
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-
 _MKDOCS = """\
 site_name: demo
 
@@ -166,6 +164,6 @@ def test_main_reports_each_violation(repo, capsys):
 # --- the real repo ------------------------------------------------------------
 
 
-def test_this_repos_docs_and_nav_are_in_parity():
+def test_this_repos_docs_and_nav_are_in_parity(repo_root: Path):
     """The assertion that matters: every shipped command and procedure is documented."""
-    assert cdn.check_docs_nav(_ROOT) == []
+    assert cdn.check_docs_nav(repo_root) == []

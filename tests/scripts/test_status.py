@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 import status
-from conftest import PY, TEMPLATE_REF, assert_ok, run_cmd
+from conftest import PY, assert_ok, run_cmd
 
 
 def _write_lock(repo, body: str):
@@ -264,13 +264,13 @@ def test_status_main_check_flag(tmp_path, monkeypatch):
 # --- end-to-end: /status's two halves against a real sync ---------------------
 
 
-def test_e2e_status_reports_the_real_lock(synced_repo, capsys):
+def test_e2e_status_reports_the_real_lock(synced_repo, capsys, template_ref: str):
     """The sync half, read from the lock `sync.py` actually wrote."""
     rc = status.status(synced_repo)
     out = capsys.readouterr().out
     assert rc == 0
     assert "github/jebel-quant/rhiza" in out
-    assert TEMPLATE_REF in out
+    assert template_ref in out
     assert "merge" in out
 
 
@@ -282,9 +282,9 @@ def test_e2e_status_files_lists_what_the_template_delivered(synced_repo, capsys)
     assert "rhiza.mk" in out
 
 
-def test_e2e_the_config_half_validates(synced_repo):
+def test_e2e_the_config_half_validates(synced_repo, plugin_scripts: Path):
     """/status runs validate.py first; a real synced repo must pass its checks."""
-    validate = Path(__file__).resolve().parents[1] / "plugin" / "scripts" / "validate.py"
+    validate = plugin_scripts / "validate.py"
     assert_ok(run_cmd([*PY, str(validate), str(synced_repo)], synced_repo), "validate.py")
 
 
@@ -333,3 +333,27 @@ def test_resolve_template_ref_latest_skips_when_the_remote_is_unreachable(monkey
     monkeypatch.setattr(status, "_remote_tags", lambda host, repo: [])
     with pytest.raises(BaseException, match="could not list releases"):
         conftest.resolve_template_ref()
+
+
+def test_the_ref_is_resolved_lazily_and_only_once(monkeypatch):
+    """Resolution must happen on first use, not at import — and then be reused.
+
+    `TEMPLATE_REF = resolve_template_ref()` used to run at conftest import, so collecting
+    *any* test resolved the ref: under `RHIZA_TEMPLATE_REF=latest` that meant a remote tag
+    listing before a single test ran, and its `pytest.skip` fired at module level, where
+    pytest raises `Failed` instead of skipping. The `template_ref` fixture resolves through
+    this accessor instead, so the skip lands in the test that asked for the ref.
+    """
+    import conftest
+
+    monkeypatch.setattr(conftest, "_RESOLVED_REF", None)
+    calls = []
+
+    def counted() -> str:
+        calls.append(1)
+        return "v1.2.3"
+
+    monkeypatch.setattr(conftest, "resolve_template_ref", counted)
+    assert conftest.template_ref_value() == "v1.2.3"
+    assert conftest.template_ref_value() == "v1.2.3"
+    assert len(calls) == 1, "the ref must be resolved once per session, not per caller"

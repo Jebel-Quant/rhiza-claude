@@ -344,7 +344,7 @@ replace = "widget/.github/workflows/reusable.yml@v{new_version}"
 """
 
 
-def test_e2e_release_bumps_every_declared_location(synced_repo_copy):
+def test_e2e_release_bumps_every_declared_location(synced_repo_copy, plugin_scripts: Path):
     """The whole /release chain, on a repo with a real pyproject and a stub pin.
 
     Proves the property that motivated adopting bump-my-version: every *declared*
@@ -381,7 +381,7 @@ def test_e2e_release_bumps_every_declared_location(synced_repo_copy):
     assert current.stdout.strip().endswith("0.1.0")
 
     # 2. The guard — /release's step 4, and the check bump-my-version does not do.
-    guard = Path(__file__).resolve().parents[1] / "plugin" / "scripts" / "check_version_bump.py"
+    guard = plugin_scripts / "check_version_bump.py"
     assert_ok(run_cmd([*PY, str(guard), "v0.2.0", "--current", "0.1.0",
                        "--target-dir", str(repo)], repo), "guard v0.2.0")  # fmt: skip
     backwards = run_cmd([*PY, str(guard), "v0.0.1", "--current", "0.1.0",

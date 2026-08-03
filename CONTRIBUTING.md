@@ -58,7 +58,7 @@ prose or scripts, `make lint && make test` is enough.
 1. Edit (or add) the prompt file under `commands/<name>.md`. Keep the
    frontmatter (`description`, `argument-hint`, `allowed-tools`) accurate.
 2. If the command is backed by a script, put the logic in
-   `scripts/<name>.py` (stdlib-only) and cover it in `tests/test_<name>.py` —
+   `scripts/<name>.py` (stdlib-only) and cover it in `tests/scripts/test_<name>.py` —
    the suite enforces **100% coverage**, strict **mypy**, and **100% docstring**
    coverage on `scripts/`.
 3. Give the command a page under `docs/commands/<name>.md` and add it to the

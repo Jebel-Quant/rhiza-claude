@@ -73,7 +73,11 @@ _BASH_BLOCK = re.compile(r"```bash\n(.*?)```", re.S)
 # The script path is usually quoted — `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py" --flag` —
 # so the closing quote must be consumed before the arguments, or the argument capture
 # comes back empty and every flag goes unchecked.
-_SCRIPT_CALL = re.compile(r"scripts/([a-z_]+)\.py[\"']?((?:\s+[^\n`]*)?)")
+#
+# The `tests/` lookbehind is load-bearing: the test suite mirrors the plugin, so it lives
+# at `tests/scripts/test_x.py`, whose tail is a substring of the shipped-script shape this
+# matches. Without it, prose naming a *test* file is read as naming a missing *script*.
+_SCRIPT_CALL = re.compile(r"(?<!tests/)scripts/([a-z_]+)\.py[\"']?((?:\s+[^\n`]*)?)")
 _SLASH_COMMAND = re.compile(r"/rhiza:([a-z-]+)")
 # The documented way one command delegates to another. Case-insensitive: the phrase
 # is often capitalised at the start of a sentence or a bullet.

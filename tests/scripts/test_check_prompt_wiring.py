@@ -12,8 +12,6 @@ import _rhiza_layout as layout
 import check_prompt_wiring as cw
 import pytest
 
-_ROOT = Path(__file__).resolve().parents[1]
-
 _INTERNAL = """\
 # Skeleton (internal procedure)
 
@@ -154,9 +152,9 @@ def test_main_reports_each_violation(plugin, capsys):
 # --- the real repo ----------------------------------------------------------
 
 
-def test_this_repo_is_wired_correctly():
+def test_this_repo_is_wired_correctly(repo_root: Path):
     """The assertion that actually matters: /init and /update can reach their steps."""
-    assert cw.check_wiring(_ROOT) == []
+    assert cw.check_wiring(repo_root) == []
 
 
 @pytest.mark.parametrize(
@@ -171,57 +169,59 @@ def test_this_repo_is_wired_correctly():
         "scorecard",
     ],
 )
-def test_the_expected_procedures_exist(name):
+def test_the_expected_procedures_exist(name, repo_root):
     """Pins the current set, so adding or removing one is a deliberate edit here."""
-    assert (_ROOT / layout.PROMPTS_DIR / f"{name}.md").is_file()
-    assert not (_ROOT / layout.COMMANDS_DIR / f"{name}.md").exists()
+    assert (repo_root / layout.PROMPTS_DIR / f"{name}.md").is_file()
+    assert not (repo_root / layout.COMMANDS_DIR / f"{name}.md").exists()
 
 
-def test_init_and_update_both_start_with_install_uv():
+def test_init_and_update_both_start_with_install_uv(repo_root: Path):
     """Both entry points must install `uv` before anything that depends on it."""
     for command, dependent in (("init.md", "init_scaffold.py"), ("update.md", "sync.py")):
-        text = (_ROOT / layout.COMMANDS_DIR / command).read_text()
+        text = (repo_root / layout.COMMANDS_DIR / command).read_text()
         assert "prompts/install-uv.md" in text, f"{command} does not follow install-uv"
         assert text.index("prompts/install-uv.md") < text.index(dependent)
 
 
-def test_skeleton_reaches_python_version():
+def test_skeleton_reaches_python_version(repo_root: Path):
     """The Python metadata step hangs off the skeleton, not off /init."""
-    assert "prompts/python-version.md" in (_ROOT / layout.PROMPTS_DIR / "skeleton.md").read_text()
+    assert (
+        "prompts/python-version.md" in (repo_root / layout.PROMPTS_DIR / "skeleton.md").read_text()
+    )
 
 
 @pytest.mark.parametrize("command", ["init.md", "update.md"])
-def test_both_entry_points_share_the_pr_base_procedure(command):
+def test_both_entry_points_share_the_pr_base_procedure(command, repo_root):
     """The 'never push to the default branch' rule lives in one place, not two."""
-    assert "prompts/pr-base.md" in (_ROOT / layout.COMMANDS_DIR / command).read_text()
+    assert "prompts/pr-base.md" in (repo_root / layout.COMMANDS_DIR / command).read_text()
 
 
 @pytest.mark.parametrize("name", ["design-analysis", "scorecard"])
-def test_quality_reads_its_two_procedures(name):
+def test_quality_reads_its_two_procedures(name, repo_root):
     """The judgement-heavy halves of /quality live in prompts/, not inline."""
-    assert f"prompts/{name}.md" in (_ROOT / layout.COMMANDS_DIR / "quality.md").read_text()
+    assert f"prompts/{name}.md" in (repo_root / layout.COMMANDS_DIR / "quality.md").read_text()
 
 
-def test_quality_gathers_evidence_before_scoring():
+def test_quality_gathers_evidence_before_scoring(repo_root: Path):
     """Marks must follow the evidence, so design-analysis is read before scorecard."""
-    text = (_ROOT / layout.COMMANDS_DIR / "quality.md").read_text()
+    text = (repo_root / layout.COMMANDS_DIR / "quality.md").read_text()
     assert text.index("prompts/design-analysis.md") < text.index("prompts/scorecard.md")
 
 
-def test_the_scoping_rule_lives_only_in_the_scorecard():
+def test_the_scoping_rule_lives_only_in_the_scorecard(repo_root: Path):
     """One home for the rule that stops a managed repo being marked down for its template.
 
     /quality restating it would let the two drift, and a drifted scoping rule silently
     changes every score.
     """
-    quality = (_ROOT / layout.COMMANDS_DIR / "quality.md").read_text()
-    scorecard = (_ROOT / layout.PROMPTS_DIR / "scorecard.md").read_text()
+    quality = (repo_root / layout.COMMANDS_DIR / "quality.md").read_text()
+    scorecard = (repo_root / layout.PROMPTS_DIR / "scorecard.md").read_text()
     assert "In scope:" in scorecard
     assert "In scope:" not in quality
 
 
-def test_pr_base_is_reached_before_any_commit_is_pushed():
+def test_pr_base_is_reached_before_any_commit_is_pushed(repo_root: Path):
     """The branch must exist before the push, in both callers."""
     for command in ("init.md", "update.md"):
-        text = (_ROOT / layout.COMMANDS_DIR / command).read_text()
+        text = (repo_root / layout.COMMANDS_DIR / command).read_text()
         assert text.index("prompts/pr-base.md") < text.index("git push")

@@ -47,7 +47,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       # `gh` is preinstalled on GitHub's runners; `glab` is not. Without it, the half
-      # of tests/test_platform_cli.py that checks our argv against `glab --help` skips
+      # of tests/scripts/test_platform_cli.py that checks our argv against `glab --help` skips
       # — and skipping is how `glab mr create --description-file` shipped, a flag glab
       # has never had, past a suite that only ever compared the code with itself.
       - name: Install glab

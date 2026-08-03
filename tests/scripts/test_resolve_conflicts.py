@@ -22,8 +22,6 @@ import pytest
 import resolve_conflicts as rc
 from conftest import PY, run_cmd
 
-_SCRIPTS = Path(__file__).resolve().parents[1] / "plugin" / "scripts"
-
 CONFLICT = """\
 before
 <<<<<<< ours
@@ -254,7 +252,7 @@ def _git(repo: Path, *args: str) -> None:
 
 
 @pytest.fixture
-def conflict_scenario(tmp_path: Path) -> tuple[Path, Path]:
+def conflict_scenario(tmp_path: Path, plugin_scripts: Path) -> tuple[Path, Path]:
     """A project synced from a local template, with a collision set up on both sides.
 
     A local template rather than the real one, because a *conflict* test needs all three
@@ -292,7 +290,7 @@ def conflict_scenario(tmp_path: Path) -> tuple[Path, Path]:
     _git(project, "commit", "-qm", "init")
 
     # First sync: a clean add, exit 0 — the state the existing e2e already covers.
-    first = run_cmd([*PY, str(_SCRIPTS / "sync.py"), "."], project)
+    first = run_cmd([*PY, str(plugin_scripts / "sync.py"), "."], project)
     assert first.returncode == 0, f"first sync should be clean:\n{first.stdout}{first.stderr}"
     assert (project / "shared.txt").read_text() == "line one\nBASE\nline three\n"
     _git(project, "add", "-A")
@@ -312,11 +310,11 @@ def conflict_scenario(tmp_path: Path) -> tuple[Path, Path]:
     return project, template
 
 
-def test_e2e_a_colliding_sync_exits_1_and_leaves_markers(conflict_scenario):
+def test_e2e_a_colliding_sync_exits_1_and_leaves_markers(conflict_scenario, plugin_scripts):
     """sync.py exit 1 is the normal outcome of a real /update, and was never driven."""
     project, _ = conflict_scenario
 
-    second = run_cmd([*PY, str(_SCRIPTS / "sync.py"), "."], project)
+    second = run_cmd([*PY, str(plugin_scripts / "sync.py"), "."], project)
 
     assert second.returncode == rc.EXIT_REJECTS_REMAIN, (
         f"expected a conflict:\n{second.stdout}{second.stderr}"
@@ -330,12 +328,12 @@ def test_e2e_a_colliding_sync_exits_1_and_leaves_markers(conflict_scenario):
     assert rejects == [], f"the merge should no longer produce rejects: {rejects}"
 
 
-def test_e2e_resolving_takes_upstream_and_clears_every_artifact(conflict_scenario):
+def test_e2e_resolving_takes_upstream_and_clears_every_artifact(conflict_scenario, plugin_scripts):
     """/update step 6's whole contract, end to end."""
     project, _ = conflict_scenario
-    run_cmd([*PY, str(_SCRIPTS / "sync.py"), "."], project)
+    run_cmd([*PY, str(plugin_scripts / "sync.py"), "."], project)
 
-    resolved = run_cmd([*PY, str(_SCRIPTS / "resolve_conflicts.py"), "."], project)
+    resolved = run_cmd([*PY, str(plugin_scripts / "resolve_conflicts.py"), "."], project)
     assert resolved.returncode == rc.EXIT_OK, f"{resolved.stdout}{resolved.stderr}"
 
     body = (project / "shared.txt").read_text()
@@ -351,13 +349,13 @@ def test_e2e_resolving_takes_upstream_and_clears_every_artifact(conflict_scenari
     assert marked == [] and rejects == [], "artifacts remain after resolution"
 
 
-def test_e2e_the_resolved_file_is_then_staged_as_template_owned(conflict_scenario):
+def test_e2e_the_resolved_file_is_then_staged_as_template_owned(conflict_scenario, plugin_scripts):
     """The step-6 → step-7 handover: resolution feeds stage_synced, which stages it."""
     import stage_synced
 
     project, _ = conflict_scenario
-    run_cmd([*PY, str(_SCRIPTS / "sync.py"), "."], project)
-    run_cmd([*PY, str(_SCRIPTS / "resolve_conflicts.py"), "."], project)
+    run_cmd([*PY, str(plugin_scripts / "sync.py"), "."], project)
+    run_cmd([*PY, str(plugin_scripts / "resolve_conflicts.py"), "."], project)
 
     # A repo-owned edit alongside, which must not be swept in.
     (project / "mine.txt").write_text("my own work\n")

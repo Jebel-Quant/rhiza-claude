@@ -17,9 +17,30 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "plugin" / "scripts"
+# The one definition of the repo root. `conftest.py` sits at the top of `tests/`, so it is
+# the only file whose depth is fixed regardless of how the mirrored tree beneath it is
+# arranged — the modules under `tests/scripts/` each used to derive this themselves, and
+# every one of them broke when the suite moved down a level to mirror `plugin/`.
+#
+# These two stay module-level because the `sys.path` insert has to happen at *collection*
+# time: the test modules do `import status` at their own module level, long before any
+# fixture runs. Tests reach them through the `repo_root` / `plugin_scripts` fixtures below.
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS = ROOT / "plugin" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
+
+
+@pytest.fixture(scope="session")
+def repo_root() -> Path:
+    """The repo root — this checkout, not a temporary fixture repo."""
+    return ROOT
+
+
+@pytest.fixture(scope="session")
+def plugin_scripts() -> Path:
+    """The bundled `plugin/scripts/` directory the tests exercise."""
+    return SCRIPTS
 
 
 @pytest.fixture
@@ -135,7 +156,29 @@ def resolve_template_ref() -> str:
     return max(releases, key=lambda t: status._parse_semver(t))  # type: ignore[arg-type]
 
 
-TEMPLATE_REF = resolve_template_ref()
+_RESOLVED_REF: str | None = None
+
+
+def template_ref_value() -> str:
+    """Resolve the template ref once per session, on first use rather than at import.
+
+    This used to be a module-level `TEMPLATE_REF = resolve_template_ref()`, which was
+    wrong in two ways under `RHIZA_TEMPLATE_REF=latest` (the drift job's path, and so the
+    one least exercised locally): it listed remote tags during *collection*, making even a
+    single unit-test run hit the network, and its `pytest.skip` fired at conftest import —
+    where pytest raises `Failed` ("use allow_module_level=True") instead of skipping. Now
+    the skip happens inside whichever test asked for the ref, which is what it meant.
+    """
+    global _RESOLVED_REF
+    if _RESOLVED_REF is None:
+        _RESOLVED_REF = resolve_template_ref()
+    return _RESOLVED_REF
+
+
+@pytest.fixture(scope="session")
+def template_ref() -> str:
+    """The template ref the end-to-end tests sync from."""
+    return template_ref_value()
 
 
 # ---------------------------------------------------------------------------
@@ -183,13 +226,13 @@ def unmanaged_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def managed_unsynced_repo(unmanaged_repo: Path) -> Path:
+def managed_unsynced_repo(unmanaged_repo: Path, template_ref: str) -> Path:
     """Rhiza-managed but never synced — the state `/init` deliberately leaves behind.
 
     There is a `template.yml` but no `rhiza.mk` and no makefile, so every gate is
     unavailable. Scoring this repo as broken was the bug the probe exists to prevent.
     """
-    write_template(unmanaged_repo, f'repository: "{TEMPLATE_REPO}"\nref: "{TEMPLATE_REF}"\n')
+    write_template(unmanaged_repo, f'repository: "{TEMPLATE_REPO}"\nref: "{template_ref}"\n')
     return unmanaged_repo
 
 
@@ -299,7 +342,8 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     assert_ok(
         run_cmd(
             [*PY, str(scripts / "init_scaffold.py"), str(repo), "--host", "github",
-             "--language", "python", "--template-repo", TEMPLATE_REPO, "--ref", TEMPLATE_REF],
+             "--language", "python", "--template-repo", TEMPLATE_REPO,
+             "--ref", template_ref_value()],
             repo,
         ),
         "init_scaffold",
@@ -362,7 +406,8 @@ def gitlab_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     assert_ok(
         run_cmd(
             [*PY, str(scripts / "init_scaffold.py"), str(repo), "--host", "gitlab",
-             "--language", "python", "--template-repo", TEMPLATE_REPO, "--ref", TEMPLATE_REF],
+             "--language", "python", "--template-repo", TEMPLATE_REPO,
+             "--ref", template_ref_value()],
             repo,
         ),
         "init_scaffold --host gitlab",
@@ -446,7 +491,7 @@ def language_template_ref(language: str) -> str:
     branch — it was how the Rust sync ran at all before v1.3.0 shipped `rust-local` — and
     is set by nothing now.
     """
-    return os.environ.get(f"RHIZA_{language.upper()}_TEMPLATE_REF", TEMPLATE_REF)
+    return os.environ.get(f"RHIZA_{language.upper()}_TEMPLATE_REF", template_ref_value())
 
 
 def require_language_profile(language: str, ref: str) -> None:
