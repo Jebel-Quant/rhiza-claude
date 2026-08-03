@@ -62,7 +62,7 @@ root — so that grouping is not a choice you can tidy further.
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
 | `plugin/.claude-plugin/plugin.json` | The plugin manifest. |
-| `tests/*.py` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
+| `tests/scripts/*.py` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
 | `docs/` | The MkDocs site: `commands/`, `internals/`, `index.md`, `development.md`. |
 | `paper/` | A LaTeX introduction, rebuilt by CI and published with the site. |
 | `.claude-plugin/marketplace.json` | The marketplace catalogue. |
@@ -114,7 +114,7 @@ rather than breaking in front of a user mid-task.
 **When adding or changing a command:**
 
 1. Edit `commands/<name>.md`; keep the frontmatter accurate.
-2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/test_<name>.py`.
+2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/scripts/test_<name>.py`.
 3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
    only — run `plugin/scripts/render_command_docs.py` for the **Reference** block, which is
    generated from the frontmatter and gated by `docs-reference-blocks`.

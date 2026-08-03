@@ -18,7 +18,7 @@ import subprocess
 
 import check_template_profile as ctp
 import pytest
-from conftest import TEMPLATE_REF, TEMPLATE_REPO
+from conftest import TEMPLATE_REPO
 
 BUNDLES = """\
 bundles:
@@ -227,7 +227,7 @@ def test_an_empty_profile_list_in_a_template_is_reported_as_none(
 # satisfiable, which is the one thing no amount of local fixture work can establish.
 
 
-def test_e2e_the_template_defines_every_profile_init_writes_for_python():
+def test_e2e_the_template_defines_every_profile_init_writes_for_python(template_ref: str):
     """The profiles `/init` writes for Python exist at the ref the suite pins.
 
     Nothing else in the suite would notice an upstream rename of `github-project`
@@ -238,11 +238,11 @@ def test_e2e_the_template_defines_every_profile_init_writes_for_python():
     profiles = sorted(
         {init_scaffold.profile_for_host(host, "python") for host in ("github", "gitlab")}
     )
-    summary = ctp.check(TEMPLATE_REPO, TEMPLATE_REF, profiles)
+    summary = ctp.check(TEMPLATE_REPO, template_ref, profiles)
     assert summary["exit_code"] == ctp.EXIT_OK, summary
 
 
-def test_e2e_the_template_defines_the_profile_a_rust_pointer_names():
+def test_e2e_the_template_defines_the_profile_a_rust_pointer_names(template_ref: str):
     """Rust's profile exists at the pinned ref, since v1.3.0 shipped it.
 
     Was written as "either defined or reported missing" while `rust-local` lived only on
@@ -253,11 +253,11 @@ def test_e2e_the_template_defines_the_profile_a_rust_pointer_names():
     import init_scaffold
 
     profile = init_scaffold.profile_for_host("github", "rust")
-    summary = ctp.check(TEMPLATE_REPO, TEMPLATE_REF, [profile])
+    summary = ctp.check(TEMPLATE_REPO, template_ref, [profile])
     assert summary["exit_code"] == ctp.EXIT_OK, summary
 
 
-def test_e2e_a_profile_no_template_defines_is_caught():
+def test_e2e_a_profile_no_template_defines_is_caught(template_ref: str):
     """The historical bug, replayed: `rust-github-project` has never existed."""
-    summary = ctp.check(TEMPLATE_REPO, TEMPLATE_REF, ["rust-github-project"])
+    summary = ctp.check(TEMPLATE_REPO, template_ref, ["rust-github-project"])
     assert summary["exit_code"] == ctp.EXIT_MISSING, summary

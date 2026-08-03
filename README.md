@@ -263,7 +263,7 @@ because the repo chose to scatter them.
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
-| `tests/` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
+| `tests/scripts/` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
 | `docs/` | The MkDocs site. Not shipped. |
 | `paper/` | A LaTeX introduction — the long form of the framing above, with figures captured from real command output (`render_figures.py`). `make paper` builds it; CI rebuilds it on every commit and [publishes the PDF with the docs site](https://jebel-quant.github.io/rhiza-claude/paper/rhiza-claude-intro.pdf). |
 

@@ -73,7 +73,11 @@ repos:
         files: '^plugin/scripts/.*\.py$'
       - id: test-layout
         name: test layout mirrors sources (1:1 files + Test classes)
-        entry: uv run --python 3.12 --no-project python plugin/scripts/check_test_layout.py --src plugin/scripts --tests tests
+        # --src is the *plugin* root, not plugin/scripts: the checker mirrors nested
+        # packages, so this makes `tests/scripts/` a requirement rather than a
+        # convention. Rooted at plugin/scripts it passed for the wrong reason — both
+        # sides were flat, so any arrangement satisfied parity.
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_test_layout.py --src plugin --tests tests
         language: system
         pass_filenames: false
         files: '^(plugin/scripts|tests)/.*\.py$'

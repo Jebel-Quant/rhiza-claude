@@ -22,18 +22,21 @@ import check_make_targets as cmt
 import pytest
 from conftest import assert_ok, run_cmd
 
-_ROOT = Path(__file__).resolve().parents[1]
-_QUALITY = _ROOT / "plugin" / "commands" / "quality.md"
-
 pytestmark = pytest.mark.skipif(shutil.which("make") is None, reason="make not available")
+
+
+@pytest.fixture(scope="session")
+def quality_md(repo_root: Path) -> Path:
+    """`/quality`'s command file — the single source of the gate list the probe reads."""
+    return repo_root / "plugin" / "commands" / "quality.md"
 
 
 # --- the target list comes from the prose, not from a duplicate ---------------
 
 
-def test_gate_targets_are_parsed_from_the_command():
+def test_gate_targets_are_parsed_from_the_command(quality_md: Path):
     """Derived, so the probe cannot drift from what /quality says it runs."""
-    assert cmt.gate_targets(_QUALITY) == [
+    assert cmt.gate_targets(quality_md) == [
         "fmt",
         "typecheck",
         "docs-coverage",
@@ -44,9 +47,9 @@ def test_gate_targets_are_parsed_from_the_command():
     ]
 
 
-def test_gate_order_is_preserved():
+def test_gate_order_is_preserved(quality_md: Path):
     """/quality runs cheapest-first, so the report should follow the same order."""
-    targets = cmt.gate_targets(_QUALITY)
+    targets = cmt.gate_targets(quality_md)
     assert targets.index("fmt") < targets.index("test")
 
 
@@ -72,29 +75,29 @@ def test_gate_targets_of_a_missing_file_is_empty(tmp_path):
 # --- the three repo states ---------------------------------------------------
 
 
-def test_an_unsynced_repo_reports_every_gate_unavailable(managed_unsynced_repo):
+def test_an_unsynced_repo_reports_every_gate_unavailable(managed_unsynced_repo, quality_md):
     """The exact failure mode: no makefile, so nothing can be scored.
 
     Reported as unavailable with a pointer at /update — not as seven failures.
     """
-    result = cmt.probe(managed_unsynced_repo, _QUALITY)
+    result = cmt.probe(managed_unsynced_repo, quality_md)
     assert result["available"] == []
-    assert result["unavailable"] == cmt.gate_targets(_QUALITY)
+    assert result["unavailable"] == cmt.gate_targets(quality_md)
     assert result["exit_code"] == cmt.EXIT_UNAVAILABLE
     assert any("not synced" in n and "/rhiza:update" in n for n in result["notes"])
 
 
-def test_a_synced_repo_finds_every_gate(managed_synced_repo):
-    result = cmt.probe(managed_synced_repo, _QUALITY)
-    assert result["available"] == cmt.gate_targets(_QUALITY)
+def test_a_synced_repo_finds_every_gate(managed_synced_repo, quality_md):
+    result = cmt.probe(managed_synced_repo, quality_md)
+    assert result["available"] == cmt.gate_targets(quality_md)
     assert result["unavailable"] == []
     assert result["exit_code"] == cmt.EXIT_OK
     assert result["notes"] == []
 
 
-def test_a_reduced_profile_reports_only_its_missing_gates(partial_profile_repo):
+def test_a_reduced_profile_reports_only_its_missing_gates(partial_profile_repo, quality_md):
     """Profile variation is legitimate — the tests-bundle gates are simply absent."""
-    result = cmt.probe(partial_profile_repo, _QUALITY)
+    result = cmt.probe(partial_profile_repo, quality_md)
     assert set(result["available"]) == {"fmt", "deptry"}
     assert set(result["unavailable"]) == {
         "typecheck",
@@ -107,20 +110,20 @@ def test_a_reduced_profile_reports_only_its_missing_gates(partial_profile_repo):
     assert any("out-of-scope, never FAIL" in n for n in result["notes"])
 
 
-def test_an_unmanaged_repo_has_nothing_to_probe(unmanaged_repo):
-    result = cmt.probe(unmanaged_repo, _QUALITY)
-    assert result["unavailable"] == cmt.gate_targets(_QUALITY)
+def test_an_unmanaged_repo_has_nothing_to_probe(unmanaged_repo, quality_md):
+    result = cmt.probe(unmanaged_repo, quality_md)
+    assert result["unavailable"] == cmt.gate_targets(quality_md)
     assert result["exit_code"] == cmt.EXIT_UNAVAILABLE
 
 
-def test_a_makefile_with_none_of_the_gates_is_called_out(managed_unsynced_repo):
+def test_a_makefile_with_none_of_the_gates_is_called_out(managed_unsynced_repo, quality_md):
     """A repo with its own unrelated Makefile — present, but not the template's.
 
     Distinct from having no makefile at all: something *is* there, so the likely cause
     is an incomplete sync rather than an unmanaged repo, and the note says so.
     """
     (managed_unsynced_repo / "Makefile").write_text(".PHONY: build\nbuild: ; @echo build\n")
-    result = cmt.probe(managed_unsynced_repo, _QUALITY)
+    result = cmt.probe(managed_unsynced_repo, quality_md)
     assert result["available"] == []
     assert result["exit_code"] == cmt.EXIT_OK  # probing worked; the repo is just bare
     assert any("template sync completed" in n for n in result["notes"])
@@ -129,14 +132,14 @@ def test_a_makefile_with_none_of_the_gates_is_called_out(managed_unsynced_repo):
 # --- this repo, which is where the bug was live ------------------------------
 
 
-def test_this_plugin_repo_lacks_the_template_gates():
+def test_this_plugin_repo_lacks_the_template_gates(quality_md: Path, repo_root: Path):
     """Pins the state that made /quality unrunnable here, so a future fix is visible.
 
     The plugin repo is not rhiza-managed, so it has only its own `test` target. If this
     ever changes — because the repo adopts the template — the assertion should be
     updated deliberately rather than silently.
     """
-    result = cmt.probe(_ROOT, _QUALITY)
+    result = cmt.probe(repo_root, quality_md)
     assert result["available"] == ["test"]
     assert "fmt" in result["unavailable"]
     assert result["exit_code"] == cmt.EXIT_OK
@@ -179,34 +182,34 @@ def test_a_command_without_a_gate_list_exits_2(managed_synced_repo, tmp_path):
 # --- main() / CLI ------------------------------------------------------------
 
 
-def test_main_reports_each_target(managed_synced_repo, capsys):
-    rc = cmt.main(["--target-dir", str(managed_synced_repo), "--from", str(_QUALITY)])
+def test_main_reports_each_target(managed_synced_repo, capsys, quality_md):
+    rc = cmt.main(["--target-dir", str(managed_synced_repo), "--from", str(quality_md)])
     assert rc == cmt.EXIT_OK
     out = capsys.readouterr().out
     assert "available    make fmt" in out
     assert "available    make test" in out
 
 
-def test_main_marks_missing_targets_unavailable(partial_profile_repo, capsys):
-    rc = cmt.main(["--target-dir", str(partial_profile_repo), "--from", str(_QUALITY)])
+def test_main_marks_missing_targets_unavailable(partial_profile_repo, capsys, quality_md):
+    rc = cmt.main(["--target-dir", str(partial_profile_repo), "--from", str(quality_md)])
     assert rc == cmt.EXIT_OK
     captured = capsys.readouterr()
     assert "unavailable  make typecheck" in captured.out
     assert "out-of-scope" in captured.err
 
 
-def test_main_require_turns_a_missing_target_into_a_failure(partial_profile_repo):
+def test_main_require_turns_a_missing_target_into_a_failure(partial_profile_repo, quality_md):
     """For a repo that expects the full profile, absence should fail the run."""
-    args = ["--target-dir", str(partial_profile_repo), "--from", str(_QUALITY)]
+    args = ["--target-dir", str(partial_profile_repo), "--from", str(quality_md)]
     assert cmt.main(args) == cmt.EXIT_OK
     assert cmt.main([*args, "--require"]) == cmt.EXIT_UNAVAILABLE
 
 
-def test_main_json_output(managed_synced_repo, capsys):
-    rc = cmt.main(["--target-dir", str(managed_synced_repo), "--from", str(_QUALITY), "--json"])
+def test_main_json_output(managed_synced_repo, capsys, quality_md):
+    rc = cmt.main(["--target-dir", str(managed_synced_repo), "--from", str(quality_md), "--json"])
     assert rc == cmt.EXIT_OK
     payload = json.loads(capsys.readouterr().out)
-    assert payload["available"] == cmt.gate_targets(_QUALITY)
+    assert payload["available"] == cmt.gate_targets(quality_md)
     assert payload["unavailable"] == []
 
 
@@ -217,8 +220,8 @@ def test_main_defaults_to_the_bundled_quality_command(managed_synced_repo, capsy
     assert "make fmt" in capsys.readouterr().out
 
 
-def test_main_on_an_unsynced_repo_exits_1(managed_unsynced_repo, capsys):
-    rc = cmt.main(["--target-dir", str(managed_unsynced_repo), "--from", str(_QUALITY)])
+def test_main_on_an_unsynced_repo_exits_1(managed_unsynced_repo, capsys, quality_md):
+    rc = cmt.main(["--target-dir", str(managed_unsynced_repo), "--from", str(quality_md)])
     assert rc == cmt.EXIT_UNAVAILABLE
     assert "not synced" in capsys.readouterr().err
 
@@ -226,7 +229,7 @@ def test_main_on_an_unsynced_repo_exits_1(managed_unsynced_repo, capsys):
 # --- end-to-end: /quality's gates against a real sync -------------------------
 
 
-def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo):
+def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo, quality_md):
     """The assertion that would have caught /quality being unrunnable.
 
     /quality names seven `make` targets and used to probe none of them. Here the target
@@ -234,9 +237,9 @@ def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo):
     from the real template — so a gate the template stops providing, or one added to the
     prose that it never provided, fails in CI instead of in front of a user.
     """
-    result = cmt.probe(synced_repo, _QUALITY)
+    result = cmt.probe(synced_repo, quality_md)
     assert result["unavailable"] == [], f"the template does not provide: {result['unavailable']}"
-    assert result["available"] == cmt.gate_targets(_QUALITY)
+    assert result["available"] == cmt.gate_targets(quality_md)
 
 
 # `make test` is executed by tests/test_init_scaffold.py, which owns the coverage-gate
@@ -257,14 +260,14 @@ def test_e2e_each_gate_actually_passes(gate, synced_repo):
     assert_ok(run_cmd(["make", gate], synced_repo), f"make {gate}")
 
 
-def test_e2e_no_gate_in_the_prose_goes_unrun(synced_repo):
+def test_e2e_no_gate_in_the_prose_goes_unrun(synced_repo, quality_md):
     """Every gate /quality names is executed by this suite, or excused by name here.
 
     Without this, adding a gate to `commands/quality.md` silently adds an unrun one —
     the probe would cover it and nothing would ever execute it.
     """
     covered = {*_RUNNABLE_GATES, "test", "rhiza-test"}
-    named = set(cmt.gate_targets(_QUALITY))
+    named = set(cmt.gate_targets(quality_md))
     assert named <= covered, f"named in quality.md but never executed: {sorted(named - covered)}"
 
 
@@ -303,13 +306,13 @@ def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
     )
 
 
-def test_e2e_quality_gates_exist_on_the_gitlab_profile_too(gitlab_synced_repo):
+def test_e2e_quality_gates_exist_on_the_gitlab_profile_too(gitlab_synced_repo, quality_md):
     """The gates come from `core`/`tests`, which both profiles include.
 
     Worth asserting rather than assuming: /quality names one gate list, and a
     GitLab-hosted repo must not be scored against gates it was never given.
     """
-    result = cmt.probe(gitlab_synced_repo, _QUALITY)
+    result = cmt.probe(gitlab_synced_repo, quality_md)
     assert result["unavailable"] == [], f"gitlab profile lacks: {result['unavailable']}"
 
 
@@ -330,7 +333,9 @@ def test_documented_targets_without_a_makefile_is_empty(tmp_path):
     assert cmt.documented_targets(tmp_path) == {}
 
 
-def test_a_non_python_repo_yields_discovered_targets_instead_of_nothing(managed_unsynced_repo):
+def test_a_non_python_repo_yields_discovered_targets_instead_of_nothing(
+    managed_unsynced_repo, quality_md
+):
     """The whole point: a Go/Rust template's gates are found, not reported as absent.
 
     None of the prose's Python gate names exist here, which before this would have
@@ -341,13 +346,15 @@ def test_a_non_python_repo_yields_discovered_targets_instead_of_nothing(managed_
         "vet:  ## go vet ./...\n\ttrue\n"
         "lint:  ## golangci-lint run\n\ttrue\n"
     )
-    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+    summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["undeclared"] == ["lint", "vet"]  # `test` is a named gate already
     assert summary["documented"]["vet"] == "go vet ./..."
     assert any("its real gates" in note for note in summary["notes"])
 
 
-def test_the_discovery_hint_fires_even_though_test_is_a_named_gate(managed_unsynced_repo):
+def test_the_discovery_hint_fires_even_though_test_is_a_named_gate(
+    managed_unsynced_repo, quality_md
+):
     """A Go or Rust template will define `test`, so "all gates missing" is too strict.
 
     Requiring zero matches would hide the hint from exactly the repos it exists for.
@@ -355,19 +362,21 @@ def test_the_discovery_hint_fires_even_though_test_is_a_named_gate(managed_unsyn
     (managed_unsynced_repo / "Makefile").write_text(
         "test:  ## go test ./...\n\ttrue\nvet:  ## go vet ./...\n\ttrue\n"
     )
-    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+    summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["available"] == ["test"]
     assert any("its real gates" in note for note in summary["notes"])
 
 
-def test_the_discovery_hint_is_silent_on_a_fully_synced_python_repo(managed_synced_repo):
+def test_the_discovery_hint_is_silent_on_a_fully_synced_python_repo(
+    managed_synced_repo, quality_md
+):
     """Every named gate resolves, so there is nothing to redirect the model toward."""
-    summary = cmt.probe(managed_synced_repo, _QUALITY)
+    summary = cmt.probe(managed_synced_repo, quality_md)
     assert not any("its real gates" in note for note in summary["notes"])
 
 
-def test_an_unsynced_repo_reports_no_discovered_targets(managed_unsynced_repo):
-    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+def test_an_unsynced_repo_reports_no_discovered_targets(managed_unsynced_repo, quality_md):
+    summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["undeclared"] == []
     assert summary["documented"] == {}
 
@@ -456,7 +465,7 @@ def test_makefile_chain_without_a_makefile_is_empty(tmp_path):
     assert cmt.makefile_chain(tmp_path) == []
 
 
-def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo):
+def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo, quality_md):
     """A Rust repo resolves most named gates; the one it doesn't has `deps` in its place.
 
     Scoring `deptry` out-of-scope and stopping there skips a concern the repo does cover.
@@ -467,7 +476,7 @@ def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo):
         "docs-coverage:  ## missing_docs\n\ttrue\nsecurity:  ## advisories\n\ttrue\n"
         "rhiza-test:  ## template tests\n\ttrue\n"
     )
-    summary = cmt.probe(managed_unsynced_repo, _QUALITY)
+    summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["unavailable"] == ["deptry"]
     assert "deps" in summary["undeclared"]
     assert any("under a different name" in note for note in summary["notes"])
@@ -487,9 +496,9 @@ def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
     assert "discovered   make vet  # go vet ./..." in out
 
 
-def test_this_repo_discovers_its_own_documented_targets():
+def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
     """rhiza-claude's own Makefile uses the convention, so this is a live check."""
-    found = cmt.documented_targets(_ROOT)
+    found = cmt.documented_targets(repo_root)
     assert {"lint", "test", "book", "clean"} <= set(found)
     assert found["lint"] == "Run all pre-commit hooks against every file"
 
@@ -528,14 +537,14 @@ def test_e2e_the_rust_gates_resolve_for_make(rust_synced_repo):
         assert cmt.target_exists(rust_synced_repo, target), f"make cannot resolve {target}"
 
 
-def test_e2e_a_rust_repo_is_never_reported_as_having_nothing_to_check(rust_synced_repo):
+def test_e2e_a_rust_repo_is_never_reported_as_having_nothing_to_check(rust_synced_repo, quality_md):
     """The failure `/quality`'s probe exists to prevent, on the language it was added for.
 
     Before discovery followed the include chain this repo reported six available gates and
     *zero* discovered ones, so `deps`, `license` and `coverage` were invisible: /quality
     would score `deptry` out-of-scope and never learn a Rust analogue was sitting there.
     """
-    summary = cmt.probe(rust_synced_repo, _QUALITY)
+    summary = cmt.probe(rust_synced_repo, quality_md)
     assert summary["undeclared"], "a synced Rust repo documents targets beyond the prose's list"
     assert summary["available"], summary["notes"]
     # The Python-only gate is absent, and that is out-of-scope rather than a failure.
@@ -544,13 +553,13 @@ def test_e2e_a_rust_repo_is_never_reported_as_having_nothing_to_check(rust_synce
     assert any("different name" in note for note in summary["notes"]), summary["notes"]
 
 
-def test_e2e_the_rust_repo_reuses_the_shared_gate_names(rust_synced_repo):
+def test_e2e_the_rust_repo_reuses_the_shared_gate_names(rust_synced_repo, quality_md):
     """A language layer owns `install`/`all`/`test` so the rest of the template needn't.
 
     Worth asserting because it is what lets `/quality`'s prose stay language-neutral: if
     a Rust repo stopped defining `test`, the shared gate list would silently measure less.
     """
-    summary = cmt.probe(rust_synced_repo, _QUALITY)
+    summary = cmt.probe(rust_synced_repo, quality_md)
     assert "test" in summary["available"]
     assert {"install", "all"} <= set(summary["undeclared"] + summary["available"])
 
@@ -578,9 +587,9 @@ def test_e2e_the_go_gates_resolve_for_make(go_synced_repo):
         assert cmt.target_exists(go_synced_repo, target), f"make cannot resolve {target}"
 
 
-def test_e2e_a_go_repo_is_never_reported_as_having_nothing_to_check(go_synced_repo):
+def test_e2e_a_go_repo_is_never_reported_as_having_nothing_to_check(go_synced_repo, quality_md):
     """The same guarantee as for Rust, on the language the discovery hint names."""
-    summary = cmt.probe(go_synced_repo, _QUALITY)
+    summary = cmt.probe(go_synced_repo, quality_md)
     assert summary["undeclared"], "a synced Go repo documents targets beyond the prose's list"
     assert summary["available"], summary["notes"]
     assert "deptry" in summary["unavailable"], "deptry is Python's; Go's analogue is `deps`"

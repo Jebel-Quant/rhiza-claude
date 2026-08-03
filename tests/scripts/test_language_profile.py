@@ -15,8 +15,6 @@ import language_profile as lp
 import pytest
 import validate
 
-_ROOT = Path(__file__).resolve().parents[1]
-
 
 class TestLanguage:
     """The dataclass itself: a frozen record of one ecosystem's facts."""
@@ -213,9 +211,9 @@ def test_main_honours_an_explicit_language(tmp_path, capsys):
 # --- the real repo ------------------------------------------------------------
 
 
-def test_this_repo_is_not_detected_as_managed():
+def test_this_repo_is_not_detected_as_managed(repo_root: Path):
     """rhiza-claude has no .rhiza/ and no manifest — it must not claim a language."""
-    language, _ = lp.detect(_ROOT)
+    language, _ = lp.detect(repo_root)
     assert language is None
 
 
