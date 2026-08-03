@@ -200,14 +200,36 @@ Then **show `git diff --stat`** so the user sees exactly which files moved.
 > Third-party pins (`actions/checkout@v5`) and floating refs (`@main`) are never
 > rewritten.
 
-## 7. Regenerate the changelog
+## 7. Add the new section to the changelog
+
+**Prepend; never regenerate.** This is step 5's preview command with `--prepend`, so
+what you showed the user is exactly what lands:
 
 ```bash
-uvx git-cliff --tag "$TARGET" --output CHANGELOG.md
+uvx git-cliff --unreleased --tag "$TARGET" --prepend CHANGELOG.md
 ```
-This folds the unreleased commits under the new tag. Prefer this explicit form over
-`make changelog`, which usually omits `--tag` and so leaves the new section unlabelled.
-Show a short diff summary.
+`--unreleased` scopes the run to commits after the last tag, `--tag` labels them, and
+`--prepend` inserts that one section above the existing content without touching a byte
+of it. Prefer it over `make changelog`, which usually omits `--tag` and so leaves the new
+section unlabelled.
+
+**Then diff the file and check that the only change is the new section.** Not a
+formality — it's how you catch the two ways this step goes wrong:
+
+- **`--output` rewrites history that `--prepend` preserves.** The older form
+  (`git-cliff --tag "$TARGET" --output CHANGELOG.md`) regenerates the *whole* file from
+  commits reachable from `HEAD`. A tag that is no longer reachable — the normal outcome
+  of a squash-merge, a rebase, or a branch deleted after release — is invisible to that
+  walk, so its section is **deleted** and its commits are silently re-filed under the
+  next reachable release. The diff shows edits to years-old sections, and the released
+  changelog no longer matches what shipped. Releasing `rhiza-hooks` v1.1.0 hit exactly
+  this: `## [0.7.0]` vanished and its two commits moved into `0.7.1`.
+- **`--prepend` is not idempotent.** Running it twice inserts the section twice. If you
+  need to redo the step, `git checkout CHANGELOG.md` first — the tree was clean at step
+  1, so that reset is safe and loses nothing.
+
+If the diff shows anything beyond the new section, **stop and report** rather than
+committing it.
 
 ## 8. Commit and tag locally
 

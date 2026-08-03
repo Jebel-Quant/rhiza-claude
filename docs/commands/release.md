@@ -45,7 +45,8 @@ not a target.
 5. **Previews the release notes** and stops if nothing is unreleased.
 6. **Bumps every declared location** — `bump-my-version bump --new-version`, then shows
    `git diff --stat`.
-7. **Regenerates `CHANGELOG.md`** with the unreleased commits folded under the new tag.
+7. **Prepends a `CHANGELOG.md` section** for the unreleased commits, labelled with the
+   new tag, then checks the diff touches nothing else. See below for why it prepends.
 8. **Commits and tags** locally — `chore: release vX.Y.Z`.
 9. **Stops before pushing** — prints a single `git push --atomic origin HEAD <TAG>`.
    Pushing the **tag** is what triggers the repo's `Release` workflow.
@@ -91,6 +92,23 @@ be a guess wearing the clothes of a derivation, and the one that lands as an acc
 git tags — verified: `0.4.2 → 0.4.1` exits 0. Since a pushed tag is effectively
 permanent, tagging backwards or reusing a tag is the one mistake in this flow that isn't
 cheaply reversible, so that single check stays explicit and tested rather than assumed.
+
+## Why the changelog is prepended, not regenerated
+
+`git-cliff --output CHANGELOG.md` rebuilds the entire file from the commits reachable
+from `HEAD`. That reachability is the trap: a tag stops being reachable whenever its
+branch is squash-merged, rebased, or deleted after release — all routine — and a
+regeneration then **drops that release's section entirely** and re-files its commits
+under the next reachable version. The output looks plausible, the diff quietly rewrites
+history that already shipped, and nobody re-reads old changelog entries at release time.
+
+Releasing `rhiza-hooks` v1.1.0 hit it: the full regeneration deleted `## [0.7.0]` and
+moved its two commits into `0.7.1`.
+
+`--unreleased --tag "$TARGET" --prepend CHANGELOG.md` writes only the new section and
+leaves everything below it byte-identical, which is why `/release` diffs the result and
+refuses to commit a change that reaches further. One caveat that follows from prepending:
+it is not idempotent, so a repeat run needs `git checkout CHANGELOG.md` first.
 
 ## Anchor your `pyproject.toml` pattern
 
