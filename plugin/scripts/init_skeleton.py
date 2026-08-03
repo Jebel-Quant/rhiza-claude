@@ -3,10 +3,12 @@
 
 Three languages, one remit: close the gap between what the language's own initialiser
 writes and what a rhiza-managed repo needs. ``--language rust`` finishes what
-`cargo init --lib` leaves out — a `//!` crate doc comment (cargo writes none, and
-``#![warn(missing_docs)]`` fires on its absence), a `README.md` (cargo creates no file
-at all), and the `[package]` metadata crates.io wants: `description`, `repository`,
-`homepage`, `authors`. As on the Python side every key is added **only if missing**.
+`cargo init --lib` leaves out — the doc comments it omits (a `//!` crate doc *and* a
+`///` on the `pub fn add` in its own placeholder, because the template's docs gate denies
+``missing_docs`` on every public item, not just the crate root), a `README.md` (cargo
+creates no file at all), and the `[package]` metadata crates.io wants: `description`,
+`repository`, `homepage`, `authors`. As on the Python side every key is added
+**only if missing**.
 
 ``--language go`` has the largest gap to close, because `go mod init` writes exactly one
 file — `go.mod`, holding a module path and a Go version and nothing else. There is no
@@ -443,9 +445,10 @@ def is_cargo_placeholder_lib(text: str) -> bool:
 
     Conservative in the same way as :func:`is_uv_placeholder_init`: the whole file must
     consist of cargo's own lines, so anything the user has added makes this False and
-    real code is never touched. Only used to decide whether the crate doc comment is
-    worth adding — the placeholder code itself is left alone either way, since deleting
-    it would take the project's only test with it.
+    real code is never touched. It gates the `///` :func:`seed_crate_docs` puts on
+    cargo's `pub fn add` — documenting a *user's* undocumented API on their behalf would
+    be presumptuous, and wrong more often than right. The placeholder code itself is
+    never deleted either way, since that would take the project's only test with it.
     """
     body = [line.strip() for line in text.splitlines() if line.strip()]
     allowed = {
@@ -488,13 +491,26 @@ def crate_name(target: Path) -> str:
     return (cargo_package_name(target) or target.name).replace("-", "_")
 
 
-def seed_crate_docs(target: Path) -> list[str]:
-    """Prepend a `//!` crate doc comment to a crate root that has none.
+# The doc comment cargo's placeholder needs to clear the docs gate, and the line it goes
+# above. `cargo init --lib` writes `pub fn add` with no `///`, which is a public item — so
+# a crate straight out of `/rhiza:init` failed `make docs-coverage` until this was seeded.
+_CARGO_PLACEHOLDER_FN = "pub fn add("
+_CARGO_PLACEHOLDER_FN_DOC = "/// Returns the sum of `left` and `right`.\n"
 
-    Rust's answer to the docstring gate is ``#![warn(missing_docs)]``, which fires on a
-    crate root with no module documentation — and `cargo init` writes none. Unlike the
-    Python path this only *prepends*: cargo's placeholder carries the project's only
-    test, so rewriting the file would silently delete it.
+
+def seed_crate_docs(target: Path) -> list[str]:
+    """Document what `cargo init` leaves undocumented in a crate root.
+
+    The Rust docs gate is ``RUSTDOCFLAGS="-D missing_docs" cargo doc`` (the template's
+    `make docs-coverage`), and it fires on **every** undocumented public item — not just
+    the crate root. `cargo init --lib` leaves two of them: no `//!` module doc, and an
+    undocumented `pub fn add` in its placeholder. Seeding only the first is why a freshly
+    scaffolded crate could not pass its own gates.
+
+    Both edits are additive, and the second is gated on
+    :func:`is_cargo_placeholder_lib` — cargo's stub gets a `///`, a user's own public API
+    never does. The file is never rewritten wholesale the way the Python path rewrites
+    uv's placeholder: cargo's stub carries the project's only test.
 
     Returns the relative paths modified (empty when both roots already have docs).
     """
@@ -505,11 +521,18 @@ def seed_crate_docs(target: Path) -> list[str]:
         if not root.is_file():
             continue
         text = root.read_text()
-        if text.lstrip().startswith("//!"):
+        new_text = text
+        if is_cargo_placeholder_lib(new_text):
+            new_text = new_text.replace(
+                _CARGO_PLACEHOLDER_FN, _CARGO_PLACEHOLDER_FN_DOC + _CARGO_PLACEHOLDER_FN, 1
+            )
+        if not new_text.lstrip().startswith("//!"):
+            new_text = (
+                f"//! {crate} crate.\n\n{new_text}" if new_text.strip() else f"//! {crate} crate.\n"
+            )
+        if new_text == text:
             continue
-        root.write_text(
-            f"//! {crate} crate.\n\n{text}" if text.strip() else f"//! {crate} crate.\n"
-        )
+        root.write_text(new_text)
         modified.append(str(root.relative_to(target)))
     return modified
 
@@ -787,7 +810,10 @@ def finish_skeleton(
     if language == "rust":
         modified.extend(seed_crate_docs(target))
         if modified:
-            notes.append("added the //! crate doc comment cargo omits (missing_docs wants one)")
+            notes.append(
+                "documented what cargo leaves bare — missing_docs is denied on every "
+                "public item, not just the crate root"
+            )
         if seed_readme(target, repo=repo, description=description, create=True):
             modified.append("README.md")
             notes.append("seeded the README.md cargo never writes — /rhiza:docs owns the real one")

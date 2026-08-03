@@ -512,6 +512,51 @@ def test_seed_crate_docs_prepends_and_keeps_the_placeholder_test(tmp_path):
     assert "fn it_works()" in text, "cargo's placeholder test must survive"
 
 
+def test_seed_crate_docs_documents_cargos_placeholder_fn(tmp_path):
+    """`-D missing_docs` covers every public item, so cargo's `add` needs a `///` too.
+
+    The crate doc alone is not enough: the template's `make docs-coverage` runs rustdoc
+    with `missing_docs` denied, and cargo's own `pub fn add` is a public item. Seeding
+    only the `//!` is why a crate straight out of `/rhiza:init` failed its first gate run.
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+
+    assert sk.seed_crate_docs(tmp_path) == ["src/lib.rs"]
+
+    text = (tmp_path / "src" / "lib.rs").read_text()
+    before, _, after = text.partition("pub fn add(")
+    assert before.splitlines()[-1].startswith("///"), before
+    assert "fn it_works()" in after, "cargo's placeholder test must survive"
+
+
+def test_seed_crate_docs_never_documents_the_users_own_public_api(tmp_path):
+    """The `///` is cargo's stub's due, not the user's.
+
+    Inventing a doc comment for an API this script has never read would be confidently
+    wrong; failing the gate and letting them write one is the honest outcome. Anything
+    cargo did not write makes :func:`is_cargo_placeholder_lib` False, which is the guard.
+    """
+    (tmp_path / "src").mkdir()
+    theirs = "pub fn add(a: u8) -> u8 { a }\n"
+    (tmp_path / "src" / "lib.rs").write_text(theirs)
+
+    assert sk.seed_crate_docs(tmp_path) == ["src/lib.rs"]
+
+    text = (tmp_path / "src" / "lib.rs").read_text()
+    assert "///" not in text, "a user's function was documented on their behalf"
+    assert text.endswith(theirs), "their code must be untouched below the crate doc"
+
+
+def test_seed_crate_docs_handles_an_empty_crate_root(tmp_path):
+    """An empty root gets the crate doc and nothing else — there is no item to document."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.rs").write_text("")
+
+    assert sk.seed_crate_docs(tmp_path) == ["src/lib.rs"]
+    assert (tmp_path / "src" / "lib.rs").read_text() == f"//! {sk.crate_name(tmp_path)} crate.\n"
+
+
 def test_seed_crate_docs_leaves_a_documented_crate_alone(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "lib.rs").write_text("//! Mine.\n\npub fn f() {}\n")
@@ -714,6 +759,20 @@ def test_e2e_the_crate_doc_is_prepended_and_cargos_only_test_survives(rust_crate
     assert lib.startswith("//! widget crate."), lib[:80]
     assert "fn it_works()" in lib, "cargo's placeholder test was lost"
     assert "pub fn add(left: u64, right: u64) -> u64" in lib
+
+
+def test_e2e_a_real_crate_has_no_undocumented_public_item_left(rust_crate):
+    """Both items `cargo init` leaves bare are documented, against the real stub.
+
+    This is the cheap stand-in for `make docs-coverage`, which needs rustup and a network
+    fetch and so cannot run here. It caught a crate that `/rhiza:init` produced and then
+    could not get through its own gate: the `//!` was seeded, the `pub fn add` was not.
+    """
+    lib = (rust_crate / "src" / "lib.rs").read_text()
+    assert lib.startswith("//! widget crate."), lib[:80]
+    before, sep, _ = lib.partition("pub fn add(")
+    assert sep, f"cargo's placeholder changed shape:\n{lib}"
+    assert before.splitlines()[-1].startswith("///"), before
 
 
 def test_e2e_the_readme_cargo_never_writes_is_seeded(rust_crate):
