@@ -52,7 +52,7 @@ The plugin is **two kinds of markdown plus the Python they drive**.
 | Path | What it is |
 | --- | --- |
 | `commands/*.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. |
-| `prompts/*.md` | Seven **internal procedures** commands reach with `Read`. |
+| `prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
 | `hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
 | `tests/*.py` | Pytest suite mirroring `scripts/` 1:1. |

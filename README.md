@@ -37,7 +37,7 @@ performs the first sync; `/quality` needs that content to exist. So "`/init` ran
 CI appeared" is the expected result of step one.
 
 **Two kinds of markdown, and the difference is enforced.** `commands/` holds the eight
-slash commands you invoke; `prompts/` holds seven **internal procedures** they `Read` —
+slash commands you invoke; `prompts/` holds eight **internal procedures** they `Read` —
 kept outside `commands/` so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.

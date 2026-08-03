@@ -121,7 +121,14 @@ Guidelines:
   absent in an older Claude Code, and the rule holds either way.
 - Run all available gates even after an early failure, so the full picture is
   visible rather than stopping at the first red.
-- If something fails, show the relevant output and diagnose the root cause.
+- **If a gate fails, `Read`
+  `${CLAUDE_PLUGIN_ROOT}/prompts/known-issues.md` before diagnosing** (in a source
+  checkout, `prompts/known-issues.md`). Some failures are upstream and unsatisfiable
+  here, and it says which, keyed by the template ref in `.rhiza/template.lock`. A listed
+  one is scored **out-of-scope**, not FAIL — and one of them must specifically *not* be
+  "fixed", because the obvious fix makes the package unbuildable. A failure that isn't
+  listed is in scope; carry on.
+- Then show the relevant output and diagnose the root cause.
   **Propose the fix; don't apply it** — this command assesses, and a scoring run
   that quietly edits code makes its own score unreproducible. The exception is
   whatever `make fmt` auto-formats as part of running, which is unavoidable.
@@ -132,26 +139,8 @@ Guidelines:
 **`make rhiza-test`.** Runs the test-suite the template syncs into `.rhiza/tests/` —
 the `[project]` structure gate, docstring coverage, README validation. A failure there
 is usually a *local* gap the template is checking for, so it is in scope; a failure in
-the synced test files themselves is upstream.
-
-> **Known upstream failure: `test_license_classifier_present`.** Through template
-> v1.2.1 this asserts a `License :: OSI Approved :: …` trove classifier. PEP 639
-> superseded those with the SPDX `license` field that `/rhiza:license` writes, and the
-> two are not merely redundant — declaring both makes `setuptools>=77` refuse to build
-> the project ("License classifiers have been superseded by license expressions …
-> Please remove"), and `uv_build` warns. The gate is therefore unsatisfiable for a
-> PEP 639 project. Score it **out-of-scope**, not FAIL, and do not "fix" it by adding
-> the classifier — that trades a failing gate for an unbuildable package. Filed
-> upstream as jebel-quant/rhiza#1440.
-
-> **`make validate` is gone.** Up to rhiza v1.1.3 there was a `validate` target that
-> checked the repo for drift from the template. It was removed by v1.2.1, and naming a
-> target the template no longer provides is precisely how this command came to score
-> repos as broken. If you meet an older template that still has it, the probe reports
-> it as available and it can be run; nothing here assumes it.
->
-> Unrelated to `scripts/validate.py`, which `/rhiza:status` runs to check that
-> `template.yml` itself is well-formed.
+the synced test files themselves is upstream — and `prompts/known-issues.md` names the
+one that is unsatisfiable rather than merely upstream.
 
 ## 2. Report the gate results
 
