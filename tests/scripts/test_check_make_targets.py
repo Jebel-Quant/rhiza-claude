@@ -501,7 +501,7 @@ def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
     """rhiza-claude's own Makefile uses the convention, so this is a live check."""
     found = cmt.documented_targets(repo_root)
     assert {"lint", "test", "book", "clean"} <= set(found)
-    assert found["lint"] == "Run all pre-commit hooks against every file"
+    assert found["lint"] == "Run all prek hooks against every file"
 
 
 # --- end-to-end: discovery against a synced Rust repo -------------------------

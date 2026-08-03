@@ -20,8 +20,8 @@ install:  ## Install the rhiza plugin via the Claude Code CLI
 	claude plugin marketplace add $(MARKETPLACE)
 	claude plugin install $(PLUGIN)
 
-lint:  ## Run all pre-commit hooks against every file
-	uvx pre-commit run --all-files
+lint:  ## Run all prek hooks against every file
+	uvx prek run --all-files
 
 # PyYAML is a *test* dependency only — the bundled scripts stay stdlib-only at runtime.
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
@@ -33,8 +33,8 @@ test:  ## Run the script test suite with a 100% coverage gate
 		--cov-fail-under=100 $(ARGS)
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
-# all run via `make lint` (pre-commit). For a single one, use e.g.
-# `uvx pre-commit run mypy --all-files`.
+# all run via `make lint` (prek). For a single one, use e.g.
+# `uvx prek run mypy --all-files`.
 
 # The book depends on the paper: docs/index.md links the PDF, and `--strict` fails on a
 # link whose target is missing. Building the paper on every book build is also what keeps

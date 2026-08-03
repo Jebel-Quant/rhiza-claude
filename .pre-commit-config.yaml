@@ -1,7 +1,11 @@
 # Language-agnostic hooks for this Markdown/JSON plugin marketplace.
 # Adapted from the rhiza core bundle — Python/uv hooks intentionally dropped.
 #
-# Pin node so pre-commit provisions a compatible runtime for markdownlint
+# The runner is `prek` (see `make lint`), not `pre-commit`. The filename and schema
+# are unchanged because prek reads this format as-is; nothing here is prek-specific,
+# so the config stays runnable by either.
+#
+# Pin node so the runner provisions a compatible runtime for markdownlint
 # instead of using an odd-numbered system node (EBADENGINE).
 default_language_version:
   node: "24.12.0"
