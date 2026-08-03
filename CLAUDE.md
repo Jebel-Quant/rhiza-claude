@@ -45,7 +45,8 @@ To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
 **The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
 config file keeps its `.pre-commit-config.yaml` name and schema — prek reads that format
 unchanged — so the only places the choice is visible are `make lint` and the CI `lint`
-job. Reach for `prek update` rather than `pre-commit autoupdate` when bumping hook revs.
+job. Reach for `uvx prek update` rather than `pre-commit autoupdate` when bumping hook
+revs — as with every other tool here, `uvx` fetches it, so nothing is installed globally.
 Note that rhiza-*managed* repos are a different question: the template drives
 `pre-commit`, which is why the prose under `plugin/` still says so.
 
