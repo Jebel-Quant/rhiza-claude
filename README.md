@@ -214,10 +214,12 @@ anything.
 
 ### Destructive
 
-- **`/rhiza:uninstall`** — delete every rhiza-managed file listed in
-  `.rhiza/template.lock`, prune the emptied directories, and remove the lock. This is
-  the only command that removes files wholesale; it prompts for confirmation unless
-  `--force` is passed.
+- **`/rhiza:detach`** — detach the repo from rhiza: delete every rhiza-managed file
+  listed in `.rhiza/template.lock`, prune the emptied directories, and remove the lock.
+  This is the only command that removes files wholesale; it prompts for confirmation
+  unless `--force` is passed. It detaches a **repo**, not the plugin — the inverse of the
+  sync, not of the installation, so uninstalling the plugin via `/plugin` is a different
+  thing entirely and leaves every synced file in place.
 
 ## Language support
 
@@ -227,7 +229,7 @@ signing up for before the four-step bootstrap rather than after.
 
 | | Python | Rust | Go |
 | --- | --- | --- | --- |
-| `/init`, `/update`, `/status`, `/release`, `/uninstall` | ✅ | ✅ | ✅ |
+| `/init`, `/update`, `/status`, `/release`, `/detach` | ✅ | ✅ | ✅ |
 | Local toolchain from the template | ✅ | ✅ cargo, clippy, nextest, llvm-cov, cargo-deny | ✅ go test, golangci-lint, govulncheck, revive |
 | Hosted CI workflows | ✅ | ❌ none yet | ❌ none yet |
 | `/quality` gate list | ✅ known and named | ⚠️ discovered at runtime | ⚠️ discovered at runtime |

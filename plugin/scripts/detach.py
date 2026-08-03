@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Remove all rhiza-managed files from the repo.
+"""Detach the repo from rhiza by removing every rhiza-managed file.
 
 A stdlib-only port of the `rhiza uninstall` command, bundled with this plugin so
-`/rhiza:uninstall` works without the `rhiza` CLI (or PyYAML) installed. It reads
+`/rhiza:detach` works without the `rhiza` CLI (or PyYAML) installed. It reads
 the `files` recorded in `.rhiza/template.lock`, deletes each one, prunes the
 now-empty directories, and finally removes the lock file itself.
 
+This detaches the repo from its template; it does not uninstall the plugin.
+
 Usage:
-  uv run --python 3.12 --no-project python scripts/uninstall.py [TARGET] [--force|-y]
+  uv run --python 3.12 --no-project python scripts/detach.py [TARGET] [--force|-y]
 
   TARGET       repository root to clean (default: current directory)
   --force, -y  skip the confirmation prompt and proceed with deletion
@@ -49,10 +51,10 @@ def _confirm(files_to_remove: list[Path], target: Path) -> bool:
     try:
         response = input("\nAre you sure you want to proceed? [y/N]: ").strip().lower()
     except (KeyboardInterrupt, EOFError):
-        _info("\nUninstall cancelled")
+        _info("\nDetach cancelled")
         return False
     if response not in ("y", "yes"):
-        _info("Uninstall cancelled by user")
+        _info("Detach cancelled by user")
         return False
     return True
 
@@ -106,7 +108,7 @@ def _cleanup_empty_directories(files_to_remove: list[Path], target: Path) -> int
 
 def _print_summary(removed: int, skipped: int, empty_dirs: int, errors: int) -> None:
     """Print the deletion summary counts."""
-    _info("\nUninstall summary:")
+    _info("\nDetach summary:")
     _info(f"  Files removed: {removed}")
     if skipped:
         _info(f"  Files skipped (already deleted): {skipped}")
@@ -116,7 +118,7 @@ def _print_summary(removed: int, skipped: int, empty_dirs: int, errors: int) -> 
         _error(f"  Errors encountered: {errors}")
 
 
-def uninstall(target: Path, *, force: bool) -> int:
+def detach(target: Path, *, force: bool) -> int:
     """Remove all rhiza-managed files; return a process exit code."""
     target = target.resolve()
     _info(f"Target repository: {target}")
@@ -124,7 +126,7 @@ def uninstall(target: Path, *, force: bool) -> int:
     lock_file = target / LOCK_REL
     if not lock_file.exists():
         _info(f"No lock file found at: {LOCK_REL}")
-        _info("Nothing to uninstall. This repository may not have Rhiza templates synced.")
+        _info("Nothing to detach. This repository may not have Rhiza templates synced.")
         return 0
 
     try:
@@ -135,7 +137,7 @@ def uninstall(target: Path, *, force: bool) -> int:
 
     files_to_remove = [Path(str(f)) for f in (lock.get("files") or [])]
     if not files_to_remove:
-        _info("No files found to uninstall. Nothing to do.")
+        _info("No files found to detach. Nothing to do.")
         return 0
 
     _info(f"Found {len(files_to_remove)} file(s) to remove")
@@ -158,10 +160,10 @@ def uninstall(target: Path, *, force: bool) -> int:
 
     _print_summary(removed, skipped, empty_dirs, errors)
     if errors:
-        _error(f"Uninstall completed with {errors} error(s)")
+        _error(f"Detach completed with {errors} error(s)")
         return 1
 
-    _info("Rhiza templates uninstalled successfully")
+    _info("Repository detached from rhiza successfully")
     _info(
         "\nNext steps:\n"
         "  Review changes:  git status && git diff\n"
@@ -171,9 +173,9 @@ def uninstall(target: Path, *, force: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point: parse args and run the uninstall."""
+    """Entry point: parse args and run the detach."""
     parser = argparse.ArgumentParser(
-        description="Remove all rhiza-managed files (from .rhiza/template.lock) from the repo.",
+        description="Detach the repo from rhiza, removing every file .rhiza/template.lock records.",
     )
     parser.add_argument(
         "target",
@@ -188,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the confirmation prompt and proceed with deletion.",
     )
     args = parser.parse_args(argv)
-    return uninstall(Path(args.target), force=args.force)
+    return detach(Path(args.target), force=args.force)
 
 
 if __name__ == "__main__":
