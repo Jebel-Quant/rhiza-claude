@@ -1,5 +1,5 @@
 ---
-description: Return a bonmot from a random Peter Maffay song — a one-line pick-me-up for a long refactor, backed by the bundled scripts/maffay.py so the choice is actually uniform rather than a model reaching for the same two hits. Quotes the song's title line only, with song and year attributed; lyric bodies are never reproduced, and the "Für uns" gloss beside each line is this repo's own, not Maffay's. Takes an optional theme keyword (e.g. mut, sommer, nessaja) to narrow the pool. Read-only — it touches no files, needs no git, and works in any directory.
+description: Print one bonmot from a random Peter Maffay song — a pick-me-up for a long refactor. Takes an optional theme keyword. Needs no repo and no git, so it works anywhere.
 argument-hint: "[theme keyword e.g. mut]  (optional; omit for the whole catalogue)"
 allowed-tools: Bash(uv*)
 ---

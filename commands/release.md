@@ -1,5 +1,5 @@
 ---
-description: Prepare a release locally for any git repo that declares its version locations (no .rhiza/ required, unlike /quality) — lay out the legal next versions as a table for the user to choose from (it never suggests or defaults to one), guard that the choice strictly increases past every previous release, then let bump-my-version write it into every location the repo declares (pyproject.toml, plugin manifests, self-referencing CI stub pins), regenerate CHANGELOG.md, and commit + tag. The version locations live in the repo's own [tool.bumpversion] config, so nothing is inferred and a dependency that happens to share the version number is never rewritten. Stops before pushing — it prints the push commands, and pushing the tag is what triggers the release CI. Never pushes or force-tags.
+description: Prepare a release in any git repo that declares its version locations (no .rhiza/ needed) — choose a version from a table, bump, regenerate the changelog, commit and tag. Stops before pushing.
 argument-hint: "[version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)"
 allowed-tools: Bash(git*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 disable-model-invocation: true

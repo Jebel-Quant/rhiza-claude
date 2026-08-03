@@ -1,5 +1,5 @@
 ---
-description: Remove all rhiza-managed files from the repo — deletes every file listed in .rhiza/template.lock, prunes the emptied directories, and removes the lock file itself. Runs the bundled scripts/uninstall.py (stdlib-only). DESTRUCTIVE; prompts for confirmation unless --force is passed.
+description: Delete every rhiza-managed file listed in .rhiza/template.lock, prune the emptied directories, and remove the lock file. DESTRUCTIVE; prompts for confirmation unless --force is passed.
 argument-hint: "[path to a repo root]  (optional; defaults to the current repo)"
 allowed-tools: Bash(uv*), Bash(python3*), Read
 disable-model-invocation: true
