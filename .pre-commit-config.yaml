@@ -113,3 +113,27 @@ repos:
         language: system
         pass_filenames: false
         files: '^((commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
+
+  # Shared hooks from the sibling repo. Selective by necessity: rhiza-claude is
+  # deliberately *not* rhiza-managed, so most of what rhiza-hooks ships keys off a
+  # `.rhiza/` directory that isn't here. An enabled-but-inert hook is worse than no
+  # hook — it reads as coverage that doesn't exist — so each candidate was
+  # negative-tested (break the thing it checks, confirm it fails) before landing.
+  #
+  # Rejected on evidence, not on inspection:
+  #   check-makefile-targets     — passes with the `test` target deleted.
+  #   check-bumpversion-config   — passes with [tool.bumpversion] renamed away.
+  #     Both look for a pyproject.toml this repo doesn't have.
+  #   check-rhiza-config, check-managed-files, check-template-bundles — need `.rhiza/`.
+  #   check-rhiza-workflow-names — matches `rhiza_*.yml`; these workflows aren't.
+  #   check-license-metadata, check-*-version-consistency — no pyproject.toml,
+  #     no .python-version, no Cargo.toml, no go.mod.
+  #   update-readme-help — see scripts/sync_readme_help.py, which is a *plugin*
+  #     script /rhiza:docs runs inside someone else's repo. The hook only helps
+  #     repos that adopt rhiza-hooks, so it cannot replace it.
+  - repo: https://github.com/Jebel-Quant/rhiza-hooks
+    rev: v1.0.0
+    hooks:
+      # Net-new: nothing here checked that a make target invoked by CI exists.
+      # Verified to fail on `run: make totally-not-a-target`.
+      - id: check-workflow-make-targets

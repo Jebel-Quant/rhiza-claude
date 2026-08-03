@@ -80,9 +80,11 @@ def command_block(name: str, meta: dict[str, str]) -> str:
     """The reference table for a slash command."""
     hint = _unquote(meta.get("argument-hint", "")).strip()
     invocation = f"/rhiza:{name} {hint}".strip()
-    invocable = "no — excluded from model invocation" if meta.get(
-        "disable-model-invocation"
-    ) == "true" else "yes"
+    invocable = (
+        "no — excluded from model invocation"
+        if meta.get("disable-model-invocation") == "true"
+        else "yes"
+    )
     rows = [
         ("Source", f"`commands/{name}.md`"),
         ("Invocation", f"`{invocation}`"),
