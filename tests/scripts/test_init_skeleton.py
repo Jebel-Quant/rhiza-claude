@@ -291,16 +291,15 @@ def test_set_dependency_groups_appends_the_table():
     assert changed
     assert "[dependency-groups]" in out
     assert "pytest>=8.0" in out
-    assert "ruff>=0.6" in out
+    assert "pytest-cov>=5.0" in out
 
 
-def test_set_dependency_groups_adds_only_missing_groups():
+def test_set_dependency_groups_leaves_an_existing_group_untouched():
     partial = _UV_PYPROJECT + '\n[dependency-groups]\ntest = ["pytest>=7.0"]\n'
     out, changed = sk.set_dependency_groups(partial)
-    assert changed
+    assert not changed
     assert 'test = ["pytest>=7.0"]' in out  # existing group untouched
     assert out.count("test = ") == 1
-    assert "ruff>=0.6" in out
 
 
 def test_set_dependency_groups_is_idempotent():
