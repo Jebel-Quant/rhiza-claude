@@ -29,9 +29,21 @@ gate) can opt out via a ``[tool.check_test_layout]`` table in ``pyproject.toml``
 documented. The same table accepts ``exempt_dirs = [...]`` to extend the
 built-in benchmarks/stress exemptions when parity *is* enforced.
 
+**Template-owned tests are exempt too, and not by name.** A rhiza sync writes
+files into the consumer's tree and records every one of them in
+``.rhiza/template.lock``'s ``files:`` list. Since v1.3.2 that list includes
+``tests/test_rhiza_packaging.py`` — a test of *packaging metadata*, which mirrors
+no source module and never will, so a freshly synced repo failed this check on a
+file it did not write and cannot move (jebel-quant/rhiza#1489). The lock is the
+machine-readable answer: any test file it tracks is skipped. That covers the next
+synced test as well, which an allowlist of one filename would not, and it stays
+narrow — a repo's *own* tests are still checked, unlike the ``enforce = false``
+escape hatch, which switches off the guarantee wholesale.
+
 Usage:
   uv run --python 3.12 --no-project python \
-    scripts/check_test_layout.py [--src DIR] [--tests DIR] [--config FILE]
+    scripts/check_test_layout.py [--src DIR] [--tests DIR] [--config FILE] \
+    [--lock FILE]
 
 Exits 0 when the layout is clean (or parity is intentionally not enforced),
 1 (listing every violation) otherwise.
@@ -59,6 +71,9 @@ _IGNORED = {"__init__.py", "conftest.py"}
 # default: they hold benchmarks / stress tests that need not mirror a source
 # module. A repo can extend this set via ``[tool.check_test_layout] exempt_dirs``.
 _DEFAULT_EXEMPT_DIRS = {"benchmarks", "stress"}
+
+# Where a rhiza sync records the files it wrote. Read for its ``files:`` list only.
+_DEFAULT_LOCK = ".rhiza/template.lock"
 
 
 def _coerce_scalar(raw: str) -> object:
@@ -136,6 +151,52 @@ def _exempt_dirs(config: Mapping[str, object]) -> set[str]:
     return dirs
 
 
+def _unquote(raw: str) -> str:
+    """Strip one layer of matching quotes from a scalar, if present."""
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {'"', "'"}:
+        return raw[1:-1]
+    return raw
+
+
+def _lock_files(lock: Path) -> list[str]:
+    """Return the entries of the ``files:`` block sequence in *lock* (empty if absent).
+
+    Deliberately a few lines of string handling rather than a YAML dependency or an
+    import of the plugin's own reader: this script is run standalone (and copied into
+    repositories that vendor it), and the block it reads is a flat list of quoted or
+    bare scalars. Any other top-level key ends the block, so a lock whose ``files``
+    field is missing, inline (``files: []``) or unreadable simply yields nothing —
+    exempting no test file, which is the safe direction.
+    """
+    try:
+        text = lock.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    out: list[str] = []
+    in_block = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if in_block and stripped.startswith("- "):
+            out.append(_unquote(stripped[2:]))
+            continue
+        in_block = stripped == "files:"
+    return out
+
+
+def _template_owned(lock: Path) -> set[Path]:
+    """Return the resolved paths of the files a template sync wrote into this repo.
+
+    Lock entries are repo-root-relative. The root is the lock's grandparent when the
+    lock sits in ``.rhiza/`` — the layout every sync writes — and its own directory
+    otherwise, so an explicit ``--lock`` pointing elsewhere still resolves.
+    """
+    root = lock.parent.parent if lock.parent.name == ".rhiza" else lock.parent
+    return {(root / rel).resolve() for rel in _lock_files(lock)}
+
+
 def _top_level_classes(path: Path) -> set[str]:
     """Return the names of top-level classes defined in *path*."""
     tree = ast.parse(path.read_text(), filename=str(path))
@@ -157,9 +218,19 @@ def _test_files(tests: Path, exempt: set[str] | None = None) -> list[Path]:
     )
 
 
-def check(src: Path, tests: Path, config: Mapping[str, object] | None = None) -> list[str]:
-    """Return a list of layout violations (empty when the layout is clean)."""
+def check(
+    src: Path,
+    tests: Path,
+    config: Mapping[str, object] | None = None,
+    owned: set[Path] | None = None,
+) -> list[str]:
+    """Return a list of layout violations (empty when the layout is clean).
+
+    *owned* holds template-written paths (see :func:`_template_owned`); test files in
+    it are skipped, since the repository neither wrote them nor can rename them.
+    """
     exempt = _exempt_dirs(config or {})
+    owned = owned or set()
     errors: list[str] = []
 
     # Forward: every source module needs a mirrored test file + Test* classes.
@@ -176,6 +247,8 @@ def check(src: Path, tests: Path, config: Mapping[str, object] | None = None) ->
 
     # Reverse: every test file/class must trace back to a source module/class.
     for test_file in _test_files(tests, exempt):
+        if test_file.resolve() in owned:
+            continue
         rel = test_file.relative_to(tests)
         source_name = test_file.stem[len("test_") :]
         source_path = src / rel.parent / f"{source_name}.py"
@@ -203,6 +276,11 @@ def main(argv: list[str] | None = None) -> int:
         default="pyproject.toml",
         help="pyproject.toml providing [tool.check_test_layout] (default: pyproject.toml).",
     )
+    parser.add_argument(
+        "--lock",
+        default=_DEFAULT_LOCK,
+        help=f"Template lock whose files: list is exempt from parity (default: {_DEFAULT_LOCK}).",
+    )
     args = parser.parse_args(argv)
 
     config = _read_config(Path(args.config))
@@ -219,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Test layout OK: parity not enforced by request — {reason}")
         return 0
 
-    errors = check(Path(args.src), Path(args.tests), config)
+    errors = check(Path(args.src), Path(args.tests), config, _template_owned(Path(args.lock)))
     if errors:
         print("Test-layout check failed:", file=sys.stderr)
         for err in errors:

@@ -92,7 +92,11 @@ surface before the slow test suite — and collect results:
    `uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_test_layout.py"` (fall back to
    `uv run --python 3.12 --no-project python plugin/scripts/check_test_layout.py` in a source checkout). It fails when a
    source module has no mirrored `test_<name>.py`, a source `class A` has no
-   `TestA`, or a test file/`Test*` class has no source counterpart. A repo that
+   `TestA`, or a test file/`Test*` class has no source counterpart. Test files
+   listed in `.rhiza/template.lock` are skipped — a synced repo is not marked
+   down for a file its template wrote and it cannot move (the same principle as
+   the scorecard's "never mark a repo down for its own template"), which is what
+   `tests/test_rhiza_packaging.py` hit from rhiza v1.3.2 on. A repo that
    deliberately organises tests by behaviour (and guarantees per-module
    coverage another way, e.g. a 100% coverage gate) can opt out with a
    documented `[tool.check_test_layout]` table in `pyproject.toml`
