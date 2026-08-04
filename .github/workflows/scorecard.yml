@@ -27,6 +27,8 @@ concurrency:
 jobs:
   analysis:
     name: Scorecard analysis
+    # CI budget: ≤15 min (a repo-wide supply-chain scan plus two uploads).
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     if: |
       vars.SCORECARD_ENABLED == 'true' ||

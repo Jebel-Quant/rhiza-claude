@@ -19,14 +19,27 @@ permissions:
 jobs:
   release:
     name: Publish release
+    # CI budget: ≤15 min (two jq checks, git-cliff over the history, one API call).
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create/publish the GitHub release
     steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # persist-credentials: false even though this job writes a release. Nothing here
+      # pushes over git: `gh release view` authenticates through GITHUB_TOKEN in the env,
+      # release-action through its own token input, and git-cliff reads the local history
+      # only (cliff.toml configures no remote integration). So the stored credential would
+      # go unused, and a credential nothing uses should not be on disk.
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve tag
         id: tag
@@ -60,13 +73,13 @@ jobs:
 
       - name: Generate release notes
         id: cliff
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
         with:
           config: cliff.toml
           args: --latest --strip all
 
       - name: Publish GitHub release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           tag: ${{ steps.tag.outputs.tag }}
           name: ${{ steps.tag.outputs.tag }}
