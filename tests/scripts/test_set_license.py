@@ -312,11 +312,9 @@ def test_set_license_notes_a_cargo_toml_without_a_package_table(tmp_path):
 
 
 # --- branch coverage: the arms line coverage could not see ---------------------
-
-
-def test_table_block_ends_at_eof_when_it_is_the_last_table():
-    """The loop exhausts rather than breaking on a following `[table]`."""
-    assert sl._table_block(["[package]", 'name = "x"'], "package", "Cargo.toml") == (0, 2)
+#
+# Table-span bounding moved to `_rhiza_toml` and is asserted in `test__rhiza_toml.py`;
+# what remains here is what this module does with the span.
 
 
 def test_set_license_metadata_preserves_the_absence_of_a_trailing_newline():

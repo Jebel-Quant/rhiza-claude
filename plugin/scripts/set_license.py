@@ -28,6 +28,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_toml import rejoin, require_table, table_end  # noqa: E402
+
 DEFAULT_LICENSE = "none"
 # Full-text license templates (`<SPDX id>.txt`, with `{year}`/`{holder}` fills).
 _LICENSES_DIR = Path(__file__).resolve().parent / "licenses"
@@ -50,22 +53,12 @@ def render_license(license_id: str, holder: str, year: str) -> str | None:
     return path.read_text().replace("{year}", year).replace("{holder}", holder)
 
 
-def _table_block(lines: list[str], table: str, filename: str) -> tuple[int, int]:
-    """Return ``(header_idx, end_idx)`` bounding a top-level ``[table]`` body."""
-    header = next((i for i, line in enumerate(lines) if line.strip() == f"[{table}]"), None)
-    if header is None:
-        raise ValueError(f"{filename} has no [{table}] table")
-    end = len(lines)
-    for i in range(header + 1, len(lines)):
-        if lines[i].lstrip().startswith("["):
-            end = i
-            break
-    return header, end
+def _strip_keys(lines: list[str], header: int, end: int, key: re.Pattern[str]) -> list[str]:
+    """Return *lines* without the lines in ``(header, end)`` whose key matches *key*.
 
-
-def _project_block(lines: list[str]) -> tuple[int, int]:
-    """Return ``(header_idx, end_idx)`` bounding the ``[project]`` table body."""
-    return _table_block(lines, "project", "pyproject.toml")
+    Bounded to the one table so a ``license`` under some other table is left alone.
+    """
+    return [line for i, line in enumerate(lines) if not (header < i < end and key.match(line))]
 
 
 def set_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
@@ -76,23 +69,15 @@ def set_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
     a deprecated ``License ::`` trove classifier). Returns ``(new_text, changed)``.
     """
     lines = text.splitlines()
-    header, end = _project_block(lines)
-    lic = re.compile(r"^\s*license\s*=")
-    lic_files = re.compile(r"^\s*license-files\s*=")
-    kept = [
-        line
-        for i, line in enumerate(lines)
-        if not (header < i < end and (lic.match(line) or lic_files.match(line)))
-    ]
+    header, end = require_table(lines, "project", "pyproject.toml")
+    kept = _strip_keys(lines, header, end, re.compile(r"^\s*license(-files)?\s*="))
     if license_id != DEFAULT_LICENSE:
-        header, _ = _project_block(kept)
+        header, _ = require_table(kept, "project", "pyproject.toml")
         kept[header + 1 : header + 1] = [
             f'license = "{license_id}"',
             'license-files = ["LICENSE"]',
         ]
-    new_text = "\n".join(kept)
-    if text.endswith("\n"):
-        new_text += "\n"
+    new_text = rejoin(text, kept)
     return new_text, new_text != text
 
 
@@ -108,50 +93,31 @@ def set_cargo_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
     Returns ``(new_text, changed)``.
     """
     lines = text.splitlines()
-    header, end = _table_block(lines, "package", "Cargo.toml")
-    key = re.compile(r"^\s*license(-file)?\s*=")
-    kept = [line for i, line in enumerate(lines) if not (header < i < end and key.match(line))]
+    header, end = require_table(lines, "package", "Cargo.toml")
+    kept = _strip_keys(lines, header, end, re.compile(r"^\s*license(-file)?\s*="))
     if license_id != DEFAULT_LICENSE:
         # Appended to the end of the table, not under the header, so repeated runs
         # leave `name`/`version` where cargo put them instead of walking them down.
-        header, end = _table_block(kept, "package", "Cargo.toml")
-        while end > header + 1 and not kept[end - 1].strip():
-            end -= 1
-        kept.insert(end, f'license = "{license_id}"')
-    new_text = "\n".join(kept)
-    if text.endswith("\n"):
-        new_text += "\n"
+        header, end = require_table(kept, "package", "Cargo.toml")
+        kept.insert(table_end(kept, header, end), f'license = "{license_id}"')
+    new_text = rejoin(text, kept)
     return new_text, new_text != text
 
 
-def set_license(
-    target: Path, *, license_id: str, holder: str, year: str, force: bool
-) -> dict[str, Any]:
-    """Apply *license_id* to the repo at *target*; return a summary dict."""
-    created: list[str] = []
-    modified: list[str] = []
-    skipped: list[str] = []
-    notes: list[str] = []
-    lic_path = target / "LICENSE"
+def _overwrite_needs_force(lic_path: Path, body: str | None, *, force: bool) -> bool:
+    """Would writing *body* replace a different existing LICENSE without permission?"""
+    return body is not None and lic_path.exists() and lic_path.read_text() != body and not force
 
-    # Resolve the LICENSE-file text first, and refuse *before* touching anything
-    # when an overwrite needs confirmation — so metadata and file never diverge.
-    body = None if license_id == DEFAULT_LICENSE else render_license(license_id, holder, year)
-    if body is not None and lic_path.exists() and lic_path.read_text() != body and not force:
-        notes.append("LICENSE exists and differs — pass --force to overwrite")
-        return {
-            "license": license_id,
-            "created": [],
-            "modified": [],
-            "skipped": ["LICENSE"],
-            "notes": notes,
-            "needs_force": True,
-        }
 
-    # 1. Manifest metadata, for whichever manifests the repo has. Both are attempted
-    #    rather than dispatched on a declared language: a repo can legitimately carry
-    #    a pyproject.toml and a Cargo.toml (a pyo3/maturin extension), and the licence
-    #    must not disagree between them.
+def _apply_manifest_metadata(
+    target: Path, license_id: str, modified: list[str], notes: list[str]
+) -> None:
+    """Write the licence key into whichever manifests *target* has, recording each.
+
+    Both manifests are attempted rather than dispatched on a declared language: a repo can
+    legitimately carry a pyproject.toml *and* a Cargo.toml (a pyo3/maturin extension), and
+    the licence must not disagree between them.
+    """
     for name, setter in (
         ("pyproject.toml", set_license_metadata),
         ("Cargo.toml", set_cargo_license_metadata),
@@ -168,26 +134,62 @@ def set_license(
                 manifest.write_text(new_text)
                 modified.append(name)
 
-    # 2. The LICENSE file itself.
+
+def _write_license_file(
+    lic_path: Path, license_id: str, body: str | None
+) -> tuple[str | None, str | None]:
+    """Write the LICENSE file if it needs writing; return ``(bucket, note)``.
+
+    *bucket* is which summary list should record ``LICENSE`` — ``created``, ``modified``,
+    ``skipped``, or None when nothing was touched — and *note* is the explanation for the
+    two cases where no file can be written.
+    """
     if license_id == DEFAULT_LICENSE:
-        notes.append("license set to none — cleared metadata; any existing LICENSE left in place")
-    elif body is None:
-        notes.append(
+        return None, "license set to none — cleared metadata; any existing LICENSE left in place"
+    if body is None:
+        return None, (
             f"license {license_id}: no bundled text; add a LICENSE file manually "
             f"(bundled: {', '.join(bundled_licenses())})"
         )
-    elif lic_path.exists() and lic_path.read_text() == body:
-        skipped.append("LICENSE")
-    else:
-        existed = lic_path.exists()
-        lic_path.write_text(body)
-        (modified if existed else created).append("LICENSE")
+    if lic_path.exists() and lic_path.read_text() == body:
+        return "skipped", None
+    existed = lic_path.exists()
+    lic_path.write_text(body)
+    return ("modified" if existed else "created"), None
+
+
+def set_license(
+    target: Path, *, license_id: str, holder: str, year: str, force: bool
+) -> dict[str, Any]:
+    """Apply *license_id* to the repo at *target*; return a summary dict."""
+    buckets: dict[str, list[str]] = {"created": [], "modified": [], "skipped": []}
+    notes: list[str] = []
+    lic_path = target / "LICENSE"
+
+    # Resolve the LICENSE-file text first, and refuse *before* touching anything
+    # when an overwrite needs confirmation — so metadata and file never diverge.
+    body = None if license_id == DEFAULT_LICENSE else render_license(license_id, holder, year)
+    if _overwrite_needs_force(lic_path, body, force=force):
+        return {
+            "license": license_id,
+            "created": [],
+            "modified": [],
+            "skipped": ["LICENSE"],
+            "notes": ["LICENSE exists and differs — pass --force to overwrite"],
+            "needs_force": True,
+        }
+
+    _apply_manifest_metadata(target, license_id, buckets["modified"], notes)
+
+    bucket, note = _write_license_file(lic_path, license_id, body)
+    if bucket is not None:
+        buckets[bucket].append("LICENSE")
+    if note is not None:
+        notes.append(note)
 
     return {
         "license": license_id,
-        "created": created,
-        "modified": modified,
-        "skipped": skipped,
+        **buckets,
         "notes": notes,
         "needs_force": False,
     }

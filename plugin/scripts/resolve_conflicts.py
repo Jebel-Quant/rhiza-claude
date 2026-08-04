@@ -65,44 +65,68 @@ class MalformedConflict(Exception):
     """A conflict block that cannot be resolved without guessing."""
 
 
+def _outside_block(marker: str, line: str, number: int, out: list[str]) -> bool:
+    """Handle a line outside any conflict block; return whether a block just opened.
+
+    A separator or closing marker out here means the file's markers are out of order,
+    which is exactly the case that must not be guessed at.
+    """
+    if marker == OURS:
+        return True
+    if marker in (SEPARATOR, THEIRS):
+        raise MalformedConflict(f"line {number}: {marker!r} outside a conflict block")
+    out.append(line)
+    return False
+
+
+def _our_side(marker: str, number: int) -> bool:
+    """Handle a line on our side; return whether the separator was reached.
+
+    The line itself is dropped either way — taking upstream means our side is discarded.
+    """
+    if marker == SEPARATOR:
+        return True
+    if marker == OURS:
+        raise MalformedConflict(f"line {number}: nested conflict block")
+    return False
+
+
+def _their_side(marker: str, line: str, number: int, theirs: list[str]) -> bool:
+    """Collect a line on the upstream side; return whether the block just closed."""
+    if marker == THEIRS:
+        return True
+    if marker in (OURS, SEPARATOR):
+        raise MalformedConflict(f"line {number}: {marker!r} inside the upstream side")
+    theirs.append(line)
+    return False
+
+
 def take_theirs(text: str) -> tuple[str, int]:
     """Replace every conflict block in *text* with its upstream side.
 
-    Returns ``(resolved_text, blocks_resolved)``. Raises :class:`MalformedConflict` when
-    a block is unterminated or the markers are out of order — the caller must see that
-    rather than receive a plausible-looking file.
+    A three-state machine — copy → ours → theirs — with one handler per state, each
+    returning whether the state it was given has ended. Returns
+    ``(resolved_text, blocks_resolved)``. Raises :class:`MalformedConflict` when a block is
+    unterminated or the markers are out of order: the caller must see that rather than
+    receive a plausible-looking file.
     """
     out: list[str] = []
+    theirs: list[str] = []
     resolved = 0
-    theirs: list[str] | None = None
-    state = "copy"  # copy -> ours -> theirs
+    state = "copy"
 
     for number, line in enumerate(text.splitlines(keepends=True), start=1):
         marker = line.split(" ", 1)[0].rstrip("\r\n")
         if state == "copy":
-            if marker == OURS:
+            if _outside_block(marker, line, number, out):
                 state, theirs = "ours", []
-            elif marker in (SEPARATOR, THEIRS):
-                raise MalformedConflict(f"line {number}: {marker!r} outside a conflict block")
-            else:
-                out.append(line)
         elif state == "ours":
-            if marker == SEPARATOR:
+            if _our_side(marker, number):
                 state = "theirs"
-            elif marker == OURS:
-                raise MalformedConflict(f"line {number}: nested conflict block")
-            # Anything else is our side, which is discarded.
-        else:  # theirs
-            if marker == THEIRS:
-                assert theirs is not None
-                out.extend(theirs)
-                resolved += 1
-                state, theirs = "copy", None
-            elif marker in (OURS, SEPARATOR):
-                raise MalformedConflict(f"line {number}: {marker!r} inside the upstream side")
-            else:
-                assert theirs is not None
-                theirs.append(line)
+        elif _their_side(marker, line, number, theirs):
+            out.extend(theirs)
+            resolved += 1
+            state, theirs = "copy", []
 
     if state != "copy":
         raise MalformedConflict("unterminated conflict block at end of file")
