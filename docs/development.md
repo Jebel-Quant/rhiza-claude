@@ -159,12 +159,17 @@ than quietly narrowing it.
 
 - **CI** (`.github/workflows/ci.yml`) runs the hooks through prek (including a
   strict `mypy` type-check and 100% `interrogate` docstring coverage of
-  `scripts/`) and the test suite under the 100% coverage gate. Its two jobs,
-  `lint` and `tests`, are the required status checks named in
-  `.github/rulesets/main-protection.json`.
+  `scripts/`) in the `lint` job, and the test suite under the 100% coverage gate
+  in `tests`. A third job, `ci-gate`, `needs` both and is the single required
+  status check named in `.github/rulesets/main-protection.json` — so those two can
+  be renamed or restructured without re-applying the ruleset by hand.
 - **Book** (`.github/workflows/book.yml`) builds the site on every push and
   deploys it to GitHub Pages from the default branch.
 - **CodeQL** (`.github/workflows/codeql.yml`) scans the Python scripts and the
   workflows for security issues.
 - **Scorecard** (`.github/workflows/scorecard.yml`) runs the OpenSSF Scorecard
   supply-chain analysis and publishes the score (README badge).
+- **Links** (`.github/workflows/links.yml`) checks every link in the README, the
+  top-of-repo prose and the docs site with lychee, weekly. `mkdocs build --strict`
+  already catches an internal target that is missing; this catches the external
+  ones, which rot without a commit. It files a deduped issue on failure.

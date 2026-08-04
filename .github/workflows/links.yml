@@ -1,0 +1,108 @@
+name: Links
+
+# Are the links in this repo's prose still reachable?
+#
+# `mkdocs build --strict` already fails on a docs/ link whose target page is missing,
+# and check_command_contracts.py already fails on a dead `scripts/<name>.py` reference.
+# Neither leaves the repository. What nothing checked is everything that does: the
+# README's badges, the upstream template, the published Pages URLs, the uv and Claude
+# Code docs the internals pages send people to. Those rot without a commit.
+#
+# Weekly rather than per-PR, and deliberately so: link rot is a property of the
+# internet, not of a diff. A third-party outage must never redden somebody's pull
+# request, and a link that worked on Monday and 404s on Friday is news whether or not
+# anyone pushed. Failure files an issue, following template-drift.yml — a scheduled
+# job whose only output is a red square in the Actions tab is a job nobody reads.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Mondays, 07:00 UTC — an hour after the template-drift job
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: links
+  cancel-in-progress: false
+
+jobs:
+  lychee:
+    name: check links
+    # CI budget: ≤10 min. Network-bound and nothing else — no build, no toolchain.
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write  # to raise the finding where it will be seen
+    steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # The issue-filing step below authenticates with GH_TOKEN in its own env, not
+      # with a persisted git credential.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # docs/index.md links the paper PDF that `make paper` stages into docs/paper/.
+      # That directory is a build output and gitignored, so a raw checkout does not
+      # have it and the link reads as broken. Compiling the paper would mean a TeX
+      # engine for one link; an empty file at the same path checks the same thing —
+      # that the *path* in the prose is the path the build writes.
+      - name: Stage the paper's build output
+        run: |
+          mkdir -p docs/paper
+          touch docs/paper/rhiza-claude-intro.pdf
+
+      # CHANGELOG.md is excluded by omission: it is generated from commits, so a dead
+      # link in it is a fact about history, not something to fix.
+      #
+      # 429 is accepted alongside the 2xx codes because the badge hosts rate-limit
+      # aggressively; a shields.io throttle is not a broken link. GITHUB_TOKEN raises
+      # the API allowance for the github.com URLs, which are most of them.
+      - name: Check the links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          fail: true
+          args: >-
+            --verbose
+            --no-progress
+            --accept 200,206,429
+            README.md
+            CONTRIBUTING.md
+            CLAUDE.md
+            SECURITY.md
+            CODE_OF_CONDUCT.md
+            'docs/**/*.md'
+
+      - name: Raise a finding if a link is unreachable
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Broken links in the repository prose"
+          # Dedupe on the exact title so a weekly failure does not file a weekly issue.
+          existing=$(gh issue list --state open --search "$title in:title" \
+            --json number --jq '.[0].number // empty')
+          body=$(printf '%s\n' \
+            "The weekly link check found at least one unreachable link in the README," \
+            "the top-of-repo prose, or the docs site." \
+            "" \
+            "Run: ${RUN_URL}" \
+            "" \
+            "The run log lists each failing URL with its status. A genuine 404 wants the" \
+            "link fixed; a host that rate-limits or blocks CI wants an exclusion in" \
+            ".github/workflows/links.yml, with a comment saying which it was.")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+            echo "::notice::commented on existing issue #${existing}"
+          else
+            gh issue create --title "$title" --label bug --body "$body"
+          fi

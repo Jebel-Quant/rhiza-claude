@@ -33,8 +33,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # Pinned so a uv release cannot change what this builds without a commit saying
+      # so. Dependabot bumps the action pin above, not this input.
       - name: Install uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: '0.12.1'
+
+      # This job downloads the widest tool set of any here — the test suite's, plus
+      # mkdocs-material and genbadge. Its own cache key, for the reason ci.yml's lint
+      # job explains: jobs sharing one key would each restore a cache saved for a
+      # different tool set.
+      - name: Cache uv downloads
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-book-${{ hashFiles('Makefile', 'mkdocs.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-book-
 
       # A pinned release binary rather than a TeX Live install: tectonic fetches
       # only the packages the document actually uses, so this is seconds, not minutes.
@@ -49,8 +65,14 @@ jobs:
 
       # `make book` builds the paper first and stages it under docs/, so the PDF is
       # published with the site and every commit proves the .tex still compiles.
+      #
+      # The elapsed time goes to the step summary so the 30-minute budget above stays
+      # a measurement rather than a guess.
       - name: Build the book
-        run: make book
+        run: |
+          START=$(date +%s)
+          make book
+          echo "make book: $(($(date +%s) - START))s (budget: 30 min)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
