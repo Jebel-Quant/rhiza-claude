@@ -22,6 +22,7 @@ anywhere. That has two consequences worth internalising before you touch anythin
 make help           # list every target
 make lint           # all prek hooks over every file
 make test           # pytest over tests/, 100% coverage gate on scripts/
+make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
 make book           # build the docs site into _book/ (runs paper + test first)
 make book-serve     # docs with live reload
 make paper          # build the LaTeX paper (needs tectonic or pdflatex)
@@ -144,7 +145,9 @@ off `main` and open a PR — never push to the default branch.
   root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
-- **The end-to-end tests are part of `make test`, not an opt-in extra.** They sync real
+- **The end-to-end tests are part of `make test`, not an opt-in extra.** `make e2e` exists,
+  but it is a *narrowing* for the weekly template-drift job, which needs them without the
+  coverage gate — not a flag that turns them on. Every `make test` runs them. They sync real
   repos from `jebel-quant/rhiza` at the ref pinned in `tests/conftest.py`, so the suite
   needs network, `uv`, and `cargo`/`go` for the Rust and Go fixtures. Anything tool-shaped
   skips when the tool is absent, which is why CI verifies both toolchains explicitly

@@ -22,6 +22,9 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # CI budget: ≤20 min per language. Both legs are build-mode `none`, so this is
+    # extraction and query time over plugin/scripts/ and the workflows, not a build.
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     if: |
       vars.CODEQL_ENABLED == 'true' ||
@@ -47,6 +50,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4

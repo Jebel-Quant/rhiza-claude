@@ -17,13 +17,24 @@ jobs:
   # artifact is only ever consumed by the deploy job below.
   build:
     name: build
+    # CI budget: ≤30 min. `make book` depends on `paper` and `test`, so this job runs
+    # the whole suite — including the networked e2e fixtures — on top of tectonic and
+    # mkdocs. It is the longest job here, and the budget is the tests' 20 plus the build.
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       # A pinned release binary rather than a TeX Live install: tectonic fetches
       # only the packages the document actually uses, so this is seconds, not minutes.
@@ -42,7 +53,7 @@ jobs:
         run: make book
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _book
 
@@ -51,6 +62,8 @@ jobs:
     name: deploy
     needs: build
     if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    # CI budget: ≤10 min (uploads the artifact build produced; no build of its own).
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -60,6 +73,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

@@ -20,13 +20,26 @@ concurrency:
 jobs:
   install-smoke:
     name: install smoke test
+    # CI budget: ≤15 min. Dominated by `npm install -g @anthropic-ai/claude-code`;
+    # the assertions afterwards are local config reads.
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
+      # This job has the widest egress of any here — it installs the Claude Code CLI
+      # from npm — which is why auditing it matters more than in the jobs that only
+      # ever fetch from GitHub.
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
 
