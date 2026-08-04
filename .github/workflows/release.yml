@@ -45,6 +45,72 @@ jobs:
         id: tag
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
+      # `fetch-depth: 0` gets the history behind the pushed tag, not the other refs:
+      # a tag-push checkout resolves one ref, so no branch is known and the earlier
+      # releases may be absent. Both guards below need them. Anonymous over https,
+      # which is all a public repo requires — the checkout persists no credential.
+      - name: Fetch the branch and tag refs
+        run: |
+          git fetch --quiet origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+
+      # A release cut on a branch that is then squash-merged leaves the tag on the
+      # pre-squash commit: the merge puts the same content on main under a new SHA, and
+      # nothing contains the old one. The tag is orphaned. That matters here rather than
+      # cosmetically, because the notes below are `git-cliff --latest` — cliff cannot
+      # place a boundary at an unreachable tag, so it silently attributes that version's
+      # commits elsewhere. Publishing from such a tag is never what anyone meant.
+      - name: Refuse a tag that no branch contains
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! git rev-parse --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH" >/dev/null; then
+            echo "::error::Cannot resolve origin/$DEFAULT_BRANCH — refusing to publish without a reachability check."
+            exit 1
+          fi
+
+          COMMIT=$(git rev-parse "$TAG^{commit}")
+          if git merge-base --is-ancestor "$COMMIT" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "$TAG ($COMMIT) is an ancestor of $DEFAULT_BRANCH"
+            exit 0
+          fi
+
+          # Contained by some other branch: a maintenance release. Legitimate, but a
+          # CHANGELOG regenerated from the default branch still cannot see it, so say so.
+          BRANCHES=$(git branch -r --contains "$COMMIT" --format='%(refname:short)' | tr '\n' ' ')
+          if [ -n "$BRANCHES" ]; then
+            echo "::warning::$TAG is not an ancestor of $DEFAULT_BRANCH; it is contained in: $BRANCHES. A CHANGELOG regenerated from $DEFAULT_BRANCH will omit this release."
+            exit 0
+          fi
+
+          echo "::error::$TAG points at $COMMIT, which no branch contains — most likely the pre-squash commit of a squash-merged release branch. Re-tag the merged commit on $DEFAULT_BRANCH and delete this tag."
+          exit 1
+
+      # A tag pushed from a branch that never caught up with main can publish backwards
+      # — v0.6.1 after v0.6.2 — and `makeLatest: true` below would then point the
+      # release everybody downloads at the older plugin. `sort -V` suffices because the
+      # tag grammar is closed: .bumpversion.toml only ever writes X.Y.Z, and the filter
+      # here drops anything that is not exactly that.
+      - name: Refuse a tag that is not newer than the latest release
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          LATEST=$(git tag -l 'v*' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | grep -vxF "$TAG" \
+            | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            echo "$TAG is the first release"
+            exit 0
+          fi
+          if [ "$(printf '%s\n%s\n' "$TAG" "$LATEST" | sort -V | head -1)" = "$TAG" ]; then
+            echo "::error::Refusing to publish $TAG: it is not newer than the latest release $LATEST. Sync with the default branch and bump again."
+            exit 1
+          fi
+          echo "$TAG is newer than $LATEST"
+
       - name: Verify manifest versions match the tag
         env:
           TAG: ${{ steps.tag.outputs.tag }}

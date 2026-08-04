@@ -13,10 +13,15 @@ policy is reviewable and reproducible.
 - 0 required approvals — a solo maintainer can still merge their own PR.
 - Conversation resolution required before merge.
 - No force-pushes; no branch deletion.
-- **Required status checks** — the CI `lint` and `tests` jobs must pass before
-  merge (non-strict, so branches need not be forcibly up to date). The contexts
-  are the job *names* in `.github/workflows/ci.yml`; renaming a job there without
-  re-applying this file leaves a required check that can never report.
+- **Required status checks** — one context, the `ci-gate` job in
+  `.github/workflows/ci.yml` (non-strict, so branches need not be forcibly up to
+  date). That job `needs: [lint, tests]` and passes only when both report
+  `success`, so the two real gates are still what decides a merge — but they can be
+  renamed, split or replaced without re-applying this file. Only a rename of
+  `ci-gate` itself leaves a required check that can never report.
+  Note the deliberate gap: `book`, `plugin` and `codeql` live in other workflows,
+  and a job cannot `needs:` across workflows, so none of them can join this gate as
+  it stands. They run on every PR and are advisory.
 - Repository admins may bypass (`bypass_actors`), so a solo maintainer can still
   merge in a pinch without waiting on a red/absent check.
 
