@@ -21,7 +21,7 @@ from _rhiza_yaml import as_list  # noqa: E402
 
 # Never removed by orphan cleanup: without it the repo stops being rhiza-managed.
 _PROTECTED = frozenset({Path(".rhiza/template.yml")})
-from _rhiza_template import Template  # noqa: E402
+from _rhiza_template import Template, is_excluded  # noqa: E402
 from _rhiza_yaml import dump_yaml, load_yaml  # noqa: E402
 
 
@@ -44,11 +44,19 @@ def previously_tracked(lock_path: Path) -> set[Path]:
 def clean_orphaned_files(
     target: Path, template_files: list[Path], excludes: set[str], previously_tracked: set[Path]
 ) -> None:
-    """Delete files tracked by the previous sync that the template no longer provides."""
-    orphaned = (
-        previously_tracked - set(template_files) - {Path(e) for e in excludes} - set(_PROTECTED)
-    )
+    """Delete files tracked by the previous sync that the template no longer provides.
+
+    An excluded path is never an orphan. Matching goes through :func:`is_excluded` rather
+    than comparing against *excludes* directly, so that a directory entry protects the
+    files under it: `excludes` now holds the configured destination paths verbatim, and a
+    set membership test would read `docs` and `docs/guide.md` as unrelated. Locks written
+    before the exclusion fix list excluded files in `files:`, which makes them look like
+    orphans on the next sync — this is what stops that from deleting them.
+    """
+    orphaned = previously_tracked - set(template_files) - set(_PROTECTED)
     for rel in sorted(orphaned):
+        if is_excluded(rel.as_posix(), excludes):
+            continue
         full = target / rel
         if full.exists():
             try:

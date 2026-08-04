@@ -65,3 +65,51 @@ def test_load_template_no_sources(tmp_path: Path) -> None:
     tf.write_text('repository: "o/r"\nref: main\n')
     with pytest.raises(SyncError, match="at least one of"):
         tmpl.load_template(tmp_path, tf)
+
+
+# --- exclude normalisation and matching ---------------------------------------
+#
+# `exclude:` is declared in destination paths, so neither of these may consult the
+# template clone. Resolving against the clone is what silently dropped every
+# bundle-sourced entry: a destination path need not exist at the clone root.
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("docs/", "docs"),
+        ("./docs", "docs"),
+        ("./docs/", "docs"),
+        ("  spaced.yaml  ", "spaced.yaml"),
+        ("a\\b.txt", "a/b.txt"),
+    ],
+)
+def test_normalise_excludes_tidies_an_entry(raw: str, expected: str) -> None:
+    assert expected in tmpl.normalise_excludes([raw])
+
+
+def test_normalise_excludes_drops_blanks_and_always_adds_the_pointer() -> None:
+    """A blank entry would otherwise normalise to `""` and prefix-match every path."""
+    assert tmpl.normalise_excludes(["", "   ", "./"]) == {".rhiza/template.yml"}
+
+
+def test_normalise_excludes_does_not_touch_the_filesystem() -> None:
+    """A destination path that exists nowhere is still honoured — the whole bug."""
+    assert "no/such/file.yml" in tmpl.normalise_excludes(["no/such/file.yml"])
+
+
+def test_is_excluded_matches_exactly() -> None:
+    assert tmpl.is_excluded("a.txt", {"a.txt"})
+
+
+def test_is_excluded_matches_under_an_excluded_directory() -> None:
+    assert tmpl.is_excluded("docs/guide.md", {"docs"})
+
+
+def test_is_excluded_rejects_an_unrelated_path() -> None:
+    assert not tmpl.is_excluded("src/a.txt", {"docs", "b.txt"})
+
+
+def test_is_excluded_does_not_match_a_sibling_sharing_a_prefix() -> None:
+    """`docs` must not exclude `docsite/`, which a bare startswith would."""
+    assert not tmpl.is_excluded("docsite/index.md", {"docs"})
