@@ -79,9 +79,10 @@ It makes four idempotent edits:
   left untouched.
 - **`[project.urls]`** — adds the `Homepage` and `Repository` entries the gate
   requires. Existing entries win; only missing keys are added.
-- **`[dependency-groups]`** — adds the required `test` (with `pytest`) and `lint`
-  groups, each lower-bounded, when absent. Existing groups are left exactly as they
-  are.
+- **`[dependency-groups]`** — adds the required `test` group (`pytest` and
+  `pytest-cov`, lower-bounded) when absent. Existing groups are left exactly as they
+  are. No `lint` group: the template provisions every linter through prek/uvx, so
+  nothing would resolve one.
 
 Relay its `modified`/`notes` output.
 

@@ -38,8 +38,9 @@ The steps below are the Python path; see [Rust and Go](#rust-and-go).
      description is left alone.
    - **`[project.urls]`** — adds the required `Homepage` and `Repository`. Existing
      entries win.
-   - **`[dependency-groups]`** — adds the required `test` (with `pytest`) and `lint`
-     groups, lower-bounded, when absent. Existing groups are untouched.
+   - **`[dependency-groups]`** — adds the required `test` group (`pytest` and
+     `pytest-cov`, lower-bounded) when absent. Existing groups are untouched, and no
+     `lint` group is seeded — the template provisions linters through prek/uvx.
 4. **Delegates the Python metadata** to
    [python-version](python-version.md) — `requires-python`, the
    `Programming Language :: Python :: X.Y` classifiers, and `.python-version`.

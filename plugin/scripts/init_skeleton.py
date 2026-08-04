@@ -30,7 +30,7 @@ gates have something to pass:
   [project].description   fill in uv's "Add your description here" placeholder
   [project.urls]          Homepage + Repository — the template's .rhiza/tests/
                           test_pyproject.py requires both
-  [dependency-groups]     `test` (incl. pytest) and `lint` groups — likewise required
+  [dependency-groups]     a `test` group (incl. pytest) — likewise required
   [tool.bumpversion]      where the version lives, so `/rhiza:release` has something to
                           read (`.bumpversion.toml` on the Rust side)
 
@@ -85,10 +85,11 @@ _HOSTS = {"github": "github.com", "gitlab": "gitlab.com"}
 # uv seeds this into `[project].description`; it is not a real description.
 _UV_DESCRIPTION_PLACEHOLDER = "Add your description here"
 
-# Dependency groups the template's pyproject gate requires, with lower bounds.
+# Dependency groups the template's pyproject gate requires, with lower bounds. `lint`
+# was here until the gate dropped its required-group check (rhiza #1484): the template
+# provisions every linter through prek/uvx, so nothing ever resolved that group.
 _DEPENDENCY_GROUPS: dict[str, list[str]] = {
     "test": ["pytest>=8.0", "pytest-cov>=5.0"],
-    "lint": ["ruff>=0.6"],
 }
 
 # The files `bump-my-version` searches for its config, in its own order. A
@@ -625,7 +626,7 @@ def set_project_urls(text: str, homepage: str, repository: str) -> tuple[str, bo
 
 
 def set_dependency_groups(text: str) -> tuple[str, bool]:
-    """Ensure ``[dependency-groups]`` declares the required ``test`` and ``lint`` groups.
+    """Ensure ``[dependency-groups]`` declares the required ``test`` group.
 
     Existing groups are left exactly as they are — this only adds absent ones, each
     with lower-bounded requirements. Returns ``(new_text, changed)``.
