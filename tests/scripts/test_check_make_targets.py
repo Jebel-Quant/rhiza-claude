@@ -272,21 +272,35 @@ def test_e2e_no_gate_in_the_prose_goes_unrun(synced_repo, quality_md):
     assert named <= covered, f"named in quality.md but never executed: {sorted(named - covered)}"
 
 
+# Template tests that a correctly-scaffolded repo fails at `PINNED_TEMPLATE_REF`
+# because the fix is merged upstream but not yet released. Tolerated **by name**, and
+# each entry is asserted to still fail — so it cannot outlive its cause: the ref bump
+# that ships the fix turns this test red, and the fix is deleting the entry.
+_UPSTREAM_KNOWN_FAILURES = {
+    # `init_skeleton.py` no longer seeds a `lint` dependency group: the template
+    # provisions every linter through prek/uvx, so nothing resolved that group. Upstream
+    # dropped the requirement in rhiza #1484, merged to `main` after v1.3.1 was cut.
+    "TestDependencyGroups::test_lint_group_present",
+}
+
+
 def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
     """`make rhiza-test` runs the *template's* own `.rhiza/tests/` against our scaffold.
 
     The strongest single statement about `/rhiza:init`: the template's own opinion of a
-    repo this plugin built, asserted with no exemptions.
+    repo this plugin built, with exemptions only by name in `_UPSTREAM_KNOWN_FAILURES`.
 
-    It has not always been clean, and the history is worth keeping because both failures
-    were informative. `test_license_classifier_present` demanded a
-    ``License :: OSI Approved :: …`` trove classifier that PEP 639 superseded — upstream's
-    bug, tolerated by name until upstream fixed it. Then v1.3.0 added
-    `test_a_discoverable_config_exists`, and that one was **ours**: the `[tool.bumpversion]`
-    table was written by procedure prose rather than by `init_skeleton.py`, so a repo built
-    from the scripts alone had no version location and `/rhiza:release` would have fallen
-    back to `git describe`. Both are fixed, so this asserts a clean run — a tolerated
-    failure that nobody re-examines becomes a permanent hole.
+    The history is worth keeping because each failure was informative.
+    `test_license_classifier_present` demanded a ``License :: OSI Approved :: …`` trove
+    classifier that PEP 639 superseded — upstream's bug, tolerated by name until upstream
+    fixed it. Then v1.3.0 added `test_a_discoverable_config_exists`, and that one was
+    **ours**: the `[tool.bumpversion]` table was written by procedure prose rather than by
+    `init_skeleton.py`, so a repo built from the scripts alone had no version location and
+    `/rhiza:release` would have fallen back to `git describe`. Both are fixed.
+
+    A tolerated failure that nobody re-examines becomes a permanent hole, so the
+    tolerance is two-sided: an unexpected failure fails here, and so does a *tolerated*
+    one that has stopped happening.
 
     **"No failures" is not enough on its own.** An absent target, a `uv` that cannot
     resolve pytest, or an upstream `.rhiza/tests/` that stopped being synced all yield
@@ -296,10 +310,19 @@ def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
     """
     result = run_cmd(["make", "rhiza-test"], synced_repo)
     output = result.stdout + result.stderr
-    failed = sorted(set(re.findall(r"^FAILED \S+?\.py::(\S+)", output, re.MULTILINE)))
-    assert failed == [], f"the template's own tests reject our scaffold: {failed}\n{output[-3000:]}"
+    failed = set(re.findall(r"^FAILED \S+?\.py::(\S+)", output, re.MULTILINE))
+    unexpected = sorted(failed - _UPSTREAM_KNOWN_FAILURES)
+    assert unexpected == [], (
+        f"the template's own tests reject our scaffold: {unexpected}\n{output[-3000:]}"
+    )
+    stale = sorted(_UPSTREAM_KNOWN_FAILURES - failed)
+    assert stale == [], f"these no longer fail — drop them from _UPSTREAM_KNOWN_FAILURES: {stale}"
 
-    assert_ok(result, "make rhiza-test")
+    # A tolerated failure makes the target exit non-zero, so the exit status is only
+    # assertable while nothing is tolerated. Until then the "something actually ran"
+    # assertion below carries that weight alone.
+    if not failed:
+        assert_ok(result, "make rhiza-test")
     passed = [int(n) for n in re.findall(r"(\d+) passed", output)]
     assert passed and passed[0] > 0, (
         f"`make rhiza-test` reported no test as having run — the gate did not execute the "

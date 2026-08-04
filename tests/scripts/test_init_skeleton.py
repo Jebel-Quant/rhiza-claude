@@ -302,6 +302,17 @@ def test_set_dependency_groups_leaves_an_existing_group_untouched():
     assert out.count("test = ") == 1
 
 
+def test_set_dependency_groups_fills_test_into_an_existing_table():
+    # The table exists but declares something else entirely, so `test` has to be added
+    # *into* it rather than appended with a fresh header.
+    other = _UV_PYPROJECT + '\n[dependency-groups]\ndocs = ["mkdocs>=1.6"]\n'
+    out, changed = sk.set_dependency_groups(other)
+    assert changed
+    assert out.count("[dependency-groups]") == 1
+    assert 'docs = ["mkdocs>=1.6"]' in out  # unrelated group untouched
+    assert "pytest>=8.0" in out
+
+
 def test_set_dependency_groups_is_idempotent():
     once, _ = sk.set_dependency_groups(_UV_PYPROJECT)
     twice, changed = sk.set_dependency_groups(once)
