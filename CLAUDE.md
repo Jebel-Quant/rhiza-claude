@@ -152,16 +152,20 @@ off `main` and open a PR — never push to the default branch.
   needs network, `uv`, and `cargo`/`go` for the Rust and Go fixtures. Anything tool-shaped
   skips when the tool is absent, which is why CI verifies both toolchains explicitly
   rather than letting a whole language axis vanish quietly.
-- **There is exactly one `xfail` in the suite, and it is load-bearing.**
-  `test_e2e_the_test_gate_of_a_fresh_repo_collects_something[python]` asserts that a repo
-  straight out of `/init` + `/update` has a test its `make test` can collect. Rust gets one
-  from `cargo init`, Go one from `go-core`, Python none — so the Python case is
-  `xfail(strict=True)`. When upstream ships the missing test, the suite turns **red**: the
-  fix is deleting the marker, never the test. Note the fixture pairing this rests on —
-  `python_synced_repo` is unseeded, `synced_repo` hand-writes a module and would hide it.
+- **The suite carries no `xfail` and no tolerated upstream failure, and both emptied
+  themselves.** `test_e2e_the_test_gate_of_a_fresh_repo_collects_something` asserts that a
+  repo straight out of `/init` + `/update` has a test its `make test` can collect. Rust
+  gets one from `cargo init`, Go one from `go-core`, and Python — which had none — got a
+  `test_rhiza_packaging.py` under its own `tests/` in **v1.3.2**, so the `xfail(strict=True)`
+  that had held the Python case turned XPASS at the ref bump and went. `_UPSTREAM_KNOWN_FAILURES` in
+  `test_check_make_targets.py` emptied the same way. Keep both at zero: each is
+  self-retiring by design, so an entry that stops being needed turns the suite **red**, and
+  the fix is deleting the entry, never the assertion. Note the fixture pairing the test
+  rests on — `python_synced_repo` is unseeded, `synced_repo` hand-writes a module and
+  would hide it.
 - **The pinned template ref decides which profiles the suite can exercise.**
   `rust-local` and `go-local` arrived in rhiza **v1.3.0**, so `PINNED_TEMPLATE_REF` names
-  that release or later (**v1.3.1** today) — which is why both syncs run on every PR
+  that release or later (**v1.3.2** today) — which is why both syncs run on every PR
   instead of skipping for want of a released profile. Before bumping it, check
   the new ref still defines what `/init` writes: `plugin/scripts/check_template_profile.py
   rust-local go-local github-project gitlab-project --template-repo jebel-quant/rhiza

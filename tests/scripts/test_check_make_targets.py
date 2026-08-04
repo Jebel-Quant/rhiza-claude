@@ -276,12 +276,12 @@ def test_e2e_no_gate_in_the_prose_goes_unrun(synced_repo, quality_md):
 # because the fix is merged upstream but not yet released. Tolerated **by name**, and
 # each entry is asserted to still fail — so it cannot outlive its cause: the ref bump
 # that ships the fix turns this test red, and the fix is deleting the entry.
-_UPSTREAM_KNOWN_FAILURES = {
-    # `init_skeleton.py` no longer seeds a `lint` dependency group: the template
-    # provisions every linter through prek/uvx, so nothing resolved that group. Upstream
-    # dropped the requirement in rhiza #1484, merged to `main` after v1.3.1 was cut.
-    "TestDependencyGroups::test_lint_group_present",
-}
+# Empty, and that is the state to keep it in: at PINNED_TEMPLATE_REF the template's own
+# tests accept this plugin's scaffold outright. The last entry was
+# `TestDependencyGroups::test_lint_group_present` — `init_skeleton.py` stopped seeding a
+# `lint` dependency group because the template provisions every linter through prek/uvx,
+# and rhiza #1484 dropped the requirement in v1.3.2, which retired the tolerance.
+_UPSTREAM_KNOWN_FAILURES: set[str] = set()
 
 
 def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
@@ -319,8 +319,8 @@ def test_e2e_rhiza_test_passes_on_a_repo_this_plugin_scaffolded(synced_repo):
     assert stale == [], f"these no longer fail — drop them from _UPSTREAM_KNOWN_FAILURES: {stale}"
 
     # A tolerated failure makes the target exit non-zero, so the exit status is only
-    # assertable while nothing is tolerated. Until then the "something actually ran"
-    # assertion below carries that weight alone.
+    # assertable while nothing is tolerated — which, with `_UPSTREAM_KNOWN_FAILURES`
+    # empty, is now. The guard stays so re-adding an entry needs no rework here.
     if not failed:
         assert_ok(result, "make rhiza-test")
     passed = [int(n) for n in re.findall(r"(\d+) passed", output)]
@@ -655,28 +655,15 @@ def _collectible_tests(repo: Path, language: str) -> list[str]:
     return sorted(str(p.relative_to(repo)) for p in found if ".rhiza" not in p.parts)
 
 
-_PYTHON_TEST_GATE_IS_VACUOUS = (
-    "A freshly /init'd and synced Python repo has no test its `test` target can collect: "
-    "`uv init --lib` writes none, /init seeds no first module by design, and rhiza's "
-    "`python-core` ships none under `tests/` — so `make test` prints 'No test files found "
-    "in tests, skipping tests' and exits 0. `go-core` fixed exactly this vacuity in the "
-    "template's v1.3.1 by shipping internal/version/version_test.go; the Python analogue "
-    "has not shipped, and the fix is upstream's rather than this plugin's. strict=True, so "
-    "the day it does ship this test turns red and the marker goes with it."
-)
-
-
-@pytest.mark.parametrize(
-    "language",
-    [
-        "rust",
-        "go",
-        pytest.param(
-            "python",
-            marks=pytest.mark.xfail(strict=True, reason=_PYTHON_TEST_GATE_IS_VACUOUS),
-        ),
-    ],
-)
+# Python was the last language to answer this. `uv init --lib` writes no test and /init
+# seeds no first module by design, so a fresh Python repo's `test` target printed 'No test
+# files found in tests, skipping tests' and exited 0 — measuring nothing while reading
+# green. That was carried here as a `strict=True` xfail, because the fix was upstream's
+# rather than this plugin's: `go-core` had already shipped internal/version/version_test.go
+# in v1.3.1. rhiza #1479 shipped the Python analogue, `tests/test_rhiza_packaging.py`, in
+# v1.3.2 — the xfail turned XPASS at the ref bump, and the marker went with it. All three
+# languages are now asserted the same way, with no exemption.
+@pytest.mark.parametrize("language", ["rust", "go", "python"])
 def test_e2e_the_test_gate_of_a_fresh_repo_collects_something(language: str, request):
     """`make test` must have something to run in a repo straight out of /init + /update.
 
