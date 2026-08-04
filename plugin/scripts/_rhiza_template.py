@@ -67,6 +67,46 @@ class Template:
         raise SyncError(f"Unsupported template-host: {self.host}. Must be 'github' or 'gitlab'.")
 
 
+# Never delivered, whatever the config says: this is the consumer's own pointer at the
+# template, and a template that ships a copy of one would otherwise overwrite it and
+# retarget the repo. The deletion side of the same rule is `_PROTECTED` in `_rhiza_lock`.
+_ALWAYS_EXCLUDED = ".rhiza/template.yml"
+
+
+def normalise_excludes(entries: list[str]) -> set[str]:
+    """Normalise configured ``exclude:`` entries into comparable **destination** paths.
+
+    `exclude:` is written in destination paths, because that is the only form a consumer
+    knows — it is where the file lands in their repo. So the entries are taken as given
+    and merely tidied: separators forward-slashed, a leading ``./`` and a trailing ``/``
+    dropped, blanks discarded.
+
+    Nothing here consults the template clone. Resolving these against the clone is what
+    made bundle-sourced exclusions vanish: a destination path need not exist at the clone
+    root at all — under a sparse checkout of ``bundles/…`` it usually does not — and an
+    entry that failed to resolve was dropped silently rather than honoured.
+    """
+    result = {
+        cleaned
+        for cleaned in (
+            entry.strip().replace("\\", "/").removeprefix("./").rstrip("/") for entry in entries
+        )
+        if cleaned
+    }
+    result.add(_ALWAYS_EXCLUDED)
+    return result
+
+
+def is_excluded(dest: str, excludes: set[str]) -> bool:
+    """Whether the destination path *dest* is excluded outright or sits under an excluded dir.
+
+    The directory case has to be matched by prefix rather than by expanding the directory
+    into its files, which is what :func:`normalise_excludes` used to do against the clone.
+    Once matching moves to destination paths there is no directory on disk to expand.
+    """
+    return dest in excludes or any(dest.startswith(f"{entry}/") for entry in excludes)
+
+
 def load_template(target: Path, template_file: Path) -> Template:
     """Load and validate the template config, raising :class:`SyncError` on any problem."""
     if not template_file.exists():

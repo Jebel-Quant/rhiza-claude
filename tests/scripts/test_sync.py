@@ -186,6 +186,108 @@ def test_excluded_file_not_synced(make_repo: Any) -> None:
     assert not proj.exists("secret.txt")
 
 
+# --- excluding a bundle-sourced file (source != destination) ------------------
+#
+# The exclusions above are all root-sourced, where source and destination coincide — so
+# they passed while `exclude:` was tested against the *source* path, and proved nothing.
+# A bundle-sourced exclusion is the case that was broken: the consumer writes the
+# destination (`.pre-commit-config.yaml`), the file's source is
+# `bundles/core/.pre-commit-config.yaml`, and the two never matched.
+
+
+def _bundle_excluding(make_repo: Any, *excludes: str) -> tuple[Repo, Repo]:
+    """A one-bundle template plus a project on that profile, excluding *excludes*."""
+    bundles = (
+        "bundles:\n  core:\n    required: true\nprofiles:\n  std:\n    bundles:\n      - core\n"
+    )
+    tmpl = _bundles_template(
+        make_repo,
+        bundles,
+        {
+            "bundles/core/Makefile": "m\n",
+            "bundles/core/.pre-commit-config.yaml": "repo: upstream\n",
+            "bundles/core/docs/guide.md": "g\n",
+        },
+    )
+    proj = _project(
+        make_repo, tmpl, ["profiles:", "  - std", "exclude:", *(f"  - {e}" for e in excludes)]
+    )
+    return tmpl, proj
+
+
+def test_a_bundle_sourced_exclusion_is_honoured(make_repo: Any) -> None:
+    """The regression: excluding a destination path the bundle prefix hides."""
+    _, proj = _bundle_excluding(make_repo, ".pre-commit-config.yaml")
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    assert proj.read("Makefile") == "m\n", "the rest of the bundle still syncs"
+    assert not proj.exists(".pre-commit-config.yaml")
+
+
+def test_a_bundle_sourced_exclusion_stays_out_of_the_lock(make_repo: Any) -> None:
+    """`stage_synced.py` trusts the lock's `files:`, so an excluded path must not appear.
+
+    The invariant the issue asked for, and one every lock written before the fix violated:
+    a path cannot be both delivered and excluded.
+    """
+    _, proj = _bundle_excluding(make_repo, ".pre-commit-config.yaml")
+    sync.sync(proj.path, "main")
+    lock = load_yaml(proj.path / ".rhiza" / "template.lock")
+    assert ".pre-commit-config.yaml" not in lock["files"]
+    assert set(lock["files"]) & set(lock["exclude"]) == set()
+
+
+def test_an_excluded_bundle_file_survives_an_upstream_edit(make_repo: Any) -> None:
+    """The case that actually bit: exclusion only matters once upstream edits the file.
+
+    While upstream leaves it alone the merge is a no-op and local content survives, so the
+    exclusion *looks* honoured. In `jebel-quant/rhiza-hooks` the upstream edit arrived and
+    the sync offered to replace `repo: local` with the self-reference that repo excludes
+    the file to avoid.
+    """
+    tmpl, proj = _bundle_excluding(make_repo, ".pre-commit-config.yaml")
+    sync.sync(proj.path, "main")
+    proj.write(".pre-commit-config.yaml", "repo: local\n")
+    proj.commit("local config")
+
+    tmpl.write("bundles/core/.pre-commit-config.yaml", "repo: upstream-v2\n")
+    tmpl.commit("v2")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    assert proj.read(".pre-commit-config.yaml") == "repo: local\n"
+    assert "<<<<<<<" not in proj.read(".pre-commit-config.yaml")
+
+
+def test_a_directory_exclusion_covers_the_files_under_it(make_repo: Any) -> None:
+    """`exclude: [docs]` names a directory that exists only at the destination.
+
+    Expanding a directory into its files no longer works once matching moves off the
+    clone, so this is the prefix-matching half of :func:`is_excluded`.
+    """
+    _, proj = _bundle_excluding(make_repo, "docs")
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    assert proj.read("Makefile") == "m\n"
+    assert not proj.exists("docs/guide.md")
+
+
+def test_an_excluded_directory_is_not_orphan_cleaned(make_repo: Any) -> None:
+    """A lock predating the fix lists excluded files, which must not read as orphans.
+
+    Without prefix matching in `clean_orphaned_files`, the first sync after upgrading
+    would delete the user's own copy of every file under an excluded directory.
+    """
+    _, proj = _bundle_excluding(make_repo)
+    sync.sync(proj.path, "main")
+    proj.commit("first sync")
+    assert proj.exists("docs/guide.md")
+
+    body = (proj.path / ".rhiza" / "template.yml").read_text()
+    proj.write(".rhiza/template.yml", body + "exclude:\n  - docs\n")
+    proj.commit("exclude docs")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    assert proj.read("docs/guide.md") == "g\n", "the excluded file was orphan-cleaned"
+
+
 # --- no-op syncs --------------------------------------------------------------
 
 

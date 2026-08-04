@@ -58,10 +58,9 @@ from _rhiza_lock import (
 from _rhiza_snapshot import (  # noqa: E402
     clone_template,
     copy_files,
-    excluded_set,
     prepare_snapshot,
 )
-from _rhiza_template import Template, load_template  # noqa: E402
+from _rhiza_template import Template, load_template, normalise_excludes  # noqa: E402
 
 EXIT_OK = 0
 EXIT_CONFLICTS = 1
@@ -184,7 +183,7 @@ def sync(target: Path, branch: str) -> int:
     upstream_dir, upstream_sha, include_paths, path_map = clone_template(ctx, template, branch)
     upstream_snapshot = Path(tempfile.mkdtemp())
     try:
-        excludes = excluded_set(upstream_dir, template.exclude)
+        excludes = normalise_excludes(template.exclude)
         template_files = prepare_snapshot(
             upstream_dir, include_paths, excludes, upstream_snapshot, path_map
         )

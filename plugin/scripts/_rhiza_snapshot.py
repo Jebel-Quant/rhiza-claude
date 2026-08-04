@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _rhiza_git as git  # noqa: E402
 from _rhiza_bundles import Bundles, resolve_bundle_names  # noqa: E402
 from _rhiza_common import log  # noqa: E402
-from _rhiza_template import Template  # noqa: E402
+from _rhiza_template import Template, is_excluded  # noqa: E402
 from _rhiza_yaml import load_yaml  # noqa: E402
 
 
@@ -69,13 +69,6 @@ def _expand_paths(base_dir: Path, paths: list[str]) -> list[Path]:
     return all_files
 
 
-def excluded_set(base_dir: Path, excluded_paths: list[str]) -> set[str]:
-    """Return excluded relative-path strings for *base_dir* (always includes template.yml)."""
-    result = {str(f.relative_to(base_dir)) for f in _expand_paths(base_dir, excluded_paths)}
-    result.add(".rhiza/template.yml")
-    return result
-
-
 def _remap_path(source: str, path_map: dict[str, str]) -> str:
     """Translate *source* to its destination via *path_map* (exact or directory-prefix)."""
     if source in path_map:
@@ -95,13 +88,20 @@ def prepare_snapshot(
     snapshot_dir: Path,
     path_map: dict[str, str],
 ) -> list[Path]:
-    """Copy included, non-excluded files from *clone_dir* into *snapshot_dir* at dest paths."""
+    """Copy included, non-excluded files from *clone_dir* into *snapshot_dir* at dest paths.
+
+    The remap happens **before** the exclusion test, and the order is the whole point:
+    `exclude:` is declared in destination paths, so testing the source path meant a
+    bundle-sourced file was never matched. `bundles/python-core/.pre-commit-config.yaml`
+    is not `.pre-commit-config.yaml`, so the file was copied, listed in the lock, and
+    staged into the PR by `stage_synced.py` — all against an explicit exclusion.
+    """
     template_files: list[Path] = []
     for f in _expand_paths(clone_dir, include_paths):
         rel_source = str(f.relative_to(clone_dir))
-        if rel_source in excludes:
-            continue
         rel_dest = _remap_path(rel_source, path_map)
+        if is_excluded(rel_dest, excludes):
+            continue
         dst = snapshot_dir / rel_dest
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(f, dst)
