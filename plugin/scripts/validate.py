@@ -33,165 +33,17 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _rhiza_yaml import load_yaml  # noqa: E402
+from _validate_fields import (  # noqa: E402
+    validate_configuration_mode,
+    validate_optional_fields,
+    validate_repository_format,
+    validate_required_fields,
+    validate_string_list,
+)
+from _validate_log import Log  # noqa: E402
+from _validate_structure import check_project_structure  # noqa: E402
 
-# Hosts the template may target; mirrors rhiza.models.template.GitHost.
-GIT_HOSTS = ("github", "gitlab")
-
-
-# --------------------------------------------------------------------------- #
-# logging shim
-# --------------------------------------------------------------------------- #
-class Log:
-    """Tiny stand-in for the CLI's loguru sink.
-
-    Prints human-readable, symbol-prefixed lines to stderr and, so `--json`
-    can report a structured verdict, accumulates the ERROR/WARNING messages.
-    """
-
-    _SYMBOLS = {"error": "✗", "warning": "!", "success": "✓", "info": " ", "debug": " "}
-
-    def __init__(self, *, verbose: bool = False) -> None:
-        """Start the sink with empty error/warning buffers."""
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
-        self._verbose = verbose
-
-    def _emit(self, level: str, message: str) -> None:
-        """Print a symbol-prefixed line (debug only when verbose)."""
-        if level == "debug" and not self._verbose:
-            return
-        print(f"{self._SYMBOLS[level]} {message}", file=sys.stderr)
-
-    def error(self, message: str) -> None:
-        """Record and print an error."""
-        self.errors.append(message)
-        self._emit("error", message)
-
-    def warning(self, message: str) -> None:
-        """Record and print a warning."""
-        self.warnings.append(message)
-        self._emit("warning", message)
-
-    def success(self, message: str) -> None:
-        """Print a success line."""
-        self._emit("success", message)
-
-    def info(self, message: str) -> None:
-        """Print an info line."""
-        self._emit("info", message)
-
-    def debug(self, message: str) -> None:
-        """Print a debug line (verbose only)."""
-        self._emit("debug", message)
-
-
-# --------------------------------------------------------------------------- #
-# language-specific project structure
-# --------------------------------------------------------------------------- #
-def _validate_python_structure(log: Log, target: Path) -> bool:
-    """Python needs pyproject.toml (required); src/ and tests/ are warnings."""
-    passed = True
-    if not (target / "pyproject.toml").exists():
-        log.error(f"pyproject.toml not found: {target / 'pyproject.toml'}")
-        log.error("pyproject.toml is required for Python projects")
-        log.info("Run /rhiza:init to set the repo up, which creates a pyproject.toml")
-        passed = False
-    else:
-        log.success(f"pyproject.toml exists: {target / 'pyproject.toml'}")
-
-    for name in ("src", "tests"):
-        d = target / name
-        if not d.exists():
-            log.warning(f"Standard '{name}' folder not found: {d}")
-            log.warning(f"Consider creating a '{name}' directory")
-        else:
-            log.success(f"'{name}' folder exists: {d}")
-    return passed
-
-
-def _validate_go_structure(log: Log, target: Path) -> bool:
-    """Go needs go.mod (required); cmd/ and pkg/|internal/ are warnings."""
-    passed = True
-    if not (target / "go.mod").exists():
-        log.error(f"go.mod not found: {target / 'go.mod'}")
-        log.error("go.mod is required for Go projects")
-        log.info("Run 'go mod init <module-name>' to create go.mod")
-        passed = False
-    else:
-        log.success(f"go.mod exists: {target / 'go.mod'}")
-
-    cmd_dir, pkg_dir, internal_dir = target / "cmd", target / "pkg", target / "internal"
-    if not cmd_dir.exists():
-        log.warning(f"Standard 'cmd' folder not found: {cmd_dir}")
-        log.warning("Consider creating a 'cmd' directory for main applications")
-    else:
-        log.success(f"'cmd' folder exists: {cmd_dir}")
-
-    if not pkg_dir.exists() and not internal_dir.exists():
-        log.warning("Neither 'pkg' nor 'internal' folder found")
-        log.warning(
-            "Consider creating 'pkg' for public libraries or 'internal' for private packages"
-        )
-    else:
-        if pkg_dir.exists():
-            log.success(f"'pkg' folder exists: {pkg_dir}")
-        if internal_dir.exists():
-            log.success(f"'internal' folder exists: {internal_dir}")
-    return passed
-
-
-def _validate_rust_structure(log: Log, target: Path) -> bool:
-    """Rust needs Cargo.toml (required); a src/ crate root is a warning.
-
-    Cargo puts both library and binary crates under ``src/`` — ``src/lib.rs`` for a
-    library, ``src/main.rs`` for a binary, and a workspace root may legitimately have
-    neither. So the crate root is checked as a warning, not an error, and a virtual
-    workspace (``[workspace]`` with no ``[package]``) is recognised rather than
-    reported as a malformed crate.
-    """
-    passed = True
-    manifest = target / "Cargo.toml"
-    if not manifest.exists():
-        log.error(f"Cargo.toml not found: {manifest}")
-        log.error("Cargo.toml is required for Rust projects")
-        log.info("Run /rhiza:init to set the repo up, which creates a Cargo.toml")
-        return False
-
-    log.success(f"Cargo.toml exists: {manifest}")
-    is_workspace_root = "[workspace]" in manifest.read_text(encoding="utf-8")
-
-    crate_roots = [target / "src" / name for name in ("lib.rs", "main.rs")]
-    found = [p for p in crate_roots if p.exists()]
-    if found:
-        for path in found:
-            log.success(f"crate root exists: {path}")
-    elif is_workspace_root:
-        log.success("no src/ crate root, but Cargo.toml declares a [workspace] — fine")
-    else:
-        log.warning(f"Neither 'src/lib.rs' nor 'src/main.rs' found under {target / 'src'}")
-        log.warning("Consider creating 'src/lib.rs' for a library or 'src/main.rs' for a binary")
-
-    return passed
-
-
-# Registry of language -> structure validator; extend here to add a language.
-_VALIDATORS = {
-    "python": _validate_python_structure,
-    "go": _validate_go_structure,
-    "rust": _validate_rust_structure,
-}
-
-
-def _check_project_structure(log: Log, target: Path, language: str) -> bool:
-    """Dispatch to the language validator; unsupported languages pass with a warning."""
-    log.debug(f"Validating project structure for language: {language}")
-    validator = _VALIDATORS.get(language.lower())
-    if validator is None:
-        log.warning(f"No validator found for language '{language}'")
-        log.warning(f"Supported languages: {', '.join(_VALIDATORS)}")
-        log.warning("Skipping project structure validation")
-        return True
-    return validator(log, target)
+__all__ = ["Log", "main", "validate"]
 
 
 # --------------------------------------------------------------------------- #
@@ -250,205 +102,6 @@ def _parse_template_file(log: Log, template_file: Path) -> tuple[bool, dict[str,
 
 
 # --------------------------------------------------------------------------- #
-# configuration-mode + field validators
-# --------------------------------------------------------------------------- #
-def _validate_profiles_field(log: Log, config: dict[str, Any]) -> bool | None:
-    """None when absent, True/False when present and valid/invalid."""
-    if "profiles" not in config:
-        return None
-    profiles = config["profiles"]
-    if not isinstance(profiles, list):
-        log.error(f"profiles must be a list, got {type(profiles).__name__}")
-        log.error("Example: profiles: [github-project]")
-        return False
-    if not profiles:
-        log.error("profiles list cannot be empty")
-        log.error("Example: profiles: [github-project]")
-        return False
-    for p in profiles:
-        if not isinstance(p, str) or not p.strip():
-            log.error(f"Each entry in profiles must be a non-empty string, got: {p!r}")
-            return False
-    return True
-
-
-def _validate_configuration_mode(log: Log, config: dict[str, Any]) -> bool:
-    """Validate the profiles/templates/include selection mode."""
-    log.debug("Validating configuration mode")
-    has_templates = bool(config.get("templates"))
-    has_include = bool(config.get("include"))
-
-    profiles_valid = _validate_profiles_field(log, config)
-    if profiles_valid is False:
-        return False
-    has_profiles = profiles_valid is True
-
-    if "bundles" in config:
-        log.error("Field 'bundles' has been renamed to 'templates'")
-        log.error("Update your .rhiza/template.yml:  bundles: [...]  →  templates: [...]")
-        return False
-
-    if not has_profiles and not has_templates and not has_include:
-        log.error(
-            "Must specify at least one of 'profiles', 'templates', or 'include' in template.yml"
-        )
-        log.error("  • Profile-based: profiles: [github-project]")
-        log.error("  • Template-based: templates: [core, tests, github]")
-        log.error("  • Path-based: include: [.rhiza, .github, ...]")
-        log.error("  • Hybrid: specify both templates and include")
-        return False
-
-    if has_profiles:
-        log.success(f"Using profile mode (profiles: {config['profiles']})")
-    elif has_templates and has_include:
-        log.success("Using hybrid mode (templates + include)")
-    elif has_templates:
-        log.success("Using template-based mode")
-    else:
-        log.success("Using path-based mode")
-    return True
-
-
-def _validate_required_fields(log: Log, config: dict[str, Any]) -> bool:
-    """Require a 'template-repository' or 'repository' string field."""
-    log.debug("Validating required fields")
-    has_template_repo = "template-repository" in config
-    has_repo = "repository" in config
-    if not has_template_repo and not has_repo:
-        log.error("Missing required field: 'template-repository' or 'repository'")
-        log.error("Add 'template-repository' or 'repository' to your template.yml")
-        return False
-
-    repo_field = "template-repository" if has_template_repo else "repository"
-    repo_value = config[repo_field]
-    if not isinstance(repo_value, str):
-        log.error(f"Field '{repo_field}' must be of type str, got {type(repo_value).__name__}")
-        log.error(f"Fix the type of '{repo_field}' in template.yml")
-        return False
-    log.success(f"Field '{repo_field}' is present and valid")
-    return True
-
-
-def _validate_repository_format(log: Log, config: dict[str, Any]) -> bool:
-    """Check the repository field is in 'owner/repo' form."""
-    log.debug("Validating repository format")
-    repo_field = (
-        "template-repository"
-        if "template-repository" in config
-        else "repository"
-        if "repository" in config
-        else None
-    )
-    if repo_field is None:
-        return True  # caught by _validate_required_fields
-    repo = config[repo_field]
-    if not isinstance(repo, str):
-        log.error(f"{repo_field} must be a string, got {type(repo).__name__}")
-        log.error("Example: 'owner/repository'")
-        return False
-    if "/" not in repo:
-        log.error(f"{repo_field} must be in format 'owner/repo', got: {repo}")
-        log.error("Example: 'jebel-quant/rhiza'")
-        return False
-    log.success(f"{repo_field} format is valid: {repo}")
-    return True
-
-
-def _validate_string_list(log: Log, config: dict[str, Any], field: str, example: str) -> bool:
-    """Shared check for the `templates` / `include` list fields."""
-    log.debug(f"Validating {field} field")
-    if field not in config:
-        return True
-    value = config[field]
-    if not isinstance(value, list):
-        log.error(f"{field} must be a list, got {type(value).__name__}")
-        log.error(f"Example: {example}")
-        return False
-    if len(value) == 0:
-        log.error(f"{field} list cannot be empty")
-        log.error("Add at least one entry to materialize")
-        return False
-    log.success(f"{field} list has {len(value)} entr{'y' if len(value) == 1 else 'ies'}")
-    for item in value:
-        if not isinstance(item, str):
-            log.warning(f"{field} entry should be a string, got {type(item).__name__}: {item}")
-        else:
-            log.info(f"  - {item}")
-    return True
-
-
-def _validate_branch_field(log: Log, config: dict[str, Any]) -> None:
-    """Warn if the branch/ref field is present but not a string."""
-    branch_field = (
-        "template-branch" if "template-branch" in config else "ref" if "ref" in config else None
-    )
-    if branch_field is None:
-        return
-    branch = config[branch_field]
-    if not isinstance(branch, str):
-        log.warning(f"{branch_field} should be a string, got {type(branch).__name__}: {branch}")
-        log.warning("Example: 'main' or 'develop'")
-    else:
-        log.success(f"{branch_field} is valid: {branch}")
-
-
-def _validate_host_field(log: Log, config: dict[str, Any]) -> None:
-    """Warn if template-host is non-string or an unsupported host."""
-    if "template-host" not in config:
-        return
-    host = config["template-host"]
-    if not isinstance(host, str):
-        log.warning(f"template-host should be a string, got {type(host).__name__}: {host}")
-        log.warning("Must be 'github' or 'gitlab'")
-    elif host not in GIT_HOSTS:
-        log.warning(f"template-host should be 'github' or 'gitlab', got: {host}")
-        log.warning("Other hosts are not currently supported")
-    else:
-        log.success(f"template-host is valid: {host}")
-
-
-def _validate_language_field(log: Log, config: dict[str, Any]) -> None:
-    """Warn if the language field is non-string or unrecognized."""
-    if "language" not in config:
-        return
-    language = config["language"]
-    if not isinstance(language, str):
-        log.warning(f"language should be a string, got {type(language).__name__}: {language}")
-        log.warning("Example: 'python', 'go', 'rust'")
-    elif language.lower() not in _VALIDATORS:
-        log.warning(f"language '{language}' is not recognized")
-        log.warning(f"Supported languages: {', '.join(_VALIDATORS)}")
-    else:
-        log.success(f"language is valid: {language}")
-
-
-def _validate_exclude_field(log: Log, config: dict[str, Any]) -> None:
-    """Warn if the exclude field is malformed."""
-    if "exclude" not in config:
-        return
-    exclude = config["exclude"]
-    if not isinstance(exclude, list):
-        log.warning(f"exclude should be a list, got {type(exclude).__name__}")
-        log.warning("Example: exclude: ['.github/workflows/ci.yml']")
-        return
-    log.success(f"exclude list has {len(exclude)} path(s)")
-    for path in exclude:
-        if not isinstance(path, str):
-            log.warning(f"exclude path should be a string, got {type(path).__name__}: {path}")
-        else:
-            log.info(f"  - {path}")
-
-
-def _validate_optional_fields(log: Log, config: dict[str, Any]) -> None:
-    """Run the non-fatal optional-field checks."""
-    log.debug("Validating optional fields")
-    _validate_branch_field(log, config)
-    _validate_host_field(log, config)
-    _validate_language_field(log, config)
-    _validate_exclude_field(log, config)
-
-
-# --------------------------------------------------------------------------- #
 # orchestration
 # --------------------------------------------------------------------------- #
 def _load_valid_config(log: Log, target: Path, template_file: Path | None) -> dict[str, Any] | None:
@@ -464,27 +117,27 @@ def _load_valid_config(log: Log, target: Path, template_file: Path | None) -> di
 
     language = config.get("language", "python")
     log.info(f"Project language: {language}")
-    if not _check_project_structure(log, target, str(language)):
+    if not check_project_structure(log, target, str(language)):
         return None
-    if not _validate_configuration_mode(log, config):
+    if not validate_configuration_mode(log, config):
         return None
     return config
 
 
 def _validate_config_fields(log: Log, config: dict[str, Any]) -> bool:
     """Field-level checks; these do NOT short-circuit so all errors surface at once."""
-    passed = _validate_required_fields(log, config)
-    if not _validate_repository_format(log, config):
+    passed = validate_required_fields(log, config)
+    if not validate_repository_format(log, config):
         passed = False
-    if config.get("templates") and not _validate_string_list(
+    if config.get("templates") and not validate_string_list(
         log, config, "templates", "templates: [core, tests, github]"
     ):
         passed = False
-    if config.get("include") and not _validate_string_list(
+    if config.get("include") and not validate_string_list(
         log, config, "include", "include: ['.github', '.gitignore']"
     ):
         passed = False
-    _validate_optional_fields(log, config)
+    validate_optional_fields(log, config)
     return passed
 
 

@@ -309,3 +309,12 @@ def test_e2e_the_lock_covers_what_the_template_delivered(synced_repo_copy):
     assert "Makefile" in files
     assert ".rhiza/rhiza.mk" in files
     assert not any(f.startswith("src/") for f in files), "src/ is the repo's own"
+
+
+class TestGitFailed:
+    """The exception that collapses four per-call error guards into one handler."""
+
+    def test_it_carries_the_stderr_to_report(self):
+        exc = st.GitFailed("fatal: not a git repository")
+        assert exc.stderr == "fatal: not a git repository"
+        assert "not a git repository" in str(exc)

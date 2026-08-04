@@ -97,6 +97,22 @@ identically where they overlap. `plugin/commands/init.md` alone does not explain
 markdown. Parsing a lock file, merging synced files, comparing versions, drawing a
 random song — those are scripts. Reading a repo and scoring it is prose.
 
+**An underscore prefix means "not an entry point".** A command invokes
+`scripts/<name>.py`; everything a script leans on lives in a `_`-prefixed sibling that no
+command ever names. Three families, plus the sync core:
+
+| Prefix | Owns |
+| --- | --- |
+| `_rhiza_*` | the sync core, and anything shared across unrelated commands — `_rhiza_toml` (add a TOML key, reformat nothing) serves the skeleton, `set_license` **and** `set_python_version`; `_rhiza_yaml` is the read/write façade over `_rhiza_yaml_parse` |
+| `_skeleton_*` | one module per language behind `init_skeleton.py`, which is only the dispatcher and the CLI — each language's gap differs in kind, not degree |
+| `_validate_*` | `validate.py`'s three halves: the `Log` sink, the language structure checks, the `template.yml` field checks |
+
+Two consequences worth knowing before you move code. **The size and complexity bars are
+enforced by measurement, not taste** — no module over 500 lines, no block above
+cyclomatic C(12), every maintainability index ≥ 40 (`uvx radon cc plugin/scripts -s -n C`,
+`uvx radon mi plugin/scripts -s`). And the 1:1 test-layout rule binds these modules too,
+so extracting one is never a one-file change: it needs its own `test__<name>.py`.
+
 **Script path convention.** Commands invoke scripts as
 `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py"` — keep the quotes. In a source checkout
 that variable is empty, so prose should offer the repo-relative fallback.

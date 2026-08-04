@@ -425,9 +425,9 @@ def test_e2e_a_synced_go_module_has_a_discoverable_version_location(go_synced_re
     `.bumpversion.toml` at the root, and `/rhiza:release` — which passes no
     `--config-file` — depends on that being true.
     """
-    import init_skeleton
+    import _skeleton_version
 
-    assert init_skeleton.bumpversion_config(go_synced_repo) == ".bumpversion.toml"
+    assert _skeleton_version.bumpversion_config(go_synced_repo) == ".bumpversion.toml"
 
     body = (go_synced_repo / ".bumpversion.toml").read_text()
     assert 'filename = "internal/version/version.go"' in body
@@ -483,9 +483,9 @@ def test_e2e_a_synced_crate_has_a_discoverable_version_location(rust_synced_repo
     `bump-my-version` auto-discovers four filenames and `/rhiza:release` passes no
     `--config-file`, so a config anywhere else is silently ignored.
     """
-    import init_skeleton
+    import _skeleton_version
 
-    assert init_skeleton.bumpversion_config(rust_synced_repo) == ".bumpversion.toml"
+    assert _skeleton_version.bumpversion_config(rust_synced_repo) == ".bumpversion.toml"
 
     body = (rust_synced_repo / ".bumpversion.toml").read_text()
     assert 'filename = "Cargo.toml"' in body

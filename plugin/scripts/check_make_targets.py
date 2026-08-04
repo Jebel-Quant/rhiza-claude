@@ -171,6 +171,50 @@ def target_exists(target_dir: Path, target: str) -> bool:
     return result.returncode == 0
 
 
+def _probe_notes(available: list[str], unavailable: list[str], undeclared: list[str]) -> list[str]:
+    """Build the guidance notes for a completed probe.
+
+    Every note here exists to stop a *scoring* mistake rather than to describe the repo:
+    an absent target is out-of-scope, never a FAIL, and a repo whose real gates sit under
+    other names must not be reported as unscoreable.
+    """
+    notes: list[str] = []
+    if unavailable:
+        notes.append(
+            f"{len(unavailable)} target(s) not defined for this profile — score them "
+            "out-of-scope, never FAIL: " + ", ".join(unavailable)
+        )
+    if not available:
+        notes.append("no gate is available — check that the template sync completed")
+
+    if not (undeclared and unavailable):
+        return notes
+
+    # Deliberately "most missing" rather than "all missing": a Go or Rust template will
+    # almost certainly define `test`, so requiring zero matches would keep the hint
+    # hidden from exactly the repos it exists for.
+    if len(unavailable) > len(available):
+        notes.append(
+            f"most named gates are absent, but this repo documents {len(undeclared)} "
+            "other target(s). If this is a Go, Rust or non-standard template, those are "
+            "its real gates — run the relevant ones from `undeclared` and score them, "
+            "rather than reporting that nothing could be checked."
+        )
+    else:
+        # The milder case, which a synced Rust repo really hits: most named gates resolve
+        # (`fmt`, `test`, `typecheck` are named the same in every language layer) while the
+        # one that doesn't has a differently-named analogue sitting in `undeclared` —
+        # `deptry` is absent and `deps` is right there. Scoring the absent one out-of-scope
+        # and stopping would silently skip a gate the repo does provide.
+        notes.append(
+            f"{len(unavailable)} named gate(s) are absent while this repo documents "
+            f"{len(undeclared)} other target(s) — check `undeclared` for the equivalent "
+            "under a different name (a Rust repo's `deps` is the `deptry` analogue) and "
+            "score that instead of skipping the concern."
+        )
+    return notes
+
+
 def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
     """Probe every gate target named in *command_file*; return a summary dict."""
     targets = gate_targets(command_file)
@@ -206,36 +250,6 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
     # usually noise (`book`, `clean`); on a Go or Rust one it is where the real gates
     # are, because the prose list describes a template this repo isn't using.
     undeclared = sorted(name for name in documented if name not in targets)
-    notes: list[str] = []
-    if unavailable:
-        notes.append(
-            f"{len(unavailable)} target(s) not defined for this profile — score them "
-            "out-of-scope, never FAIL: " + ", ".join(unavailable)
-        )
-    if not available:
-        notes.append("no gate is available — check that the template sync completed")
-    # Deliberately "most missing" rather than "all missing": a Go or Rust template will
-    # almost certainly define `test`, so requiring zero matches would keep the hint
-    # hidden from exactly the repos it exists for.
-    if undeclared and len(unavailable) > len(available):
-        notes.append(
-            f"most named gates are absent, but this repo documents {len(undeclared)} "
-            "other target(s). If this is a Go, Rust or non-standard template, those are "
-            "its real gates — run the relevant ones from `undeclared` and score them, "
-            "rather than reporting that nothing could be checked."
-        )
-    # The milder case, which a synced Rust repo really hits: most named gates resolve
-    # (`fmt`, `test`, `typecheck` are named the same in every language layer) while the
-    # one that doesn't has a differently-named analogue sitting in `undeclared` —
-    # `deptry` is absent and `deps` is right there. Scoring the absent one out-of-scope
-    # and stopping would silently skip a gate the repo does provide.
-    elif undeclared and unavailable:
-        notes.append(
-            f"{len(unavailable)} named gate(s) are absent while this repo documents "
-            f"{len(undeclared)} other target(s) — check `undeclared` for the equivalent "
-            "under a different name (a Rust repo's `deps` is the `deptry` analogue) and "
-            "score that instead of skipping the concern."
-        )
 
     return {
         "targets": targets,
@@ -243,7 +257,7 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
         "unavailable": unavailable,
         "undeclared": undeclared,
         "documented": documented,
-        "notes": notes,
+        "notes": _probe_notes(available, unavailable, undeclared),
         "exit_code": EXIT_OK,
     }
 

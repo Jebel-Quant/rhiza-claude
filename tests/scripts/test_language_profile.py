@@ -11,9 +11,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+import _validate_structure
 import language_profile as lp
 import pytest
-import validate
 
 
 class TestLanguage:
@@ -50,11 +50,11 @@ def test_every_known_language_has_the_facts_the_consumers_read():
 def test_the_registry_covers_every_language_validate_can_validate():
     """The drift this module exists to prevent, asserted directly.
 
-    `validate.py` decides which languages `/rhiza:init` accepts. A language it
-    validates but this registry has never heard of is exactly the half-taught axis
-    that made a Go repo score as broken.
+    `_validate_structure.VALIDATORS` decides which languages `/rhiza:init` accepts. A
+    language it validates but this registry has never heard of is exactly the half-taught
+    axis that made a Go repo score as broken.
     """
-    assert set(validate._VALIDATORS) <= set(lp.languages())
+    assert set(_validate_structure.VALIDATORS) <= set(lp.languages())
 
 
 def test_resolve_is_case_insensitive_and_accepts_aliases():

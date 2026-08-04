@@ -41,8 +41,12 @@ documents — none of which appear in rhiza template files.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_yaml_parse import parse_subset, scalar  # noqa: E402
 
 try:
     import yaml as _pyyaml
@@ -54,7 +58,6 @@ except ModuleNotFoundError:  # pragma: no cover - the runtime case; tests instal
 _TIMESTAMP = re.compile(
     r"^\d{4}-\d{1,2}-\d{1,2}([Tt ]\d{1,2}:\d{1,2}:\d{1,2}(\.\d+)?([Zz]|[+-]\d{1,2}(:\d{1,2})?)?)?$"
 )
-_BLOCK_SCALAR_INDICATORS = {"|", ">", "|-", ">-", "|+", ">+"}
 
 # --- keeping the two readers in agreement ------------------------------------
 #
@@ -83,7 +86,7 @@ _STRICT_INT = re.compile(r"^[-+]?[0-9]+$")
 
 
 def _build_loader() -> Any:
-    """Return a PyYAML loader whose scalars resolve the way `_scalar` does.
+    """Return a PyYAML loader whose scalars resolve the way `scalar` does.
 
     Implemented by editing the implicit-resolver table rather than post-processing the
     result, because post-processing cannot tell an unquoted ``true`` from a quoted
@@ -113,7 +116,7 @@ def _build_loader() -> Any:
     # Resolving the tag is only half of it: PyYAML's int *constructor* still reads a
     # leading zero as octal, so `0755` came back as 493 even once the resolver was
     # restricted to decimal. `_STRICT_INT` has already guaranteed the token is plain
-    # decimal, so `int()` is both safe here and exactly what `_scalar` does.
+    # decimal, so `int()` is both safe here and exactly what `scalar` does.
     _RhizaLoader.add_constructor(
         "tag:yaml.org,2002:int",
         lambda loader, node: int(loader.construct_scalar(node)),
@@ -155,7 +158,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
         if not isinstance(data, dict):
             raise ValueError("top-level YAML is not a mapping")
         return data
-    return _parse_subset(text)
+    return parse_subset(text)
 
 
 def dump_yaml(data: dict[str, Any], path: Path) -> None:
@@ -202,7 +205,7 @@ def _needs_quote(text: str) -> bool:
     """Return True when *text* must be single-quoted to survive a round-trip."""
     if text == "":
         return True
-    if _scalar(text) != text:
+    if scalar(text) != text:
         # Would be re-read as bool/int/None/list/flow-map rather than a string.
         return True
     if _TIMESTAMP.match(text) or _is_float(text):
@@ -221,176 +224,6 @@ def _is_float(text: str) -> bool:
     except ValueError:
         return False
     return True
-
-
-def _strip_comment(value: str) -> str:
-    """Drop a trailing ``# comment`` that sits outside any quotes."""
-    quote: str | None = None
-    for i, ch in enumerate(value):
-        if quote:
-            if ch == quote:
-                quote = None
-        elif ch in ("'", '"'):
-            quote = ch
-        elif ch == "#" and (i == 0 or value[i - 1] in " \t"):
-            return value[:i]
-    return value
-
-
-def _split_flow(inner: str) -> list[str]:
-    """Split the body of an inline ``[a, b, c]`` list on top-level commas."""
-    items: list[str] = []
-    buf = ""
-    quote: str | None = None
-    for ch in inner:
-        if quote:
-            buf += ch
-            if ch == quote:
-                quote = None
-        elif ch in ("'", '"'):
-            quote = ch
-            buf += ch
-        elif ch == ",":
-            items.append(buf)
-            buf = ""
-        else:
-            buf += ch
-    if buf.strip():
-        items.append(buf)
-    return items
-
-
-def _flow_map(inner: str) -> dict[str, Any]:
-    """Parse the body of an inline ``{a: x, b: y}`` mapping into a dict."""
-    result: dict[str, Any] = {}
-    for part in _split_flow(inner):
-        key, sep, rest = part.partition(":")
-        if sep:
-            result[key.strip()] = _scalar(rest.strip())
-    return result
-
-
-def _scalar(raw: str) -> Any:
-    """Coerce a scalar token to str/int/bool/None/list/dict, honouring quotes."""
-    s = raw.strip()
-    if not s:
-        return None
-    if (s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'"):
-        return s[1:-1]
-    if s.startswith("[") and s.endswith("]"):
-        body = s[1:-1].strip()
-        return [_scalar(x) for x in _split_flow(body)] if body else []
-    if s.startswith("{") and s.endswith("}"):
-        return _flow_map(s[1:-1].strip())
-    low = s.lower()
-    if low in ("null", "~"):
-        return None
-    if low in ("true", "false"):
-        return low == "true"
-    try:
-        return int(s)
-    except ValueError:
-        return s
-
-
-def _indent_of(line: str) -> int:
-    """Return the number of leading spaces on *line*."""
-    return len(line) - len(line.lstrip(" "))
-
-
-def _next_content(lines: list[str], i: int) -> int:
-    """Return the index of the next non-blank, non-comment line at or after *i*."""
-    while i < len(lines):
-        stripped = lines[i].strip()
-        if stripped and not stripped.startswith("#"):
-            return i
-        i += 1
-    return len(lines)
-
-
-def _parse_subset(text: str) -> dict[str, Any]:
-    """Parse the nested scalar/list/mapping YAML subset rhiza files use."""
-    lines = text.splitlines()
-    value, _ = _parse_map(lines, _next_content(lines, 0), 0)
-    return value
-
-
-def _parse_map(lines: list[str], i: int, indent: int) -> tuple[dict[str, Any], int]:
-    """Parse a block mapping whose keys sit at *indent*, returning it and the next index."""
-    data: dict[str, Any] = {}
-    while True:
-        i = _next_content(lines, i)
-        if i >= len(lines) or _indent_of(lines[i]) < indent:
-            break
-        stripped = lines[i].strip()
-        if stripped.startswith("- ") or stripped == "-":
-            break  # a sequence at this level is not part of a mapping
-        if ":" not in stripped:
-            i += 1  # tolerate a stray non-mapping line, as the CLI reader does
-            continue
-        key, _, rest = stripped.partition(":")
-        key = key.strip()
-        rest = _strip_comment(rest).strip()
-        i += 1
-        if rest in _BLOCK_SCALAR_INDICATORS:
-            data[key], i = _parse_block_scalar(lines, i, indent)
-        elif rest == "":
-            data[key], i = _parse_child(lines, i, indent)
-        else:
-            data[key] = _scalar(rest)
-    return data, i
-
-
-def _parse_child(lines: list[str], i: int, parent_indent: int) -> tuple[Any, int]:
-    """Parse the value introduced by a bare ``key:`` line, or ``None`` when absent."""
-    j = _next_content(lines, i)
-    if j >= len(lines):
-        return None, i
-    child_indent = _indent_of(lines[j])
-    child = lines[j].strip()
-    is_seq = child.startswith("- ") or child == "-"
-    # Block sequences may sit at the parent's indent (zero-indent style); block
-    # mappings must be strictly deeper.
-    if is_seq and child_indent >= parent_indent:
-        return _parse_seq(lines, j, child_indent)
-    if not is_seq and child_indent > parent_indent:
-        return _parse_map(lines, j, child_indent)
-    return None, i
-
-
-def _parse_seq(lines: list[str], i: int, indent: int) -> tuple[list[Any], int]:
-    """Parse a block sequence whose ``- `` items sit at *indent*."""
-    items: list[Any] = []
-    while True:
-        i = _next_content(lines, i)
-        if i >= len(lines) or _indent_of(lines[i]) < indent:
-            break
-        stripped = lines[i].strip()
-        if not (stripped.startswith("- ") or stripped == "-"):
-            break
-        item = "" if stripped == "-" else stripped[2:]
-        item = _strip_comment(item).strip()
-        if item and item[0] not in "[{'\"" and re.match(r"[^:\s]+:(\s|$)", item):
-            # A block mapping under this item: reparse from the "- " column.
-            lines[i] = lines[i].replace("- ", "  ", 1)
-            value, i = _parse_map(lines, i, _indent_of(lines[i]))
-            items.append(value)
-        else:
-            items.append(_scalar(item))
-            i += 1
-    return items, i
-
-
-def _parse_block_scalar(lines: list[str], i: int, parent_indent: int) -> tuple[str, int]:
-    """Consume the indented body of a ``key: |`` block scalar into a string."""
-    body: list[str] = []
-    while i < len(lines):
-        line = lines[i]
-        if line.strip() and _indent_of(line) <= parent_indent:
-            break
-        body.append(line.strip())
-        i += 1
-    return "\n".join(body).strip(), i
 
 
 def as_list(value: Any) -> list[str]:

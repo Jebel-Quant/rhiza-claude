@@ -21,6 +21,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_toml import rejoin, require_table  # noqa: E402
+
 # Python minor versions we standardise on (oldest → newest).
 KNOWN_PY_VERSIONS = ("3.11", "3.12", "3.13", "3.14")
 _PY_CLASSIFIER = re.compile(r"^Programming Language :: Python :: 3(\.\d+)?$")
@@ -40,19 +43,6 @@ def python_version_classifiers(python_version: str) -> list[str]:
     return [f"Programming Language :: Python :: {v}" for v in KNOWN_PY_VERSIONS[start:]]
 
 
-def _project_block(lines: list[str]) -> tuple[int, int]:
-    """Return ``(header_idx, end_idx)`` bounding the ``[project]`` table body."""
-    header = next((i for i, line in enumerate(lines) if line.strip() == "[project]"), None)
-    if header is None:
-        raise ValueError("pyproject.toml has no [project] table")
-    end = len(lines)
-    for i in range(header + 1, len(lines)):
-        if lines[i].lstrip().startswith("["):
-            end = i
-            break
-    return header, end
-
-
 def _classifiers_span(lines: list[str], header: int, end: int) -> tuple[int, int] | None:
     """Return ``(start, stop)`` line indices of the ``classifiers = [...]`` array, or None."""
     for i in range(header + 1, end):
@@ -66,6 +56,49 @@ def _classifiers_span(lines: list[str], header: int, end: int) -> tuple[int, int
     return None
 
 
+def _classifiers_block(classifiers: list[str]) -> list[str]:
+    """Render a ``classifiers = [...]`` array as the lines it occupies."""
+    return ["classifiers = ["] + [f'    "{c}",' for c in classifiers] + ["]"]
+
+
+def _apply_requires_python(lines: list[str], header: int, end: int, python_version: str) -> bool:
+    """Pin ``requires-python`` in place, inserting it when absent; return whether it moved."""
+    wanted = f'requires-python = ">={python_version}"'
+    pattern = re.compile(r"^\s*requires-python\s*=")
+    for i in range(header + 1, end):
+        if not pattern.match(lines[i]):
+            continue
+        if lines[i] == wanted:
+            return False
+        lines[i] = wanted
+        return True
+    lines.insert(header + 1, wanted)
+    return True
+
+
+def _apply_classifiers(lines: list[str], header: int, end: int, wanted: list[str]) -> bool:
+    """Merge *wanted* into ``[project].classifiers``; return whether anything changed.
+
+    Non-Python classifiers are preserved and keep their order — only the
+    ``Programming Language :: Python :: X.Y`` entries are swapped for the supported range,
+    since those are the ones this script owns.
+    """
+    span = _classifiers_span(lines, header, end)
+    if span is None:
+        lines[header + 1 : header + 1] = _classifiers_block(wanted)
+        return True
+
+    start, stop = span
+    existing = re.findall(r'"([^"]*)"', "\n".join(lines[start : stop + 1]))
+    kept = [entry for entry in existing if not _PY_CLASSIFIER.match(entry)]
+    # `dict.fromkeys` dedupes while preserving first-seen order.
+    rebuilt = _classifiers_block(list(dict.fromkeys([*kept, *wanted])))
+    if rebuilt == lines[start : stop + 1]:
+        return False
+    lines[start : stop + 1] = rebuilt
+    return True
+
+
 def apply_python_metadata(text: str, python_version: str) -> tuple[str, list[str]]:
     """Pin ``requires-python`` and rewrite Python version classifiers in ``[project]``.
 
@@ -73,48 +106,19 @@ def apply_python_metadata(text: str, python_version: str) -> tuple[str, list[str
     version classifiers are replaced with the supported range while any other
     classifiers are preserved. Returns ``(new_text, changes)``.
     """
-    new_classifiers = python_version_classifiers(python_version)
     lines = text.splitlines()
-    header, end = _project_block(lines)
     changes: list[str] = []
 
-    # requires-python — replace in place, else insert.
-    rp_line = f'requires-python = ">={python_version}"'
-    rp_pat = re.compile(r"^\s*requires-python\s*=")
-    for i in range(header + 1, end):
-        if rp_pat.match(lines[i]):
-            if lines[i] != rp_line:
-                lines[i] = rp_line
-                changes.append("requires-python")
-            break
-    else:
-        lines.insert(header + 1, rp_line)
+    header, end = require_table(lines, "project", "pyproject.toml")
+    if _apply_requires_python(lines, header, end, python_version):
         changes.append("requires-python")
 
-    # classifiers — merge: keep non-Python entries, swap in the new Python range.
-    header, end = _project_block(lines)
-    span = _classifiers_span(lines, header, end)
-    if span is None:
-        block = ["classifiers = ["] + [f'    "{c}",' for c in new_classifiers] + ["]"]
-        lines[header + 1 : header + 1] = block
+    # Re-bound the table: inserting `requires-python` shifted every index after it.
+    header, end = require_table(lines, "project", "pyproject.toml")
+    if _apply_classifiers(lines, header, end, python_version_classifiers(python_version)):
         changes.append("classifiers")
-    else:
-        start, stop = span
-        existing = re.findall(r'"([^"]*)"', "\n".join(lines[start : stop + 1]))
-        kept = [e for e in existing if not _PY_CLASSIFIER.match(e)]
-        merged: list[str] = []
-        for entry in [*kept, *new_classifiers]:
-            if entry not in merged:
-                merged.append(entry)
-        rebuilt = ["classifiers = ["] + [f'    "{c}",' for c in merged] + ["]"]
-        if rebuilt != lines[start : stop + 1]:
-            lines[start : stop + 1] = rebuilt
-            changes.append("classifiers")
 
-    new_text = "\n".join(lines)
-    if text.endswith("\n"):
-        new_text += "\n"
-    return new_text, changes
+    return rejoin(text, lines), changes
 
 
 def set_python_version(target: Path, *, python_version: str) -> dict[str, Any]:

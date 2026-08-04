@@ -48,6 +48,21 @@ EXIT_GIT_ERROR = 2
 _BATCH = 100
 
 
+class GitFailed(Exception):
+    """A git invocation exited non-zero, carrying the stderr to report.
+
+    Every git call here is a step in one sequence, and any failure has the same outcome:
+    stage nothing further and report EXIT_GIT_ERROR. Raising lets :func:`stage_synced`
+    say that once instead of guarding each call — the four hand-written guards it
+    replaced were most of that function's branching.
+    """
+
+    def __init__(self, stderr: str) -> None:
+        """Record the *stderr* git wrote."""
+        super().__init__(stderr)
+        self.stderr = stderr
+
+
 def _git(target: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run one git command in *target*, capturing text output."""
     env = os.environ.copy()
@@ -60,6 +75,21 @@ def _git(target: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         env=env,
         check=False,
     )
+
+
+def _git_output(target: Path, args: list[str]) -> str:
+    """Run one git command in *target* and return its stdout, or raise :class:`GitFailed`."""
+    result = _git(target, args)
+    if result.returncode != 0:
+        raise GitFailed(result.stderr)
+    return result.stdout
+
+
+def _porcelain(target: Path) -> list[str]:
+    """Return the non-blank lines of ``git status --porcelain`` in *target*."""
+    return [
+        line for line in _git_output(target, ["status", "--porcelain"]).splitlines() if line.strip()
+    ]
 
 
 def lock_files(lock_path: Path) -> list[str]:
@@ -98,6 +128,44 @@ def deleted_paths(porcelain: list[str]) -> set[str]:
     return {line[3:].strip() for line in porcelain if len(line) >= 4 and "D" in line[:2]}
 
 
+def wanted_paths(target: Path, lock_path: Path, deleted: set[str]) -> list[str]:
+    """Return the paths to stage: the config paths plus the lock's ``files``.
+
+    Deduped, order-stable, and limited to paths git can actually match — on disk, or
+    tracked-and-deleted. A stale lock entry that is neither would make ``git add`` fail on
+    the whole batch, so one dead entry must not cost the entire sync.
+    """
+    wanted: list[str] = []
+    for path in (*_CONFIG_PATHS, *lock_files(lock_path)):
+        if path in wanted:
+            continue
+        if (target / path).exists() or path in deleted:
+            wanted.append(path)
+    return wanted
+
+
+def _add_in_batches(target: Path, wanted: list[str]) -> None:
+    """Stage *wanted* in bounded batches, raising :class:`GitFailed` on any failure.
+
+    ``--all`` so upstream deletions stage as deletions, not just adds and modifications.
+    """
+    for start in range(0, len(wanted), _BATCH):
+        _git_output(target, ["add", "--all", "--", *wanted[start : start + _BATCH]])
+
+
+def _notes_for(staged: list[str], left: list[str]) -> list[str]:
+    """Return the human-readable notes for a completed staging run."""
+    notes: list[str] = []
+    if left:
+        notes.append(
+            f"{len(left)} path(s) left unstaged — not template-owned, "
+            "so they stay in the working tree"
+        )
+    if not staged:
+        notes.append("nothing to stage — the sync changed no template files")
+    return notes
+
+
 def stage_synced(target: Path) -> dict[str, Any]:
     """Stage the template-owned paths at *target*; return a summary dict."""
     lock_path = target / ".rhiza" / "template.lock"
@@ -109,51 +177,19 @@ def stage_synced(target: Path) -> dict[str, Any]:
             "exit_code": EXIT_NO_LOCK,
         }
 
-    status = _git(target, ["status", "--porcelain"])
-    if status.returncode != 0:
-        return _git_error(status.stderr)
-    porcelain = [line for line in status.stdout.splitlines() if line.strip()]
-    deleted = deleted_paths(porcelain)
-
-    # The lock's `files` plus the config paths: deduped, order-stable, and limited
-    # to paths git can actually match (on disk, or tracked-and-deleted). A stale
-    # lock entry that is neither would make `git add` fail on the whole batch.
-    wanted: list[str] = []
-    for path in (*_CONFIG_PATHS, *lock_files(lock_path)):
-        if path in wanted:
-            continue
-        if (target / path).exists() or path in deleted:
-            wanted.append(path)
-
-    # `--all` so upstream deletions stage as deletions, not just adds/modifications.
-    for start in range(0, len(wanted), _BATCH):
-        result = _git(target, ["add", "--all", "--", *wanted[start : start + _BATCH]])
-        if result.returncode != 0:
-            return _git_error(result.stderr)
-
-    staged = _git(target, ["diff", "--cached", "--name-only"])
-    if staged.returncode != 0:
-        return _git_error(staged.stderr)
-    staged_paths = sorted(p for p in staged.stdout.splitlines() if p.strip())
-
-    after = _git(target, ["status", "--porcelain"])
-    if after.returncode != 0:
-        return _git_error(after.stderr)
-    left = unstaged_paths([line for line in after.stdout.splitlines() if line.strip()])
-
-    notes: list[str] = []
-    if left:
-        notes.append(
-            f"{len(left)} path(s) left unstaged — not template-owned, "
-            "so they stay in the working tree"
-        )
-    if not staged_paths:
-        notes.append("nothing to stage — the sync changed no template files")
+    try:
+        deleted = deleted_paths(_porcelain(target))
+        _add_in_batches(target, wanted_paths(target, lock_path, deleted))
+        staged_out = _git_output(target, ["diff", "--cached", "--name-only"])
+        staged_paths = sorted(p for p in staged_out.splitlines() if p.strip())
+        left = unstaged_paths(_porcelain(target))
+    except GitFailed as exc:
+        return _git_error(exc.stderr)
 
     return {
         "staged": staged_paths,
         "unstaged": left,
-        "notes": notes,
+        "notes": _notes_for(staged_paths, left),
         "exit_code": EXIT_OK,
     }
 

@@ -1,96 +1,20 @@
-"""Tests for the dependency-free YAML subset reader (`scripts/_rhiza_yaml.py`)."""
+"""Tests for the YAML read/write facade (`scripts/_rhiza_yaml.py`).
+
+Three concerns live here: the public `load_yaml` contract, the emitter, and — the reason
+this module is interesting — the **parity checks** that hold its two readers to each other.
+PyYAML applies YAML 1.1 implicit resolution while the subset parser applies something close
+to YAML 1.2 core, so the same file once produced different answers depending only on
+whether PyYAML happened to be importable. The subset parser's own coercion rules are
+asserted in `test__rhiza_yaml_parse.py`.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 import _rhiza_yaml as y
+import _rhiza_yaml_parse as yp
 import pytest
-
-
-@pytest.mark.parametrize(
-    ("raw", "expected"),
-    [
-        ('"quoted"', "quoted"),
-        ("'single'", "single"),
-        ("bare", "bare"),
-        ("42", 42),
-        ("true", True),
-        ("False", False),
-        ("null", None),
-        ("~", None),
-        ("[]", []),
-        ("[a, b, c]", ["a", "b", "c"]),
-        ('["x", y]', ["x", "y"]),
-        ("v1.2.3", "v1.2.3"),  # dotted version stays a string, not an int
-    ],
-)
-def test_scalar_coercion(raw, expected):
-    assert y._scalar(raw) == expected
-
-
-def test_strip_comment_outside_quotes():
-    assert y._strip_comment("value  # trailing").strip() == "value"
-    # a '#' inside quotes is part of the value, not a comment
-    assert y._strip_comment('"a#b"') == '"a#b"'
-    # a '#' with no leading whitespace is not a comment marker
-    assert y._strip_comment("a#b") == "a#b"
-
-
-def test_split_flow_respects_quotes():
-    assert y._split_flow("a, b, c") == ["a", " b", " c"]
-    assert y._split_flow('"a, b", c') == ['"a, b"', " c"]
-
-
-def test_parse_subset_block_sequence():
-    text = "templates:\n  - core\n  - tests\n"
-    assert y._parse_subset(text) == {"templates": ["core", "tests"]}
-
-
-def test_parse_subset_zero_indent_sequence():
-    # lock files write list items at column 0 under the key
-    text = "files:\n- a\n- b\n"
-    assert y._parse_subset(text) == {"files": ["a", "b"]}
-
-
-def test_parse_subset_scalars_and_comments():
-    text = '# leading comment\nrepository: "owner/repo"\nref: v1.1.3\n\ninclude: []\n'
-    assert y._parse_subset(text) == {
-        "repository": "owner/repo",
-        "ref": "v1.1.3",
-        "include": [],
-    }
-
-
-def test_parse_subset_bare_key_is_null():
-    # a key with no value and no following items is null
-    assert y._parse_subset("language:\n") == {"language": None}
-
-
-def test_load_yaml_missing_file(tmp_path):
-    with pytest.raises(OSError):
-        y.load_yaml(tmp_path / "nope.yml")
-
-
-def test_load_yaml_empty_returns_empty_dict(tmp_path):
-    f = tmp_path / "empty.yml"
-    f.write_text("# just a comment\n")
-    assert y.load_yaml(f) == {}
-
-
-def test_scalar_variants():
-    assert y._scalar("") is None  # empty → None
-    assert y._scalar('"q"') == "q"
-    assert y._scalar("[a, b]") == ["a", "b"]
-    assert y._scalar("null") is None
-    assert y._scalar("true") is True
-    assert y._scalar("42") == 42
-    assert y._scalar("bare") == "bare"
-
-
-def test_parse_subset_skips_line_without_colon():
-    d = y._parse_subset("key: v\nlineWithoutColon\n")
-    assert d == {"key": "v"}
 
 
 @pytest.mark.skipif(y._pyyaml is None, reason="exercises the real PyYAML arm")
@@ -113,89 +37,6 @@ def test_load_yaml_with_pyyaml(tmp_path):
         y.load_yaml(f)
 
 
-# --- scalar/flow-map extensions -------------------------------------------------
-
-
-def test_scalar_flow_map():
-    assert y._scalar("{source: a, dest: b}") == {"source": "a", "dest": "b"}
-    assert y._scalar("{}") == {}
-
-
-def test_flow_map_ignores_entries_without_colon():
-    assert y._flow_map("source: a, bogus") == {"source": "a"}
-
-
-# --- nested parser --------------------------------------------------------------
-
-
-def test_parse_nested_mapping():
-    text = (
-        "bundles:\n  core:\n    required: true\n    requires: [base]\n"
-        "  base:\n    standalone: true\n"
-    )
-    assert y._parse_subset(text) == {
-        "bundles": {
-            "core": {"required": True, "requires": ["base"]},
-            "base": {"standalone": True},
-        }
-    }
-
-
-def test_parse_profile_with_block_sequence():
-    text = "profiles:\n  std:\n    description: Std\n    bundles:\n      - core\n      - tests\n"
-    assert y._parse_subset(text) == {
-        "profiles": {"std": {"description": "Std", "bundles": ["core", "tests"]}}
-    }
-
-
-def test_parse_block_scalar_is_consumed_not_misparsed():
-    # The `- Documentation` line inside a `|` block must NOT become a sequence.
-    text = (
-        "book:\n"
-        "  description: |\n"
-        "    Docs combining:\n"
-        "    - a site\n"
-        "    - notebooks\n"
-        "  standalone: true\n"
-        "  requires:\n"
-        "    - core\n"
-    )
-    result = y._parse_subset(text)
-    assert result["book"]["standalone"] is True
-    assert result["book"]["requires"] == ["core"]
-    assert "a site" in result["book"]["description"]
-
-
-def test_parse_block_form_list_of_maps():
-    text = "files:\n  - source: a\n    dest: b\n  - source: c\n"
-    assert y._parse_subset(text) == {"files": [{"source": "a", "dest": "b"}, {"source": "c"}]}
-
-
-def test_parse_inline_flow_map_list_item():
-    text = "files:\n  - {source: a, dest: b}\n"
-    assert y._parse_subset(text) == {"files": [{"source": "a", "dest": "b"}]}
-
-
-def test_parse_bare_seq_item_is_none():
-    text = "items:\n  -\n  - x\n"
-    assert y._parse_subset(text) == {"items": [None, "x"]}
-
-
-def test_parse_dedent_ends_nested_block():
-    text = "a:\n  x: 1\nb: 2\n"
-    assert y._parse_subset(text) == {"a": {"x": 1}, "b": 2}
-
-
-def test_parse_top_level_sequence_yields_empty_map():
-    # A document that starts with a sequence is not a mapping -> {}.
-    assert y._parse_subset("- a\n- b\n") == {}
-
-
-def test_parse_bare_key_before_sibling_key_is_null():
-    # `a:` with the next line a sibling key (same indent) leaves `a` as null.
-    assert y._parse_subset("a:\nb: 2\n") == {"a": None, "b": 2}
-
-
 # --- dump / emit ----------------------------------------------------------------
 
 
@@ -216,7 +57,7 @@ def test_dumps_yaml_layout_and_roundtrip():
     assert "include: []" in text
     assert "exclude:\n- a/b.yml" in text
     assert "synced_at: '2026-07-13T10:00:00Z'" in text  # timestamp must be quoted
-    assert y._parse_subset(text) == lock  # round-trips through the subset parser
+    assert yp.parse_subset(text) == lock  # round-trips through the subset parser
 
 
 def test_dumps_yaml_empty_dict():
@@ -274,16 +115,6 @@ def test_as_list(value: Any, expected: list[str]) -> None:
     assert y.as_list(value) == expected
 
 
-# --- branch coverage: the arms line coverage could not see ---------------------
-
-
-def test_a_block_scalar_running_to_the_end_of_the_document(tmp_path):
-    """The scan exhausts the file instead of breaking on a dedented line."""
-    path = tmp_path / "t.yml"
-    path.write_text("name: x\nnotes: |\n  first\n  second\n")
-    assert y.load_yaml(path)["notes"] == "first\nsecond"
-
-
 # --- the two readers must agree ------------------------------------------------
 #
 # `load_yaml` has two implementations behind it and they used to disagree, invisibly:
@@ -319,7 +150,7 @@ def test_both_readers_agree_on_a_scalar_yaml_1_1_would_coerce(tmp_path, text, ke
     path.write_text(text)
     via_pyyaml = y.load_yaml(path)
     assert via_pyyaml[key] == expected
-    assert via_pyyaml == y._parse_subset(text)
+    assert via_pyyaml == yp.parse_subset(text)
 
 
 @_pyyaml_only
@@ -341,7 +172,7 @@ def test_the_two_readers_agree_on_a_whole_pointer_file(tmp_path):
     )
     path = tmp_path / "template.yml"
     path.write_text(text)
-    assert y.load_yaml(path) == y._parse_subset(text)
+    assert y.load_yaml(path) == yp.parse_subset(text)
 
 
 @_pyyaml_only
@@ -357,7 +188,7 @@ def test_a_quoted_scalar_is_not_coerced_by_either_reader(tmp_path):
     path.write_text(text)
     loaded = y.load_yaml(path)
     assert loaded == {"a": "true", "b": True, "c": "1.20"}
-    assert loaded == y._parse_subset(text)
+    assert loaded == yp.parse_subset(text)
 
 
 @_pyyaml_only
@@ -391,7 +222,7 @@ def test_both_readers_agree_on_a_block_scalar(tmp_path):
     path = tmp_path / "t.yml"
     path.write_text(text)
     assert y.load_yaml(path)["notes"] == "first\nsecond"
-    assert y.load_yaml(path) == y._parse_subset(text)
+    assert y.load_yaml(path) == yp.parse_subset(text)
 
 
 @_pyyaml_only
@@ -416,3 +247,24 @@ def test_a_damaged_document_raises_the_error_callers_actually_catch(tmp_path):
     path.write_text("\t: not: valid: yaml: [\n")
     with pytest.raises(ValueError, match="could not parse YAML"):
         y.load_yaml(path)
+
+
+def test_load_yaml_missing_file(tmp_path):
+    with pytest.raises(OSError):
+        y.load_yaml(tmp_path / "nope.yml")
+
+
+def test_load_yaml_empty_returns_empty_dict(tmp_path):
+    f = tmp_path / "empty.yml"
+    f.write_text("# just a comment\n")
+    assert y.load_yaml(f) == {}
+
+
+# --- branch coverage: the arms line coverage could not see ---------------------
+
+
+def test_a_block_scalar_running_to_the_end_of_the_document(tmp_path):
+    """The scan exhausts the file instead of breaking on a dedented line."""
+    path = tmp_path / "t.yml"
+    path.write_text("name: x\nnotes: |\n  first\n  second\n")
+    assert y.load_yaml(path)["notes"] == "first\nsecond"
