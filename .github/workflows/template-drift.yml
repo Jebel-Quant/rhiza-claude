@@ -29,21 +29,33 @@ concurrency:
 jobs:
   drift:
     name: e2e against the latest template
+    # CI budget: ≤30 min. The e2e-only run is a subset of `make test`, but every
+    # fixture in it clones the template — this is the network-heaviest job here.
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write  # to raise the finding where it will be seen
     steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # The issue-filing step below authenticates with GH_TOKEN in its own env, not with
+      # a persisted git credential.
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       - name: Report the pinned ref against the latest release
         id: refs
@@ -62,8 +74,17 @@ jobs:
       # Does the latest release still define every profile `/rhiza:init` writes? A
       # withdrawn or renamed profile is the one drift that cannot be caught by syncing,
       # because it stops the sync before it starts — and it lands on users at their first
-      # `/rhiza:update`, not at `/init`. The e2e run below covers `rust-local` and the
-      # Python pair; this covers all of them, including profiles no fixture syncs.
+      # `/rhiza:update`, not at `/init`. The e2e run below reaches every profile a fixture
+      # syncs; this covers all of them, including profiles no fixture syncs, and reports a
+      # withdrawal as one clear line rather than as a fixture failing to build.
+      #
+      # The list must name every profile `init_scaffold.py`'s `_PROFILES` table can write —
+      # all four of `github-project`, `gitlab-project`, `rust-local`, `go-local`. Add a
+      # language there and it belongs here too: `go-local` was once absent, and the effect
+      # was that a withdrawn Go profile surfaced only as the Go fixture failing to build
+      # minutes later, which is the illegible version of the same news.
+      # `local` is checked as well and is the one exception: no `/rhiza:init` path writes
+      # it, but a hand-written pointer can name it, so it stays.
       # Exit 1 (a profile is missing) fails the job and files the finding below. Exit 2
       # (the template could not be read) must not: a network blip is not upstream
       # withdrawing a profile, and filing a drift issue for it is how a weekly job earns
@@ -75,7 +96,7 @@ jobs:
         run: |
           set +e
           uv run --python 3.12 --no-project python plugin/scripts/check_template_profile.py \
-            local rust-local github-project gitlab-project \
+            local rust-local go-local github-project gitlab-project \
             --template-repo jebel-quant/rhiza --ref "$LATEST"
           status=$?
           set -e
@@ -85,9 +106,15 @@ jobs:
           fi
           exit "$status"
 
-      # Only the end-to-end tests: they are the ones that touch the template. No
-      # coverage gate, since a filtered run cannot meet it and coverage is not the
-      # question being asked here.
+      # Only the end-to-end tests: they are the ones that touch the template. The target
+      # drops the coverage gate, since a filtered run cannot meet 100% and coverage is not
+      # the question being asked here.
+      #
+      # Through `make e2e`, not a hand-written `uvx pytest`, for the reason ci.yml's `Run
+      # tests` step spells out: this step used to duplicate the command line and the copy
+      # drifted the moment the Makefile gained `--with pyyaml`, so the drift job was
+      # exercising the hand-rolled YAML parser while CI exercised PyYAML. One definition,
+      # in the Makefile.
       #
       # The Rust axis is included and needs no env var: v1.3.0 shipped `rust-local`, so
       # the pinned PR runs exercise the sync too. `RHIZA_RUST_TEMPLATE_REF` still exists
@@ -95,7 +122,7 @@ jobs:
       - name: Run the end-to-end tests against the latest template
         env:
           RHIZA_TEMPLATE_REF: latest
-        run: uvx pytest tests/ -k e2e -q
+        run: make e2e
 
       - name: Raise a finding if the template no longer agrees
         if: failure()

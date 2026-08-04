@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test book book-serve paper paper-figures clean changelog
+.PHONY: help install lint test e2e book book-serve paper paper-figures clean changelog
 
 PAPER := rhiza-claude-intro
 
@@ -26,11 +26,27 @@ lint:  ## Run all prek hooks against every file
 # PyYAML is a *test* dependency only — the bundled scripts stay stdlib-only at runtime.
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
 # with it absent, half of that module's behaviour was invisible to the coverage gate.
+#
+# One definition of the runner, shared by `test` and `e2e`. The `--with` flags are the
+# part that has drifted before: CI once hand-wrote this command line, the Makefile gained
+# `--with pyyaml`, and the copy in CI did not — so that arm went unmeasured on a branch
+# that was green locally. Anything that runs this suite goes through a target here.
+PYTEST := uvx --with pytest-cov --with pyyaml pytest tests/
+
 test:  ## Run the script test suite with a 100% coverage gate
-	uvx --with pytest-cov --with pyyaml pytest tests/ --cov=plugin/scripts --cov-report=term-missing \
+	$(PYTEST) --cov=plugin/scripts --cov-report=term-missing \
 		--cov-report=xml:$(TESTS)/coverage.xml \
 		--cov-report=html:$(TESTS)/html-coverage \
 		--cov-fail-under=100 $(ARGS)
+
+# The end-to-end subset on its own — the tests that clone the real template and drive the
+# command chains against a genuinely synced repo. `make test` runs these too; this target
+# exists for the one caller that needs them *without* the coverage gate, the weekly
+# template-drift job, since a filtered run cannot reach 100% and coverage is not the
+# question it asks. Not a substitute for `make test`: it reports no coverage at all, so a
+# green `make e2e` says nothing about the gate every other caller has to clear.
+e2e:  ## Run only the end-to-end tests, without the coverage gate
+	$(PYTEST) -k e2e --no-cov $(ARGS)
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
 # all run via `make lint` (prek). For a single one, use e.g.
