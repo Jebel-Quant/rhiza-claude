@@ -1,7 +1,7 @@
 # Install uv (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:init` and `/rhiza:update` read it and follow it as
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:init` and `/rhiza:update` read it and follow it as
 > their **first** step.
 
 Goal: **`uv --version` works when this procedure finishes**, or the user knows

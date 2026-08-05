@@ -1,7 +1,7 @@
 # Known issues (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:quality` reads it when a gate **fails**, before
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:quality` reads it when a gate **fails**, before
 > diagnosing, to tell a known upstream failure apart from a real local gap.
 
 Some gate failures are not this repo's fault and cannot be fixed here. Scoring them

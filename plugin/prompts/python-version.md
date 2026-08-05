@@ -1,7 +1,7 @@
 # Python version (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `plugin/prompts/skeleton.md` reads it and follows it at its
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `plugin/prompts/skeleton.md` reads it and follows it at its
 > step 5, which is itself reached from `/rhiza:init`.
 
 **This is a thin wrapper around the bundled `plugin/scripts/set_python_version.py`.**

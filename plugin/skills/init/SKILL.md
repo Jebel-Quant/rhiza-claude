@@ -19,8 +19,8 @@ which template repository this repo follows and at which ref. Everything else it
 | skeleton + the `pyproject.toml` shape the gates need | `plugin/prompts/skeleton.md` (applies `plugin/prompts/python-version.md`) | 6 |
 | SPDX metadata + the `LICENSE` file | `plugin/prompts/license.md` | 6 |
 
-Those are **internal procedures, not slash commands** — deliberately outside
-`commands/` so the user can't invoke them. `Read` each at the step that calls for it
+Those are **internal procedures, not slash commands** — deliberately kept out of
+any directory Claude Code scans, so the user can't invoke them. `Read` each at the step that calls for it
 (`${CLAUDE_PLUGIN_ROOT}/prompts/<name>.md`; in a source checkout the variable is
 empty, so use the repo-relative path) and follow it as written. **Never re-implement
 one inline** — no hand-rolled `pyproject.toml` edits, no `LICENSE` writing, no

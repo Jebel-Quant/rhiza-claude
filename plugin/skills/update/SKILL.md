@@ -33,7 +33,8 @@ Work through these steps. Stop and report if a precondition fails.
   `uv run --python 3.12`, so if `uv --version` still fails afterwards, **stop** —
   don't fall back to a system `python3`, which on macOS is 3.9 and crashes `sync.py`
   on `datetime.UTC`. (`prompts/*.md` are internal procedures, not slash commands —
-  outside `commands/` so the user can't invoke them; reach them with `Read`.)
+  not in any directory Claude Code scans, so the user can't invoke them; reach them
+  with `Read`.)
 - `.rhiza/template.yml` must exist. If not, stop: "Not a rhiza-managed repo (no
   .rhiza/template.yml)" — and point at `/rhiza:init`, which establishes that file.
 - The working tree must be clean (`git status --porcelain`). If dirty, stop and show

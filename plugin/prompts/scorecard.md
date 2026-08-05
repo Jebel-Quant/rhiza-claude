@@ -1,7 +1,7 @@
 # Scorecard (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:quality` reads it and follows it once the gates have
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:quality` reads it and follows it once the gates have
 > run and `plugin/prompts/design-analysis.md` has produced its evidence.
 
 Turn gate results and design evidence into 1–10 marks, then into a findings list, then

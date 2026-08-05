@@ -1,7 +1,7 @@
 # PR base + work branch (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:init` and `/rhiza:update` read it to get a work
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:init` and `/rhiza:update` read it to get a work
 > branch based on an up-to-date remote default.
 
 Goal: end with `$BRANCH` checked out, based on `origin/$DEFAULT`, so the caller's
