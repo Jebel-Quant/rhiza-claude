@@ -5,8 +5,8 @@ pushing to that default branch**.
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/pr-base.md`), not something you
-    invoke. Both [`/rhiza:init`](../commands/init.md) and
-    [`/rhiza:update`](../commands/update.md) read and follow it, which is why they
+    invoke. Both [`/rhiza:init`](../skills/init.md) and
+    [`/rhiza:update`](../skills/update.md) read and follow it, which is why they
     behave identically here.
 
 ## The rule it exists to enforce
@@ -38,6 +38,6 @@ stops the calling command if you don't. It will not push one itself.
 | --- | --- |
 | **Source** | `plugin/prompts/pr-base.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:init`](../commands/init.md), [`/rhiza:update`](../commands/update.md) |
+| **Read by** | [`/rhiza:init`](../skills/init.md), [`/rhiza:update`](../skills/update.md) |
 
 <!-- generated:end -->

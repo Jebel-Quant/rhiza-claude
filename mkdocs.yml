@@ -11,16 +11,16 @@ copyright: Copyright &copy; 2026 Jebel Quant
 nav:
   - Home: index.md
   - Commands:
-      - init: commands/init.md
-      - update: commands/update.md
-      - quality: commands/quality.md
-      - docs: commands/docs.md
-      - release: commands/release.md
+      - init: skills/init.md
+      - update: skills/update.md
+      - quality: skills/quality.md
+      - docs: skills/docs.md
+      - release: skills/release.md
   - Repo utilities:
-      - status: commands/status.md
-      - maffay: commands/maffay.md
+      - status: skills/status.md
+      - maffay: skills/maffay.md
   - Destructive:
-      - detach: commands/detach.md
+      - detach: skills/detach.md
   - Internals:
       - install-uv: internals/install-uv.md
       - pr-base: internals/pr-base.md

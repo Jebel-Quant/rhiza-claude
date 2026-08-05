@@ -4,7 +4,7 @@ Turn gate results and design evidence into 1–10 marks, findings, and optionall
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/scorecard.md`), not something you
-    invoke. [`/rhiza:quality`](../commands/quality.md) reads and follows it once the
+    invoke. [`/rhiza:quality`](../skills/quality.md) reads and follows it once the
     gates have run and [design-analysis](design-analysis.md) has produced its evidence.
 
 ## The scoping rule
@@ -58,6 +58,6 @@ never a FAIL.
 | --- | --- |
 | **Source** | `plugin/prompts/scorecard.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:quality`](../commands/quality.md), [`design-analysis`](design-analysis.md), [`known-issues`](known-issues.md) |
+| **Read by** | [`/rhiza:quality`](../skills/quality.md), [`design-analysis`](design-analysis.md), [`known-issues`](known-issues.md) |
 
 <!-- generated:end -->

@@ -172,7 +172,7 @@ def check_no_dead_layout_paths(root: Path) -> list[str]:
 
     A reference is only checked when it is unprefixed, or reached the way a skill
     actually reaches the plugin root — ``plugin/`` in a source checkout,
-    ``${CLAUDE_PLUGIN_ROOT}/`` at runtime. ``docs/commands/`` is a site path and passes.
+    ``${CLAUDE_PLUGIN_ROOT}/`` at runtime. ``docs/skills/`` is a site path and passes.
 
     The escape hatch is an HTML comment naming the directory and giving a reason:
     ``<!-- rhiza-layout-exempt: commands/ the repo under assessment, not this plugin -->``.

@@ -107,7 +107,7 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
 | `plugin/.claude-plugin/plugin.json` | The plugin manifest. |
 | `tests/scripts/*.py` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
-| `docs/` | The MkDocs site: `commands/`, `internals/`, `index.md`, `development.md`. |
+| `docs/` | The MkDocs site: `skills/`, `internals/`, `index.md`, `development.md`. |
 | `paper/` | A LaTeX introduction, rebuilt by CI and published with the site. |
 | `.claude-plugin/marketplace.json` | The marketplace catalogue. |
 
@@ -204,7 +204,7 @@ rather than breaking in front of a user mid-task.
 
 1. Edit `skills/<name>/SKILL.md`; keep the frontmatter accurate and add no `name:` field.
 2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/scripts/test_<name>.py`.
-3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
+3. Add `docs/skills/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
    only — run `plugin/scripts/render_command_docs.py` for the **Reference** block, which is
    generated from the frontmatter and gated by `docs-reference-blocks`.
 4. Update `README.md` if it's a headline command.

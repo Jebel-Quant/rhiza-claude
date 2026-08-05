@@ -44,6 +44,17 @@ PLUGIN_MANIFEST = f"{PLUGIN_DIR}/.claude-plugin/plugin.json"
 MARKETPLACE_MANIFEST = ".claude-plugin/marketplace.json"
 """The marketplace catalogue. Stays at the repository root, where `add` looks."""
 
+DOCS_SKILLS_DIR = "docs/skills"
+"""Where a command's docs page lives, relative to the repository root.
+
+Named after the layout it documents, one page per ``skills/<name>/SKILL.md``. Both
+``check_docs_nav.py`` and ``render_command_docs.py`` resolve pages through here rather
+than spelling the directory out, because it was hardcoded in both and so drifted twice.
+"""
+
+DOCS_INTERNALS_DIR = "docs/internals"
+"""Where a procedure's docs page lives, relative to the repository root."""
+
 
 def command_files(root: Path) -> list[tuple[str, Path]]:
     """Every slash command in the plugin at *root*, as ``(name, path)`` sorted by name.

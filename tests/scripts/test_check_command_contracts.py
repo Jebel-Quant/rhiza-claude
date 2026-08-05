@@ -517,10 +517,10 @@ def test_a_tests_scripts_path_is_not_read_as_a_shipped_script(plugin):
 
 
 def test_the_docs_site_is_checked_too(plugin):
-    page = plugin / "docs" / "commands" / "demo.md"
+    page = plugin / "docs" / "skills" / "demo.md"
     page.parent.mkdir(parents=True)
     page.write_text("It calls `scripts/ghost.py`.\n")
-    assert any("docs/commands/demo.md" in v for v in ccc.check_contracts(plugin))
+    assert any("docs/skills/demo.md" in v for v in ccc.check_contracts(plugin))
 
 
 def test_generated_reports_are_not_treated_as_prose(plugin):

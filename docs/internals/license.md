@@ -5,7 +5,7 @@ Apply a project's **license** — sets the SPDX `license` / `license-files` meta
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/license.md`), not something you
-    invoke. [`/rhiza:init`](../commands/init.md) reads and follows it at its step 5c,
+    invoke. [`/rhiza:init`](../skills/init.md) reads and follows it at its step 5c,
     right after the [skeleton](skeleton.md).
 
 You're asked for the id. Bundled full texts: **MIT**, **Apache-2.0**,
@@ -46,6 +46,6 @@ change — an **overwrite confirmation**.
 | --- | --- |
 | **Source** | `plugin/prompts/license.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:init`](../commands/init.md), [`known-issues`](known-issues.md), [`skeleton`](skeleton.md) |
+| **Read by** | [`/rhiza:init`](../skills/init.md), [`known-issues`](known-issues.md), [`skeleton`](skeleton.md) |
 
 <!-- generated:end -->

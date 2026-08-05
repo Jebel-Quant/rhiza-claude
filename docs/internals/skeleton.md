@@ -5,14 +5,14 @@ finish it into the shape the template's gates require.
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/skeleton.md`), not something you
-    invoke. [`/rhiza:init`](../commands/init.md) reads and follows it at its step 5b.
+    invoke. [`/rhiza:init`](../skills/init.md) reads and follows it at its step 5b.
 
 ## Why it exists
 
 **The rhiza template never ships a `pyproject.toml`.** The sync delivers the
 `Makefile`, `.rhiza/rhiza.mk`, `ruff.toml`, `pytest.ini`, `.python-version` and CI —
 but the project metadata is always the repo's own. So without one,
-[`/rhiza:update`](../commands/update.md)'s gates can't run at all: `make test` depends on
+[`/rhiza:update`](../skills/update.md)'s gates can't run at all: `make test` depends on
 `install` (a `uv sync`), and the synced `.rhiza/tests/test_pyproject.py` asserts a
 specific `[project]` shape. This command produces that shape.
 
@@ -46,7 +46,7 @@ The steps below are the Python path; see [Rust and Go](#rust-and-go).
    `Programming Language :: Python :: X.Y` classifiers, and `.python-version`.
 
 The license is **not** its job: [license](license.md) owns that, and
-[`/rhiza:init`](../commands/init.md) follows it immediately after this procedure.
+[`/rhiza:init`](../skills/init.md) follows it immediately after this procedure.
 
 ## Rust and Go
 
@@ -59,7 +59,7 @@ Same shape, different manifest — and each has one thing the others don't:
 | profile | `rust-local` | `go-local` |
 | docs gate | `#![warn(missing_docs)]` — a `//!` crate doc is **prepended**, never substituted, because cargo's stub holds the crate's only test | revive's `exported` rule — a `doc.go` package comment, since `go mod init` writes no Go file at all |
 | metadata | `[package]` gains `description`, `repository`, `homepage`, `authors` | **nothing to add**: `go.mod` has no such fields |
-| version location | `.bumpversion.toml`, anchored to `[package]` and to `Cargo.lock` | **not written here** — a Go module's version is its git tag, and `go-core` ships the config; it arrives with the first [`/rhiza:update`](../commands/update.md) |
+| version location | `.bumpversion.toml`, anchored to `[package]` and to `Cargo.lock` | **not written here** — a Go module's version is its git tag, and `go-core` ships the config; it arrives with the first [`/rhiza:update`](../skills/update.md) |
 
 The gate is the same idea in each: `cargo metadata` (Rust) or `go list -m` plus
 `go vet` (Go) must pass, or the procedure stops rather than hand-writing a manifest.
@@ -88,6 +88,6 @@ The gate is the same idea in each: `cargo metadata` (Rust) or `go list -m` plus
 | --- | --- |
 | **Source** | `plugin/prompts/skeleton.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:init`](../commands/init.md), [`license`](license.md), [`python-version`](python-version.md) |
+| **Read by** | [`/rhiza:init`](../skills/init.md), [`license`](license.md), [`python-version`](python-version.md) |
 
 <!-- generated:end -->
