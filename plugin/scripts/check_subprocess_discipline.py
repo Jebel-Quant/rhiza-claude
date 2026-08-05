@@ -128,21 +128,16 @@ def _enclosing_function(
     return max(containing, key=lambda func: func.lineno) if containing else None
 
 
-def _violations_for_call(
+def _unchecked_violations(
     tree: ast.Module, lines: list[str], node: ast.Call, name: str, where: str
 ) -> list[str]:
-    """Return the rule violations for one `subprocess` call."""
-    keyword = _check_keyword(node)
-    if name in _ALWAYS_CHECKS:
-        return []  # raises by definition; `check=` does not apply
-    if keyword is None:
-        return [
-            f"{where}: subprocess.{name}(...) omits `check=`. Pass it explicitly — the "
-            "default is check=False, which ignores failures without saying so."
-        ]
-    if not _is_false(keyword.value):
-        return []
+    """Return the violations for a call that passes `check=False`.
 
+    Split out of `_violations_for_call` so each half answers one question: that one asks
+    whether `check=` is present and false, this one asks whether being false is
+    *justified* — by an explanatory marker, or by the enclosing function accounting for
+    the returncode itself.
+    """
     reason = _marker_reason(lines, node)
     if reason is not None:
         if reason:
@@ -160,6 +155,23 @@ def _violations_for_call(
         "Inspect `.returncode`, return the CompletedProcess so the caller can, or add a "
         f"`# {_MARKER} <reason>` comment on the call."
     ]
+
+
+def _violations_for_call(
+    tree: ast.Module, lines: list[str], node: ast.Call, name: str, where: str
+) -> list[str]:
+    """Return the rule violations for one `subprocess` call."""
+    keyword = _check_keyword(node)
+    if name in _ALWAYS_CHECKS:
+        return []  # raises by definition; `check=` does not apply
+    if keyword is None:
+        return [
+            f"{where}: subprocess.{name}(...) omits `check=`. Pass it explicitly — the "
+            "default is check=False, which ignores failures without saying so."
+        ]
+    if not _is_false(keyword.value):
+        return []
+    return _unchecked_violations(tree, lines, node, name, where)
 
 
 def check_module(path: Path, root: Path) -> list[str]:

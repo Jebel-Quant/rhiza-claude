@@ -79,6 +79,12 @@ def compare(left: str, right: str) -> int:
     return (a > b) - (a < b)
 
 
+def _semver_tags(stdout: str) -> list[str]:
+    """Return the semver-shaped tags in git's output, highest first."""
+    tags = [t.strip() for t in stdout.splitlines() if t.strip()]
+    return sorted((t for t in tags if _SEMVER.match(t)), key=parse_semver, reverse=True)
+
+
 def existing_tags(target_dir: Path) -> list[str]:
     """Return the repo's semver-shaped ``v*`` tags, highest first."""
     env = os.environ.copy()
@@ -93,8 +99,7 @@ def existing_tags(target_dir: Path) -> list[str]:
     )
     if result.returncode != 0:
         return []
-    tags = [t.strip() for t in result.stdout.splitlines() if t.strip()]
-    return sorted((t for t in tags if _SEMVER.match(t)), key=parse_semver, reverse=True)
+    return _semver_tags(result.stdout)
 
 
 def compute_floor(current: str, tags: list[str]) -> str:
@@ -166,6 +171,35 @@ def check(target_dir: Path, target: str, current: str) -> dict[str, Any]:
     return summary
 
 
+def _suggestions_only(current: str, target_dir: Path) -> dict[str, Any]:
+    """Build the summary for a run with no target: candidates, and no verdict."""
+    floor = compute_floor(current, existing_tags(target_dir))
+    return {
+        "target": None,
+        "current": current,
+        "floor": floor,
+        "suggestions": suggest(floor),
+        "ok": True,
+        "reason": "no target given — listing suggestions only",
+        "exit_code": EXIT_OK,
+    }
+
+
+def _print_summary(summary: dict[str, Any]) -> None:
+    """Print the human-readable summary, verdict last and on the right stream."""
+    print(f"current  {summary['current']}")
+    if summary["target"] is not None:
+        print(f"highest  {summary['highest_tag'] or '(no tags)'}")
+    print(f"floor    {summary['floor']}")
+    for kind, candidate in summary["suggestions"].items():
+        print(f"{kind:<8} {candidate}")
+    if summary["target"] is not None:
+        print(f"target   {summary['target']}")
+    sys.stdout.flush()
+    label, stream = ("ok", sys.stdout) if summary["ok"] else ("error", sys.stderr)
+    print(f"{label}       {summary['reason']}", file=stream)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point: guard the proposed release version and return an exit code."""
     parser = argparse.ArgumentParser(
@@ -190,16 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     target_dir = Path(args.target_dir).resolve()
     try:
         if args.target is None:
-            floor = compute_floor(args.current, existing_tags(target_dir))
-            summary = {
-                "target": None,
-                "current": args.current,
-                "floor": floor,
-                "suggestions": suggest(floor),
-                "ok": True,
-                "reason": "no target given — listing suggestions only",
-                "exit_code": EXIT_OK,
-            }
+            summary = _suggestions_only(args.current, target_dir)
         else:
             summary = check(target_dir, args.target, args.current)
     except VersionError as exc:
@@ -209,17 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json_output:
         print(json.dumps(summary, indent=2))
     else:
-        print(f"current  {summary['current']}")
-        if summary["target"] is not None:
-            print(f"highest  {summary['highest_tag'] or '(no tags)'}")
-        print(f"floor    {summary['floor']}")
-        for kind, candidate in summary["suggestions"].items():
-            print(f"{kind:<8} {candidate}")
-        if summary["target"] is not None:
-            print(f"target   {summary['target']}")
-        sys.stdout.flush()
-        label, stream = ("ok", sys.stdout) if summary["ok"] else ("error", sys.stderr)
-        print(f"{label}       {summary['reason']}", file=stream)
+        _print_summary(summary)
     return int(summary["exit_code"])
 
 

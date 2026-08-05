@@ -151,19 +151,32 @@ def _remote_tags(host: str, repo: str) -> list[str]:
     return sorted(tags)
 
 
+Release = tuple[str, tuple[int, ...]]
+
+
+def _releases(tags: list[str]) -> list[Release]:
+    """Pair each tag that parses as a release with its version, dropping the rest."""
+    return [(tag, version) for tag in tags if (version := _parse_semver(tag)) is not None]
+
+
+def _behind_count(releases: list[Release], current: tuple[int, ...]) -> int:
+    """Count how many of *releases* are newer than *current*."""
+    return sum(1 for _, version in releases if version > current)
+
+
 def _outdated_message(ref: str, tags: list[str]) -> str:
     """Compose a one-line 'update available?' summary for *ref* against *tags*."""
-    releases = [(t, v) for t in tags if (v := _parse_semver(t)) is not None]
+    releases = _releases(tags)
     if not releases:
         return "Update     : could not determine the latest release"
-    latest_tag, latest_ver = max(releases, key=lambda tv: tv[1])
+    latest_tag, _ = max(releases, key=lambda pair: pair[1])
     current = _parse_semver(ref)
     if current is None:
         return (
             f"Update     : latest release is {latest_tag} "
             f"(current ref '{ref}' is not a release tag) — run /update"
         )
-    behind = sum(1 for _, v in releases if v > current)
+    behind = _behind_count(releases, current)
     if behind == 0:
         return f"Update     : up to date ({latest_tag} is the latest release)"
     plural = "s" if behind != 1 else ""
