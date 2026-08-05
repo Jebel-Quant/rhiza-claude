@@ -1,18 +1,33 @@
 ---
-description: Prepare a release in any git repo that declares its version locations (no .rhiza/ needed) — choose a version from a table, bump, regenerate the changelog, commit and tag. Stops before pushing.
+description: Prepare a release in any git repo that declares its version locations (no .rhiza/ needed) — choose a version from a table, bump, regenerate the changelog, and open a release PR. Tags the merged commit on a second run.
 argument-hint: "[version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)"
-allowed-tools: Bash(git*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
+allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 disable-model-invocation: true
 ---
 
-You are running `/release` in the **current working directory's repo**. Goal: prepare a
-clean, reviewable release **locally** — bump every declared version location,
-regenerate the changelog, commit, and tag — then **stop and hand the push back to the
-user**. Pushing the tag triggers the release workflow, so that stays a deliberate human
-action.
+You are running `/release` in the **current working directory's repo**. Goal: land the
+version bump on the default branch **through a pull request**, like every other change,
+and then tag the commit that actually merged.
 
-**Never push, and never move an existing tag.** This command writes to the working tree
-and creates one local commit plus one tag. If anything is ambiguous, stop and report.
+**That splits the release into two phases, and the split is forced by squash-merge.** A
+tag must point at a commit that exists on the branch you publish from; a squash-merge
+replaces the branch's commits with a new one, so a tag cut before the merge names a SHA
+that never lands. There is no ordering of one invocation that fixes this — the commit to
+tag does not exist until the human merges. So:
+
+| Phase | You run | It ends with |
+| --- | --- | --- |
+| **A — the release PR** | `/rhiza:release` on a clean default branch | a pushed branch and an open PR. **No tag.** |
+| **B — the tag** | `/rhiza:release` again, after that PR merges | the merged commit tagged locally, push handed back |
+
+Step 1 works out which phase it's in from the repo's own state; the user does not
+declare it.
+
+**Never push to the default branch, and never move an existing tag.** Phase A pushes
+one *release branch* — the same thing `/rhiza:init` and `/rhiza:update` do, and the only
+push either phase makes on its own. Pushing the **tag** stays a deliberate human action,
+because that is what triggers the release workflow. If anything is ambiguous, stop and
+report.
 
 **The repo declares where its version lives; you don't guess.** `bump-my-version` reads
 `[tool.bumpversion]` (in `.bumpversion.toml` or `pyproject.toml`) and rewrites only the
@@ -37,9 +52,9 @@ anyway (step 3).
   is cut from committed work.
 - **Releasing what will actually ship.** The tag must point at a commit that exists on
   the branch you publish from. If `HEAD` is a feature branch whose commits aren't on the
-  default branch yet, **stop and say so**: a squash-merge rewrites those SHAs, so the tag
-  would end up on a commit that never lands. Merge first, then release from the default
-  branch.
+  default branch yet, **stop and say so** — that includes a release branch this command
+  opened in phase A, which is not tagged until it merges. Both phases run from the
+  default branch.
 - **Version config.** `[tool.bumpversion]` must exist, in `.bumpversion.toml` or
   `pyproject.toml`:
   ```bash
@@ -81,7 +96,37 @@ grep -m1 '^version = ' Cargo.toml 2>/dev/null
   default (`gh repo view --json defaultBranchRef`, else `git remote show origin`). If
   not, warn and ask (`AskUserQuestion`) — releasing off a side branch is unusual, not
   forbidden.
-- **Up to date.** `git fetch --tags origin`, so the tag guard sees real history.
+- **Up to date.** `git fetch --tags origin`, and `git pull --ff-only` so the merged
+  release PR is actually in your history — phase B reads the version off it.
+
+## 1a. Work out which phase you're in
+
+The repo's own state says it, so don't ask:
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
+  --current "$CURRENT"
+```
+
+It prints `current` and `highest` (the highest existing tag) side by side. Compare them
+**as semver**, which is what that script already did to pick the floor:
+
+- **`CURRENT` == `highest`** — the declared version is released. This is **phase A**:
+  continue to step 2.
+- **`CURRENT` > `highest`** — a bump has landed on the default branch that no tag names.
+  This is **phase B**: the release PR merged and only the tag is missing. Set
+  `TARGET=v$CURRENT`, skip steps 2–9 entirely, and go to **step 10**. Say which phase
+  you picked and why, so the user can correct you if a hand-edit put the repo here.
+- **`CURRENT` < `highest`** — a reverted bump, or a tag cut ahead of the config. Neither
+  phase fits; **stop and report both values.** The floor in step 4 already accounts for
+  this, but arriving here means something rewrote history and guessing is not this
+  command's job.
+
+**Phase B is what makes the flow resumable, and it is not a special case** — it is the
+normal second half of every release. The user merges the PR whenever review finishes,
+which may be days later and in a different session; the only state that carries across
+is what is committed to the default branch, which is exactly what the comparison above
+reads.
 
 ## 2. Gather the candidate versions
 
@@ -250,60 +295,143 @@ formality — it's how you catch the two ways this step goes wrong:
 If the diff shows anything beyond the new section, **stop and report** rather than
 committing it.
 
-## 8. Commit and tag locally
+## 8. Commit the bump on a release branch
+
+**Read `prompts/pr-base.md` and follow it**, with `BRANCH_PREFIX=rhiza_release_${TARGET}`.
+It returns `$BRANCH` — based on an up-to-date `origin/$DEFAULT` — and `$DEFAULT`. That
+procedure is where the *"the default branch is never pushed to"* rule lives, and
+`/rhiza:init` and `/rhiza:update` follow the same one, so a release branch is shaped
+like every other change this plugin proposes.
+
+**One wrinkle this caller has to handle:** steps 6 and 7 already wrote to the working
+tree, on the default branch. `git checkout -b` carries those uncommitted changes onto
+the new branch, which is what you want — but only if the branch is created *from the
+commit you bumped against*. `pr-base` bases it on `origin/$DEFAULT`, which step 1 already
+fast-forwarded to, so they are the same commit. If `git checkout -b` reports it cannot
+switch because of local changes, **stop** — that means `origin/$DEFAULT` moved under you
+mid-run, and the bump was computed against history that is no longer the base.
 
 ```bash
 git add --all
 git commit -m "chore: release $TARGET"
-git tag "$TARGET"
 ```
 `git add --all` is safe here *because the tree was verified clean in step 1* — the only
-changes present are the ones steps 6 and 7 made. An annotated tag is fine
-(`git tag -a "$TARGET" -m "release $TARGET"`); **never** `-f`.
+changes present are the ones steps 6 and 7 made.
 
-## 9. Stop — hand the push to the user
+**Do not tag.** The tag belongs on the merged commit, which does not exist yet; step 10
+creates it. Creating one here is the exact mistake the two-phase split exists to prevent
+— a squash-merge would strand it on a SHA that never reaches the default branch.
 
 ```bash
-git push --atomic origin HEAD <TARGET>  # commit + tag in one push
+git push --set-upstream origin "$BRANCH"
 ```
-Explain that pushing the **tag** is what triggers release CI.
 
-> **Push both refs in one command.** Two sequential pushes open a window in which the
-> branch is published but the tag is not, and any repo whose workflows reference **their
-> own** tag (`uses: <owner>/<repo>/…@vX.Y.Z`, the stub-pin case from step 6) fails every
-> run started in it — a cross-repo `uses:` resolves at `Set up job`, before checkout, so
-> the job dies before running anything:
+## 9. Open the release PR — then stop
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+  pr-create --base "$DEFAULT" --head "$BRANCH" \
+  --title "chore: release $TARGET" --body-file <BODY>
+```
+It detects the platform from `origin` and issues `gh pr create` or `glab mr create`,
+which differ in subcommand *and* flag names — don't hand-write either form. Exit **1**
+means the CLI is missing or failed: not fatal, because the branch is already pushed, so
+relay the note and print the compare URL.
+
+Body: `CURRENT` → `TARGET`, every file the bump touched, the changelog section being
+added, and — the part a reviewer cannot see from the diff — that **merging this PR does
+not publish the release**, because the tag is cut afterwards from the merged commit by a
+second `/rhiza:release` run.
+
+Then **stop.** Merging is the human's call and the checks have to run. Tell them to
+re-run `/rhiza:release` once it lands.
+
+> **A repo that pins its own tag cannot use this flow, and it is the one exception.**
+> When CI stubs delegate via `uses: <owner>/<repo>/…@vX.Y.Z` and the repo being released
+> *is* that repo (the step-6 stub-pin case), the release PR references a tag that does
+> not exist yet. A cross-repo `uses:` resolves at `Set up job`, before checkout, so every
+> job dies before running anything:
 > ```
 > ##[error]Unable to resolve action `owner/repo@vX.Y.Z`, unable to find version `vX.Y.Z`
 > ```
-> `--atomic` lands both refs together, so the tag exists before any workflow is queued.
-> If a push must be split, push the **tag first** — the branch can wait, the tag cannot.
-> Check whether the repo's release workflow requires the tagged commit to be reachable
-> from the default branch before relying on tag-first; most only validate tag format and
-> that the version is newer than the latest release, which tag-first satisfies.
->
-> The durable fix is on the repo side, not here: a repo consuming its **own** action or
-> reusable workflow should reference it by local path (`uses: ./.github/actions/<name>`),
-> which needs no tag and cannot drift. Suggest that if you see a self-pin, because the
-> pinned form also makes a release PR unmergeable — its checks reference a tag that does
-> not exist yet, so required checks can never pass and the release can only land by
-> bypassing branch protection. If the repo has no such
-workflow, publish it manually with the bundled mapper — which picks `gh` or `glab` from
-`origin`:
+> Required checks can therefore *never* go green, and the PR is unmergeable except by
+> bypassing branch protection. Detect it before opening the PR — a self-referencing
+> `uses:` in `.github/` that step 6 bumped — and if it's there, **say so and ask**
+> (`AskUserQuestion`) rather than opening a PR that cannot merge. Two honest options:
+> commit and tag on the default branch directly, pushing both refs at once with
+> `git push --atomic origin HEAD "$TARGET"`
+> — which needs a protection bypass and is why `--atomic` matters (two sequential pushes
+> leave a window where the branch is published and the tag is not, and every run started
+> in it fails as above); or fix the cause first, which is the durable answer: a repo
+> consuming its **own** action or reusable workflow should reference it by local path
+> (`uses: ./.github/actions/<name>`), which needs no tag, cannot drift, and makes the
+> repo releasable by PR like any other.
+
+## 10. Phase B — tag the merged commit
+
+You are here because step 1a found `CURRENT` > the highest tag. The release PR has
+merged; `TARGET` is `v$CURRENT`.
+
+**Verify you are tagging the right commit before creating anything:**
+
+```bash
+git rev-parse --abbrev-ref HEAD
+git status --porcelain
+git log -1 --format='%H %s'
+```
+On `$DEFAULT`, clean, and up to date with `origin/$DEFAULT` after step 1's `pull
+--ff-only`. If `HEAD` is behind the remote, stop — you would tag a commit that isn't the
+merge.
+
+**Confirm the merged tree really carries `TARGET`.** The version the config declares is
+what step 1a read, so this is a check that the *merge* preserved it, not a re-read:
+
+```bash
+uvx bump-my-version show current_version
+```
+It must equal `${TARGET#v}`. A mismatch means the PR was edited before merging — stop
+and report both values.
+
+Then guard and tag:
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
+  "$TARGET" --current "$CURRENT"
+git tag -a "$TARGET" -m "release $TARGET"
+```
+The guard runs **again**, on the merged history: it is cheap, and between phases the repo
+gained commits and possibly tags, so the fact that `TARGET` was legal in phase A is no
+longer evidence that it is legal now. Non-zero exit means stop. **Never** `-f`.
+
+Then hand the push over — this is the deliberate human action that triggers release CI:
+
+```bash
+git push origin "$TARGET"
+```
+Only the tag: the commit is already on the default branch, put there by the merge.
+
+## 11. Report
+
+**In phase A**, concisely: `CURRENT` → `TARGET`, with confirmation that it strictly
+increases past every prior release; every file the bump touched (manifests,
+`pyproject.toml`, any stub pins, the bumpversion config); the changelog diff summary; the
+branch and the PR/MR URL. State plainly that **no tag exists yet** and the release is not
+public — merging the PR does not publish it — and that the next step is to re-run
+`/rhiza:release` after the merge, which will tag the merged commit.
+
+**In phase B**: the tag, the commit SHA it points at, confirmation that the merged tree
+declares `TARGET`, and the single `git push origin <TARGET>`. State that **nothing has
+been pushed** and the release isn't public until the tag is. To undo: `git tag -d
+<TARGET>` — and note that unlike the old single-phase flow there is no commit to reset,
+because the bump landed by merge.
+
+If the repo has no release workflow, publish manually with the bundled mapper, which
+picks `gh` or `glab` from `origin`:
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
   release-create --tag <TARGET> --notes-file <NOTES>
 ```
 On GitHub, omitting `--notes-file` falls back to `gh release create --generate-notes`.
 **On GitLab it is required** — `glab` has no `--generate-notes`, so the mapper refuses
-rather than publishing a release with empty notes. Step 4 already rendered the notes
+rather than publishing a release with empty notes. Step 5 already rendered the notes
 with `git-cliff`; write them to a file and pass that.
-
-## 10. Report
-
-Concisely: `CURRENT` → `TARGET` — the version the user picked, with confirmation that it
-strictly increases past every prior release; every file the bump touched (manifests,
-`pyproject.toml`, any stub pins, the bumpversion config); the changelog diff summary;
-the commit SHA and the tag; and the two push commands. State plainly that **nothing has
-been pushed** and the release isn't public until the tag is. If they want to undo:
-`git tag -d <TARGET>` and `git reset --hard HEAD~1`.

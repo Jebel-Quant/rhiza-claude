@@ -38,6 +38,6 @@ stops the calling command if you don't. It will not push one itself.
 | --- | --- |
 | **Source** | `plugin/prompts/pr-base.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:init`](../skills/init.md), [`/rhiza:update`](../skills/update.md) |
+| **Read by** | [`/rhiza:init`](../skills/init.md), [`/rhiza:release`](../skills/release.md), [`/rhiza:update`](../skills/update.md) |
 
 <!-- generated:end -->

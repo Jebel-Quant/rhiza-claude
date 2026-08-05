@@ -1,7 +1,8 @@
 # `/rhiza:release`
 
-Prepare a release **locally**: bump every version location the repo declares,
-regenerate the changelog, commit, and tag — then stop so you review before pushing.
+Land a release **through a pull request**: bump every version location the repo declares,
+regenerate the changelog, and open a release PR — then, once it merges, tag the commit
+that actually landed.
 
 ```
 /rhiza:release [version e.g. v1.4.0]
@@ -47,30 +48,61 @@ not a target.
    `git diff --stat`.
 7. **Prepends a `CHANGELOG.md` section** for the unreleased commits, labelled with the
    new tag, then checks the diff touches nothing else. See below for why it prepends.
-8. **Commits and tags** locally — `chore: release vX.Y.Z`.
-9. **Stops before pushing** — prints a single `git push --atomic origin HEAD <TAG>`.
-   Pushing the **tag** is what triggers the repo's `Release` workflow.
+8. **Commits the bump on a release branch** — `chore: release vX.Y.Z`, on a branch from
+   [pr-base](../internals/pr-base.md), pushed. **No tag yet.**
+9. **Opens the release PR** and stops, because merging is your call and the checks have to
+   run.
+10. **Tags the merged commit** — on a second run, after the PR lands. It then hands you a
+    single `git push origin <TAG>`; pushing the **tag** is what triggers the repo's
+    `Release` workflow.
 
-## Why the push is atomic
+## Why it takes two runs
 
-Two sequential pushes (branch, then tag) open a window in which the branch is published
-but the tag is not. A repo whose workflows reference **their own** tag — the stub-pin case
-`/release` bumps in step 6 — fails every run started in that window, because a cross-repo
-`uses:` resolves at `Set up job`, before checkout:
+The version bump is an ordinary change and goes through review like any other, which
+means the default branch is never pushed to directly and required checks actually gate
+the release. But a tag has to name a commit **on** the default branch, and a squash-merge
+replaces the branch's commits with a new one — so a tag cut before the merge points at a
+SHA that never lands.
+
+No ordering within a single invocation fixes that: the commit worth tagging does not exist
+until you merge. So `/release` stops at the PR and picks the work back up afterwards.
+
+It works out which phase it's in from the repo itself, comparing the declared version
+against the highest tag — you never tell it:
+
+| State | Meaning | What it does |
+| --- | --- | --- |
+| current **==** highest tag | the declared version is released | **phase A** — bump, changelog, PR |
+| current **>** highest tag | a merged bump no tag names | **phase B** — tag the merged commit |
+| current **<** highest tag | reverted bump, or a tag cut ahead | stops and reports both |
+
+That comparison is the only state carried between runs, so the merge can happen days
+later, in a different session, and phase B still knows what to do.
+
+## The one repo that can't use a PR
+
+When CI stubs delegate via `uses: <owner>/<repo>/…@vX.Y.Z` and the repo being released
+**is** that repo — the stub-pin case `/release` bumps in step 6 — the release PR
+references a tag that does not exist yet. A cross-repo `uses:` resolves at `Set up job`,
+before checkout, so every job dies before running anything:
 
 ```
 ##[error]Unable to resolve action `owner/repo@vX.Y.Z`, unable to find version `vX.Y.Z`
 ```
 
 The failures are indistinguishable from real breakage at a glance, yet nothing in the diff
-is at fault — the jobs never got as far as checking out code. `--atomic` lands both refs
-together so the tag exists before any workflow is queued.
+is at fault — the jobs never got as far as checking out code. Required checks can therefore
+never go green, and the PR is unmergeable except by bypassing branch protection.
 
-This also makes a release **PR-able**. With sequential pushes and a self-pin, a release PR
-carries refs to a tag that does not exist yet, so its required checks can never go green
-and the release can only land by bypassing branch protection. The durable fix belongs in
-the repo: reference your own action by local path (`uses: ./.github/actions/<name>`), which
-needs no tag and cannot drift.
+`/release` detects the self-pin **before** opening a PR that cannot merge, and asks. The
+fallback commits and tags on the default branch directly, pushing both refs with
+`git push --atomic origin HEAD <TAG>` — atomic because two sequential pushes leave a
+window where the branch is published and the tag is not, and every run started in it fails
+as above.
+
+The durable fix belongs in the repo, not here: reference your own action by local path
+(`uses: ./.github/actions/<name>`), which needs no tag, cannot drift, and makes the repo
+releasable by PR like every other.
 
 ## Why it doesn't suggest a version
 
@@ -137,8 +169,10 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
 
 ## Notes
 
-- **Never pushes and never force-tags.** Everything is a local commit and tag you can
-  undo (`git tag -d …`, `git reset --hard HEAD~1`).
+- **Never pushes to the default branch, and never force-tags.** The one push it makes on
+  its own is the release branch — the same thing [`/rhiza:init`](init.md) and
+  [`/rhiza:update`](update.md) do. Pushing the tag stays yours, and until you do, phase A
+  is undone by deleting the branch and phase B by `git tag -d …`.
 - **Works for this plugin too.** It reads the version from wherever the config points,
   so a repo with no `pyproject.toml` (like this one, whose version lives in the two
   `.claude-plugin/` manifests) is handled the same way.
@@ -148,7 +182,8 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
   `bump-my-version`, because from that point the two did the same work — and the shell
   copy was the one executable in the repo with no test and no `shellcheck` hook, while
   every bundled script is gated at 100% coverage.
-- Needs `uvx` for `bump-my-version` and `git-cliff`; no `gh`/`glab` required to prepare.
+- Needs `uvx` for `bump-my-version` and `git-cliff`, and `gh`/`glab` to open the PR —
+  if the forge CLI is missing the branch is still pushed, so you can open it by hand.
 - Publishing manually (only needed when the repo has no release workflow) goes through
   `plugin/scripts/platform_cli.py release-create`. On GitLab `--notes-file` is **required**:
   `glab` has no `--generate-notes`, so the mapper refuses rather than publishing a
@@ -163,6 +198,6 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
 | **Source** | `plugin/skills/release/SKILL.md` |
 | **Invocation** | `/rhiza:release [version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)` |
 | **Model-invocable** | no — excluded from model invocation |
-| **Allowed tools** | `Bash(git*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(make*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |
+| **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(make*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |
 
 <!-- generated:end -->

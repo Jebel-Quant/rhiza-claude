@@ -1,8 +1,8 @@
 # PR base + work branch (internal procedure)
 
 > **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
-> scan for commands, so the user cannot invoke it. `/rhiza:init` and `/rhiza:update` read it to get a work
-> branch based on an up-to-date remote default.
+> scan for commands, so the user cannot invoke it. `/rhiza:init`, `/rhiza:update` and
+> `/rhiza:release` read it to get a work branch based on an up-to-date remote default.
 
 Goal: end with `$BRANCH` checked out, based on `origin/$DEFAULT`, so the caller's
 commits land on a branch and the PR has a base to merge into.
@@ -12,8 +12,9 @@ into being on a brand-new repo. If it doesn't exist server-side, *the user* crea
 it; if they don't, the caller stops. This is absolute — a protected default branch
 must stay untouched, and a repo's first commit is the owner's to make.
 
-Inputs from the caller: `$BRANCH_PREFIX` (`rhiza_init` or `rhiza_<TARGET>`), and —
-only needed on the brand-new path — `OWNER`, `NAME`, and the chosen visibility.
+Inputs from the caller: `$BRANCH_PREFIX` (`rhiza_init`, `rhiza_<TARGET>`, or
+`rhiza_release_<TARGET>`), and — only needed on the brand-new path — `OWNER`, `NAME`,
+and the chosen visibility.
 
 ## 1. Determine `DEFAULT`
 

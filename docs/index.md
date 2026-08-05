@@ -270,7 +270,7 @@ These are the AI-driven workflow commands. Each has its own page.
 | [`/rhiza:update`](skills/update.md) | Sync to the latest template release and open a PR with **only** template-owned files. |
 | [`/rhiza:quality`](skills/quality.md) | Run the code-quality gate and score the repo 1–10 across eight categories. |
 | [`/rhiza:docs`](skills/docs.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
-| [`/rhiza:release`](skills/release.md) | Prepare a release: pick the next version from a table, bump, changelog, commit, tag (no push). |
+| [`/rhiza:release`](skills/release.md) | Release by PR: pick the next version from a table, bump, changelog, open the PR — then tag the merged commit on a second run. |
 
 ## Repo utilities
 
