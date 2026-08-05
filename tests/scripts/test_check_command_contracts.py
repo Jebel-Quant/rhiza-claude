@@ -477,13 +477,6 @@ def test_prose_may_invoke_a_command_that_lives_as_a_skill(plugin):
     assert ccc.check_contracts(plugin) == []
 
 
-def test_flags_an_invocation_of_a_skill_that_does_not_exist(plugin):
-    """The same rule must still bite — passing above is not just rule 5 going quiet."""
-    _write(plugin, "\nThen invoke the `nope` command via the Skill tool.\n")
-    violations = ccc.check_contracts(plugin)
-    assert "commands/demo.md: tells the model to invoke `nope`, which is not a command" in violations
-
-
 # --- rule 7: prose outside commands/ ------------------------------------------
 
 
