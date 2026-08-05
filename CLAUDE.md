@@ -182,6 +182,30 @@ cyclomatic C(12), every maintainability index ≥ 40 (`uvx radon cc plugin/scrip
 `uvx radon mi plugin/scripts -s`). And the 1:1 test-layout rule binds these modules too,
 so extracting one is never a one-file change: it needs its own `test__<name>.py`.
 
+**Those bars stop at `plugin/scripts/`, and `tests/` is deliberately exempt.** Note the
+path in both commands: it is the scope, not an example. A `/rhiza:quality` run in
+degraded mode measures the whole repo — the census reports `.` as the source root — so
+it will report what that exemption covers, and the numbers are not small:
+
+| Tree | Blocks | Average | C-or-worse |
+| --- | --- | --- | --- |
+| `plugin/scripts` | 382 | A (4.08) | **0** |
+| `tests` | 1201 | A (2.91) | **6** |
+
+Six C-grade blocks (worst `C(13)`, in `test_e2e_release_bumps_every_declared_location`),
+and the five largest modules in the repo are all test files, each past the 500-line
+ceiling. **That is known and accepted, not an oversight.** An end-to-end test that syncs
+a real template into a real repo is branchy because the scenario is, and the alternative
+— splitting a fixture to satisfy a complexity grade — buys a better number by making the
+test harder to follow. The bar exists to keep *shipped* code readable by the next person
+who has to change it under time pressure; a fixture is read once, by someone already
+holding the scenario in their head.
+
+What the exemption does **not** license is the mirror image: a test so convoluted that a
+failure is hard to diagnose is a real defect, and it should be fixed on that ground
+rather than because radon graded it. Judge tests by whether a red one tells you what
+broke.
+
 **Script path convention.** Commands invoke scripts as
 `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py"` — keep the quotes. In a source checkout
 that variable is empty, so prose should offer the repo-relative fallback.
