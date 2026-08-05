@@ -2,7 +2,7 @@
 
 The property that matters most: the generator is **additive**. It appends a reference
 block and must never touch a hand-written line, because the docs pages are independent
-prose — `docs/commands/maffay.md` is longer than the command it documents. Several
+prose — `docs/skills/maffay.md` is longer than the command it documents. Several
 tests below assert exactly that.
 """
 
@@ -52,8 +52,8 @@ def _repo(tmp_path, commands=None, prompts=None, pages=None, internals=None, ski
         (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True, exist_ok=True)
         (tmp_path / layout.PROMPTS_DIR / f"{name}.md").write_text(text)
     for name, text in (pages or {}).items():
-        (tmp_path / "docs" / "commands").mkdir(parents=True, exist_ok=True)
-        (tmp_path / "docs" / "commands" / f"{name}.md").write_text(text)
+        (tmp_path / "docs" / "skills").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "docs" / "skills" / f"{name}.md").write_text(text)
     for name, text in (internals or {}).items():
         (tmp_path / "docs" / "internals").mkdir(parents=True, exist_ok=True)
         (tmp_path / "docs" / "internals" / f"{name}.md").write_text(text)
@@ -123,7 +123,7 @@ def test_command_block_without_an_argument_hint():
 
 def test_procedure_block_links_commands_and_procedures():
     block = rcd.procedure_block("skeleton", ["commands/init", "prompts/scorecard"])
-    assert "[`/rhiza:init`](../commands/init.md)" in block
+    assert "[`/rhiza:init`](../skills/init.md)" in block
     assert "[`scorecard`](scorecard.md)" in block
     assert "not a slash command" in block
 
@@ -145,7 +145,7 @@ def test_readers_of_finds_commands_and_procedures(tmp_path):
 
 
 def test_readers_of_finds_a_skill_that_reads_a_procedure(tmp_path):
-    """A skill is a command, so it is credited as one — the link is `../commands/`."""
+    """A skill is a command, so it is credited as one — the link is `../skills/`."""
     root = _repo(
         tmp_path,
         skills={"docs": "Read prompts/license.md first"},
@@ -240,7 +240,7 @@ def test_main_check_fails_on_a_stale_page(tmp_path, capsys):
 
 def test_main_check_writes_nothing(tmp_path):
     root = _repo(tmp_path, commands={"thing": COMMAND}, pages={"thing": PAGE})
-    page = root / "docs" / "commands" / "thing.md"
+    page = root / "docs" / "skills" / "thing.md"
     rcd.main(["--root", str(root), "--check"])
     assert page.read_text() == PAGE
 
@@ -256,6 +256,6 @@ def test_main_preserves_every_hand_written_line(tmp_path):
     """The whole point: generation is additive."""
     root = _repo(tmp_path, commands={"thing": COMMAND}, pages={"thing": PAGE})
     rcd.main(["--root", str(root)])
-    after = (root / "docs" / "commands" / "thing.md").read_text()
+    after = (root / "docs" / "skills" / "thing.md").read_text()
     for line in PAGE.splitlines():
         assert line in after

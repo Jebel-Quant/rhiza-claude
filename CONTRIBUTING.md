@@ -72,7 +72,7 @@ prose or scripts, `make lint && make test` is enough.
    `scripts/<name>.py` (stdlib-only) and cover it in `tests/scripts/test_<name>.py` —
    the suite enforces **100% coverage**, strict **mypy**, and **100% docstring**
    coverage on `scripts/`.
-3. Give the command a page under `docs/commands/<name>.md` and add it to the
+3. Give the command a page under `docs/skills/<name>.md` and add it to the
    `nav` in `mkdocs.yml`. Write the **prose** — what the command is for, and why.
    Don't hand-write the facts that come from the frontmatter (invocation,
    allowed-tools, model-invocability): run

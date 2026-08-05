@@ -41,7 +41,7 @@ real, in-scope finding — adopt the hook — rather than a manifest to edit.
 
 ## Related
 
-- [quality](../commands/quality.md) — the only command that reads this.
+- [quality](../skills/quality.md) — the only command that reads this.
 - [scorecard](scorecard.md) — owns the scoping rule that turns "out-of-scope" into marks.
 
 <!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->
@@ -52,6 +52,6 @@ real, in-scope finding — adopt the hook — rather than a manifest to edit.
 | --- | --- |
 | **Source** | `plugin/prompts/known-issues.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:quality`](../commands/quality.md) |
+| **Read by** | [`/rhiza:quality`](../skills/quality.md) |
 
 <!-- generated:end -->

@@ -5,7 +5,7 @@ Set a rhiza-managed Python project's standard interpreter version.
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/python-version.md`), not something
     you invoke. The [skeleton](skeleton.md) procedure reads and follows it at its
-    step 6, which is itself reached from [`/rhiza:init`](../commands/init.md).
+    step 6, which is itself reached from [`/rhiza:init`](../skills/init.md).
 
 **Supported: 3.11, 3.12, 3.13, 3.14.** Python 3.9 and 3.10 are **not** supported —
 the script rejects them.
@@ -21,7 +21,7 @@ the script rejects them.
 
     The procedure **detects and reports** this mismatch but deliberately does not fix
     it: `ruff.toml` is template-owned, so a local edit is reverted by the next
-    [`/rhiza:update`](../commands/update.md) sync. The fix is to drop the line
+    [`/rhiza:update`](../skills/update.md) sync. The fix is to drop the line
     upstream in `jebel-quant/rhiza` and let ruff infer.
 
 ## What it does
@@ -58,6 +58,6 @@ metadata step has no business doing; with it, `uv` refuses a pin that contradict
 | --- | --- |
 | **Source** | `plugin/prompts/python-version.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:init`](../commands/init.md), [`skeleton`](skeleton.md) |
+| **Read by** | [`/rhiza:init`](../skills/init.md), [`skeleton`](skeleton.md) |
 
 <!-- generated:end -->

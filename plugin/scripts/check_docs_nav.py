@@ -2,7 +2,7 @@
 """Check that every command and procedure has a docs page, wired into the nav.
 
 ``CONTRIBUTING.md`` has always required it — "give the command a page under
-``docs/commands/<name>.md`` and add it to the ``nav`` in ``mkdocs.yml``" — and nothing
+``docs/skills/<name>.md`` and add it to the ``nav`` in ``mkdocs.yml``" — and nothing
 checked it. That left the one documented rule in the contributing guide with no
 enforcement behind it, in a repo whose stated position is that prose is gated exactly
 like code.
@@ -14,16 +14,18 @@ the nav and so ships as an orphan the site never links to.
 
 The four rules, checked in both directions:
 
-1. **Page exists** — every command has ``docs/commands/<name>.md`` and every
+1. **Page exists** — every command has ``docs/skills/<name>.md`` and every
    ``prompts/<name>.md`` has ``docs/internals/<name>.md``. The page is named for the
-   *command*, not for its file, so a command that moves from ``commands/<name>.md`` to
-   ``skills/<name>/SKILL.md`` keeps its page and its published URL.
+   *command*, not for the file behind it, so renaming that file never orphans its page.
 2. **Page is navigable** — each of those pages appears in ``mkdocs.yml``'s ``nav``.
-3. **No orphan page** — nothing under ``docs/commands/`` or ``docs/internals/`` without
+3. **No orphan page** — nothing under ``docs/skills/`` or ``docs/internals/`` without
    a backing command or procedure. A page for a command that was renamed or retired
    goes on serving stale instructions long after the command stopped existing.
 4. **No dangling nav entry** — every ``nav`` target that names a file under those two
-   directories resolves.
+   directories resolves. Rules 2 and 4 accept the same two spellings of a target
+   (``skills/x.md`` and ``docs/skills/x.md``), which has to hold on both sides: while only
+   rule 2 normalised them, an entry spelled the long way at a page that was never written
+   counted as wiring and was then never checked for existence.
 
 The ``nav`` is read by collecting ``*.md`` targets out of the block rather than by
 parsing YAML. The bundled subset parser in ``_rhiza_yaml.py`` was written for the flat
@@ -46,9 +48,9 @@ import re
 import sys
 from pathlib import Path
 
-from _rhiza_layout import PROMPTS_DIR, command_files
+from _rhiza_layout import DOCS_INTERNALS_DIR, DOCS_SKILLS_DIR, PROMPTS_DIR, command_files
 
-_DOCS_DIRS = ("docs/commands", "docs/internals")
+_DOCS_DIRS = (DOCS_SKILLS_DIR, DOCS_INTERNALS_DIR)
 # A top-level `nav:` key, and the next top-level key that ends the block.
 _NAV_START = re.compile(r"^nav:\s*$", re.M)
 _TOP_LEVEL_KEY = re.compile(r"^[A-Za-z_]", re.M)
@@ -97,15 +99,22 @@ def check_mirror(root: Path, sources: dict[str, str], docs: str, targets: set[st
     for stem in sorted(page_stems - source_stems):
         violations.append(f"{docs}/{stem}.md has no command or procedure behind it — orphan page")
 
-    # The nav is written relative to docs/, so `docs/commands/x.md` appears as
-    # `commands/x.md`. Accept the full path too, so a repo that spells it out isn't
+    # The nav is written relative to docs/, so `docs/skills/x.md` appears as
+    # `skills/x.md`. Accept the full path too, so a repo that spells it out isn't
     # reported as unwired for a cosmetic difference.
     relative = docs.removeprefix("docs/")
     for stem in sorted(source_stems & page_stems):
         if not {f"{relative}/{stem}.md", f"{docs}/{stem}.md"} & targets:
             violations.append(f"{docs}/{stem}.md exists but is not in mkdocs.yml's nav")
 
-    for target in sorted(t for t in targets if t.startswith(f"{relative}/")):
+    # Rule 4 has to normalise the *same* two spellings, or the asymmetry is a hole: rule 2
+    # accepts `docs/<dir>/x.md` as wiring, while a check that only matched `<dir>/x.md`
+    # never went on to confirm that file exists. A nav entry spelled the long way at a
+    # page that was never written therefore passed both rules. Stripping the prefix first
+    # also fixes the path that gets resolved — `root/docs/docs/<dir>/x.md` is nobody's file.
+    # Deduplicated, so a nav naming both spellings reports the violation once.
+    normalised = {t.removeprefix("docs/") for t in targets}
+    for target in sorted(t for t in normalised if t.startswith(f"{relative}/")):
         if not (root / "docs" / target).is_file():
             violations.append(f"mkdocs.yml nav points at docs/{target}, which does not exist")
     return violations

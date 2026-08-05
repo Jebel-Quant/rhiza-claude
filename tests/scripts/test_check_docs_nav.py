@@ -20,7 +20,7 @@ site_name: demo
 nav:
   - Home: index.md
   - Commands:
-      - demo: commands/demo.md
+      - demo: skills/demo.md
   - Internals:
       - proc: internals/proc.md
 
@@ -32,11 +32,11 @@ theme:
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A minimal tree in parity: one command, one procedure, both paged and navigable."""
-    for directory in (layout.COMMANDS_DIR, layout.PROMPTS_DIR, "docs/commands", "docs/internals"):
+    for directory in (layout.COMMANDS_DIR, layout.PROMPTS_DIR, "docs/skills", "docs/internals"):
         (tmp_path / directory).mkdir(parents=True)
     (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text("# demo\n")
     (tmp_path / layout.PROMPTS_DIR / "proc.md").write_text("# proc\n")
-    (tmp_path / "docs" / "commands" / "demo.md").write_text("# demo page\n")
+    (tmp_path / "docs" / "skills" / "demo.md").write_text("# demo page\n")
     (tmp_path / "docs" / "internals" / "proc.md").write_text("# proc page\n")
     (tmp_path / "mkdocs.yml").write_text(_MKDOCS)
     return tmp_path
@@ -55,7 +55,7 @@ def test_a_tree_in_parity_has_no_violations(repo):
 def test_flags_a_command_with_no_docs_page(repo):
     (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n")
     assert (
-        f"{layout.COMMANDS_DIR}/fresh.md has no page at docs/commands/fresh.md"
+        f"{layout.COMMANDS_DIR}/fresh.md has no page at docs/skills/fresh.md"
         in cdn.check_docs_nav(repo)
     )
 
@@ -74,14 +74,14 @@ def test_flags_a_procedure_with_no_docs_page(repo):
 def test_flags_a_page_that_is_not_in_the_nav(repo):
     """The orphan direction mkdocs --strict cannot see."""
     (repo / layout.COMMANDS_DIR / "extra.md").write_text("# extra\n")
-    (repo / "docs" / "commands" / "extra.md").write_text("# extra page\n")
+    (repo / "docs" / "skills" / "extra.md").write_text("# extra page\n")
     violations = cdn.check_docs_nav(repo)
-    assert "docs/commands/extra.md exists but is not in mkdocs.yml's nav" in violations
+    assert "docs/skills/extra.md exists but is not in mkdocs.yml's nav" in violations
 
 
 def test_a_nav_entry_spelled_with_the_docs_prefix_counts(repo):
-    """`docs/commands/x.md` and `commands/x.md` both mean the same page."""
-    (repo / "mkdocs.yml").write_text(_MKDOCS.replace("commands/demo.md", "docs/commands/demo.md"))
+    """`docs/skills/x.md` and `skills/x.md` both mean the same page."""
+    (repo / "mkdocs.yml").write_text(_MKDOCS.replace("skills/demo.md", "docs/skills/demo.md"))
     assert cdn.check_docs_nav(repo) == []
 
 
@@ -89,10 +89,10 @@ def test_a_nav_entry_spelled_with_the_docs_prefix_counts(repo):
 
 
 def test_flags_a_page_whose_command_was_removed(repo):
-    (repo / "docs" / "commands" / "retired.md").write_text("# stale instructions\n")
+    (repo / "docs" / "skills" / "retired.md").write_text("# stale instructions\n")
     violations = cdn.check_docs_nav(repo)
     assert (
-        "docs/commands/retired.md has no command or procedure behind it — orphan page" in violations
+        "docs/skills/retired.md has no command or procedure behind it — orphan page" in violations
     )
 
 
@@ -109,7 +109,7 @@ def test_flags_a_skill_with_no_page(repo):
     (repo / layout.SKILLS_DIR / "fresh" / layout.SKILL_FILE).write_text("# fresh\n")
     violations = cdn.check_docs_nav(repo)
     assert (
-        f"{layout.SKILLS_DIR}/fresh/{layout.SKILL_FILE} has no page at docs/commands/fresh.md"
+        f"{layout.SKILLS_DIR}/fresh/{layout.SKILL_FILE} has no page at docs/skills/fresh.md"
         in violations
     )
 
@@ -118,10 +118,35 @@ def test_flags_a_skill_with_no_page(repo):
 
 
 def test_flags_a_nav_entry_pointing_at_a_missing_page(repo):
-    (repo / "docs" / "commands" / "demo.md").unlink()
+    (repo / "docs" / "skills" / "demo.md").unlink()
     (repo / layout.COMMANDS_DIR / "demo.md").unlink()
     violations = cdn.check_docs_nav(repo)
-    assert "mkdocs.yml nav points at docs/commands/demo.md, which does not exist" in violations
+    assert "mkdocs.yml nav points at docs/skills/demo.md, which does not exist" in violations
+
+
+def test_flags_a_missing_page_named_with_the_docs_prefix(repo):
+    """The spelling rule 2 accepts as wiring must still be checked for existence.
+
+    While only rule 2 normalised the `docs/` prefix, this tree passed both rules: the
+    long-form entry counted as wiring, and the dangling check — matching `skills/` alone —
+    never looked at it. A nav pointing at a page nobody wrote was therefore green.
+    """
+    (repo / "mkdocs.yml").write_text(_MKDOCS.replace("skills/demo.md", "docs/skills/gone.md"))
+    violations = cdn.check_docs_nav(repo)
+    assert "mkdocs.yml nav points at docs/skills/gone.md, which does not exist" in violations
+
+
+def test_reports_a_missing_page_once_when_the_nav_names_both_spellings(repo):
+    """Normalising collapses the two spellings, so the violation is not duplicated."""
+    (repo / "mkdocs.yml").write_text(
+        _MKDOCS.replace(
+            "      - demo: skills/demo.md",
+            "      - demo: skills/gone.md\n      - demo again: docs/skills/gone.md",
+        )
+    )
+    violations = cdn.check_docs_nav(repo)
+    dangling = [v for v in violations if "which does not exist" in v]
+    assert dangling == ["mkdocs.yml nav points at docs/skills/gone.md, which does not exist"]
 
 
 # --- nav parsing --------------------------------------------------------------
@@ -130,7 +155,7 @@ def test_flags_a_nav_entry_pointing_at_a_missing_page(repo):
 def test_nav_targets_reads_every_md_path(repo):
     assert cdn.nav_targets(repo / "mkdocs.yml") == {
         "index.md",
-        "commands/demo.md",
+        "skills/demo.md",
         "internals/proc.md",
     }
 

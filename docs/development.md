@@ -111,7 +111,7 @@ renamed argument or a widened `allowed-tools` list cannot survive in the docs. P
 *existence* was checked; page *facts* were not.
 
 Only that block is generated — the pages are hand-written prose, and
-`docs/commands/maffay.md` is longer than the command it documents. The renderer
+`docs/skills/maffay.md` is longer than the `SKILL.md` it documents. The renderer
 appends and never edits a hand-written line.
 
 ### Shared hooks from `rhiza-hooks`

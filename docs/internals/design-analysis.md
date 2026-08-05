@@ -4,7 +4,7 @@ Gather the complexity and architecture evidence that **no `make` gate measures**
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/design-analysis.md`), not something you
-    invoke. [`/rhiza:quality`](../commands/quality.md) reads and follows it after the
+    invoke. [`/rhiza:quality`](../skills/quality.md) reads and follows it after the
     gates have run.
 
 ## Why it exists
@@ -45,6 +45,6 @@ guesses.
 | --- | --- |
 | **Source** | `plugin/prompts/design-analysis.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:quality`](../commands/quality.md), [`scorecard`](scorecard.md) |
+| **Read by** | [`/rhiza:quality`](../skills/quality.md), [`scorecard`](scorecard.md) |
 
 <!-- generated:end -->

@@ -21,7 +21,7 @@ command and procedure files themselves — and spliced into each page between ma
 
 **What is deliberately not generated: the prose.** An early sketch of this had the whole
 page rendered from the command body. That is wrong, and the page sizes say why —
-``docs/commands/maffay.md`` is *longer* than ``commands/maffay.md``. The command body is
+``docs/skills/maffay.md`` is *longer* than the ``SKILL.md`` it documents. The command body is
 instructions to a model; the docs page explains the command to a person. They are
 different documents with different audiences, and generating one from the other would
 have deleted real documentation. The generated block is therefore **additive**: it
@@ -42,7 +42,7 @@ import re
 import sys
 from pathlib import Path
 
-from _rhiza_layout import PROMPTS_DIR, command_files
+from _rhiza_layout import DOCS_INTERNALS_DIR, DOCS_SKILLS_DIR, PROMPTS_DIR, command_files
 
 _BEGIN = "<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->"
 _END = "<!-- generated:end -->"
@@ -55,6 +55,10 @@ _FIELD = re.compile(r"^([a-z-]+):[ \t]*(.*)$", re.M)
 _PROMPT_REF = re.compile(r"prompts/([a-zA-Z0-9_-]+)\.md")
 
 _BLOCK = re.compile(re.escape(_BEGIN) + r".*?" + re.escape(_END), re.S)
+
+# A link from `docs/internals/` to a command page is relative to `docs/`, so it needs the
+# directory name alone. Derived, not spelled out, so the two cannot disagree.
+_SKILLS_URL = DOCS_SKILLS_DIR.removeprefix("docs/")
 
 
 def frontmatter(text: str) -> dict[str, str]:
@@ -105,7 +109,7 @@ def procedure_block(name: str, readers: list[str]) -> str:
     """The reference table for an internal procedure."""
     if readers:
         read_by = ", ".join(
-            f"[`/rhiza:{reader}`](../commands/{reader}.md)"
+            f"[`/rhiza:{reader}`](../{_SKILLS_URL}/{reader}.md)"
             if kind == "command"
             else f"[`{reader}`]({reader}.md)"
             for kind, reader in _classify(readers)
@@ -164,13 +168,13 @@ def render(root: Path) -> dict[Path, str]:
     """Map every docs page to the text it should have."""
     wanted: dict[Path, str] = {}
     for name, path in command_files(root):
-        page = root / "docs" / "commands" / f"{name}.md"
+        page = root / DOCS_SKILLS_DIR / f"{name}.md"
         if page.is_file():
             meta = frontmatter(path.read_text(encoding="utf-8"))
             block = command_block(name, meta, path.relative_to(root).as_posix())
             wanted[page] = splice(page.read_text(encoding="utf-8"), block)
     for path in sorted((root / PROMPTS_DIR).glob("*.md")):
-        page = root / "docs" / "internals" / f"{path.stem}.md"
+        page = root / DOCS_INTERNALS_DIR / f"{path.stem}.md"
         if page.is_file():
             block = procedure_block(path.stem, readers_of(path.stem, root))
             wanted[page] = splice(page.read_text(encoding="utf-8"), block)

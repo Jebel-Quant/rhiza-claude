@@ -5,8 +5,8 @@ installing it if it isn't.
 
 !!! note "Not a slash command"
     This is an **internal procedure** (`plugin/prompts/install-uv.md`), not something you
-    invoke. Both [`/rhiza:init`](../commands/init.md) and
-    [`/rhiza:update`](../commands/update.md) follow it as their **first** step, so
+    invoke. Both [`/rhiza:init`](../skills/init.md) and
+    [`/rhiza:update`](../skills/update.md) follow it as their **first** step, so
     `uv` gets installed as part of using them — there's nothing to run yourself.
 
 Every rhiza command runs its bundled scripts through
@@ -51,6 +51,6 @@ prompt.
 | --- | --- |
 | **Source** | `plugin/prompts/install-uv.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:init`](../commands/init.md), [`/rhiza:update`](../commands/update.md), [`skeleton`](skeleton.md) |
+| **Read by** | [`/rhiza:init`](../skills/init.md), [`/rhiza:update`](../skills/update.md), [`skeleton`](skeleton.md) |
 
 <!-- generated:end -->
