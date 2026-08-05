@@ -144,14 +144,17 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   prose, and keeps the README's `make help` target list in lockstep with the real
   `Makefile`. Badges are generated with **omit, don't fake** — a badge whose backing
   fact isn't detected is never emitted. Writes files only; no commit, no PR.
-- **`/rhiza:release`** — prepare a release locally: **table up the legal next versions**
-  and let you pick (it never suggests or defaults to one), **guard that the choice
-  strictly increases** past every prior release, then let `bump-my-version` write it into every
-  location the repo declares in `[tool.bumpversion]` — `pyproject.toml`, plugin
-  manifests, self-referencing CI stub pins — regenerate `CHANGELOG.md`, and commit and
-  tag. Because the locations are declared rather than inferred, a dependency that
-  happens to share the version number is never rewritten. Stops before pushing; pushing
-  the tag is what triggers the release CI.
+- **`/rhiza:release`** — release **through a pull request**: **table up the legal next
+  versions** and let you pick (it never suggests or defaults to one), **guard that the
+  choice strictly increases** past every prior release, then let `bump-my-version` write it
+  into every location the repo declares in `[tool.bumpversion]` — `pyproject.toml`, plugin
+  manifests, self-referencing CI stub pins — regenerate `CHANGELOG.md`, and open a release
+  PR. Because the locations are declared rather than inferred, a dependency that happens
+  to share the version number is never rewritten. **Run it again after the PR merges** and
+  it tags the merged commit: a tag must name a commit on the default branch, and a
+  squash-merge rewrites the SHA, so the commit worth tagging doesn't exist until you merge.
+  It works out which of the two phases it's in from the repo's own state. Pushing the tag
+  stays yours; that's what triggers the release CI.
 
 ### Internals
 

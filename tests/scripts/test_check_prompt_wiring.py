@@ -318,9 +318,14 @@ def test_skeleton_reaches_python_version(repo_root: Path):
     )
 
 
-@pytest.mark.parametrize("command", ["init", "update"])
-def test_both_entry_points_share_the_pr_base_procedure(command, repo_root):
-    """The 'never push to the default branch' rule lives in one place, not two."""
+@pytest.mark.parametrize("command", ["init", "update", "release"])
+def test_every_pr_opening_command_shares_the_pr_base_procedure(command, repo_root):
+    """The 'never push to the default branch' rule lives in one place, not three.
+
+    /release joined the other two when it stopped committing the version bump straight
+    onto the default branch: a release is an ordinary reviewed change, so it earns its
+    branch the same way and from the same procedure.
+    """
     assert "prompts/pr-base.md" in _command_text(repo_root, command)
 
 
@@ -349,7 +354,7 @@ def test_the_scoping_rule_lives_only_in_the_scorecard(repo_root: Path):
 
 
 def test_pr_base_is_reached_before_any_commit_is_pushed(repo_root: Path):
-    """The branch must exist before the push, in both callers."""
-    for command in ("init", "update"):
+    """The branch must exist before the push, in every caller."""
+    for command in ("init", "update", "release"):
         text = _command_text(repo_root, command)
         assert text.index("prompts/pr-base.md") < text.index("git push")
