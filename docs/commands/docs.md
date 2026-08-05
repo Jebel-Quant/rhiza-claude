@@ -75,7 +75,7 @@ output (ANSI colour and recursive-make chatter stripped).
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/docs.md` |
+| **Source** | `plugin/skills/docs/SKILL.md` |
 | **Invocation** | `/rhiza:docs [readme | claude | mkdocs | all]  (optional; defaults to all)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(grep*)`, `Bash(find*)`, `Bash(cat*)`, `Bash(head*)`, `Bash(make*)`, `Bash(uv*)`, `Read`, `Edit`, `Write`, `AskUserQuestion` |
