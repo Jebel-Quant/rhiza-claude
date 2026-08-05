@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.7.0] - 2026-08-05
+
+### New Features
+- *(quality)* Enforce subprocess discipline, add mutation testing, clear the C band (#134)
+- *(prompt-wiring)* Fail the build when shipped prose names a directory that isn't there (#144)
+
+### Bug Fixes
+- *(skeleton)* Document cargo's placeholder fn so a fresh crate passes docs-coverage (#115)
+- *(release)* Prepend the changelog section instead of regenerating the file (#116)
+- *(release)* Treat Rust's version config as tag-derived, like Go's (#118)
+- *(sync)* Match `exclude:` against destination paths, not source paths (#127)
+- *(check_test_layout)* Exempt template-owned tests from mirror parity (#133)
+
+### Documentation
+- *(plugin)* Correct the spec claim, and gate the validation a submission is judged on (#137)
+- *(plugin)* Stop justifying prompts/ against a directory that no longer exists (#143)
+- Bring the paper up to v0.6.2, and retire commands/ from the prose (#145)
+
+### Maintenance
+- *(commands)* Rename /rhiza:uninstall to /rhiza:detach (#114)
+- *(e2e)* Scaffold a real Python package, and pin its vacuous test gate (#119)
+- *(ci)* Run the hooks through prek instead of pre-commit (#120)
+- *(ci)* Harden every workflow job, and fix two faults in the drift job (#122)
+- *(ci)* Cache uv, gate on one context, guard releases, check links (#123)
+- *(skeleton)* Stop seeding a `lint` dependency group into new repos (#124)
+- *(tests)* Pin the template at v1.3.2 and retire both self-retiring markers (#125)
+- *(scripts)* Split the three oversized modules and clear every C-grade block (#132)
+- *(sync-core)* Triage every mutation survivor in _rhiza_merge and stage_synced (#136)
+- *(plugin)* Migrate maffay to the skills layout, and teach the gates both (#138)
+- *(plugin)* Migrate detach, docs and status to the skills layout (#139)
+- *(plugin)* Migrate the last four commands, completing the skills layout (#140)
+- *(docs)* Rename docs/commands to docs/skills, and update every URL (#146)
+
 ## [0.6.2] - 2026-08-03
 
 ### New Features
