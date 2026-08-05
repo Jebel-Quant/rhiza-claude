@@ -182,8 +182,9 @@ scoping rule, the subcategory list, the coverage bar, the findings format, and t
 issue-filing menu. Feed it the step-2 gate results and the step-3 evidence; it turns
 them into marks, then findings, then — only with an explicit selection — issues.
 
-Both files are **internal procedures, not slash commands** — deliberately outside
-`commands/` so the user can't invoke them, and `Read` is how you reach them. Don't
+Both files are **internal procedures, not slash commands** — deliberately kept out of
+any directory Claude Code scans, so the user can't invoke them, and `Read` is how you
+reach them. Don't
 restate their rules here or score from memory: the scoping rule in particular is what
 stops a managed repo being marked down for its own template.
 

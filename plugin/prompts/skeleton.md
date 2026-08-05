@@ -1,7 +1,7 @@
 # Skeleton (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:init` reads it and follows it at its step 5b. If you
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:init` reads it and follows it at its step 5b. If you
 > are reading this because `/init` sent you here, carry on — you already have
 > `OWNER`, `NAME`, and the host from `/init`'s step 2, so don't re-ask for them.
 

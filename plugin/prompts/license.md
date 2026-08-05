@@ -1,7 +1,7 @@
 # License (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:init` reads it and follows it at its step 5c.
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:init` reads it and follows it at its step 5c.
 
 **This is a thin wrapper around the bundled `plugin/scripts/set_license.py`.** The metadata
 edit, the bundled license texts, and the safe-overwrite logic all live in that

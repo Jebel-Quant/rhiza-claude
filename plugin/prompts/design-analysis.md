@@ -1,7 +1,7 @@
 # Design analysis (internal procedure)
 
-> **Not a slash command.** This file lives in `prompts/`, not `commands/`, so the
-> user cannot invoke it. `/rhiza:quality` reads it and follows it after the gates.
+> **Not a slash command.** This file lives in `prompts/`, which Claude Code does not
+> scan for commands, so the user cannot invoke it. `/rhiza:quality` reads it and follows it after the gates.
 
 Complexity and architecture are **not measured by any `make` gate**, so unlike every
 other input to the scorecard, this evidence has to be gathered by hand. That is the
