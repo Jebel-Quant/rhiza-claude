@@ -91,12 +91,12 @@ def _coerce_scalar(raw: str) -> object:
         end = raw.find("]")
         inner = raw[1 : end if end != -1 else len(raw)]
         return [v for v in (_coerce_scalar(item) for item in inner.split(",")) if v != ""]
-    token = raw.split("#", 1)[0].strip()
-    if token == "true":
+    bare = raw.split("#", 1)[0].strip()
+    if bare == "true":
         return True
-    if token == "false":
+    if bare == "false":
         return False
-    return token
+    return bare
 
 
 def _parse_flat_section(text: str, header: str) -> dict[str, object]:
@@ -218,22 +218,9 @@ def _test_files(tests: Path, exempt: set[str] | None = None) -> list[Path]:
     )
 
 
-def check(
-    src: Path,
-    tests: Path,
-    config: Mapping[str, object] | None = None,
-    owned: set[Path] | None = None,
-) -> list[str]:
-    """Return a list of layout violations (empty when the layout is clean).
-
-    *owned* holds template-written paths (see :func:`_template_owned`); test files in
-    it are skipped, since the repository neither wrote them nor can rename them.
-    """
-    exempt = _exempt_dirs(config or {})
-    owned = owned or set()
+def _forward_errors(src: Path, tests: Path) -> list[str]:
+    """Every source module needs a mirrored test file, and a ``Test*`` per source class."""
     errors: list[str] = []
-
-    # Forward: every source module needs a mirrored test file + Test* classes.
     for module in _source_modules(src):
         rel = module.relative_to(src)
         test_path = tests / rel.parent / f"test_{module.stem}.py"
@@ -241,11 +228,22 @@ def check(
             errors.append(f"missing test file {test_path} for source module {module}")
             continue
         test_classes = _top_level_classes(test_path)
-        for cls in sorted(_top_level_classes(module)):
-            if f"Test{cls}" not in test_classes:
-                errors.append(f"missing class Test{cls} in {test_path} for class {cls} in {module}")
+        errors.extend(
+            f"missing class Test{cls} in {test_path} for class {cls} in {module}"
+            for cls in sorted(_top_level_classes(module))
+            if f"Test{cls}" not in test_classes
+        )
+    return errors
 
-    # Reverse: every test file/class must trace back to a source module/class.
+
+def _reverse_errors(src: Path, tests: Path, exempt: set[str], owned: set[Path]) -> list[str]:
+    """Every test file and ``Test*`` class must trace back to a source module or class.
+
+    The direction that catches a test left behind by a rename — which is worse than a
+    missing test, because it keeps passing while covering nothing. *owned* paths are the
+    exception: the repository neither wrote them nor can rename them.
+    """
+    errors: list[str] = []
     for test_file in _test_files(tests, exempt):
         if test_file.resolve() in owned:
             continue
@@ -256,14 +254,31 @@ def check(
             errors.append(f"orphan test file {test_file} (no source module {source_path})")
             continue
         source_classes = _top_level_classes(source_path)
-        for cls in sorted(_top_level_classes(test_file)):
-            if cls.startswith("Test") and cls[len("Test") :] not in source_classes:
-                errors.append(
-                    f"orphan test class {cls} in {test_file} "
-                    f"(no class {cls[len('Test') :]} in {source_path})"
-                )
-
+        errors.extend(
+            f"orphan test class {cls} in {test_file} "
+            f"(no class {cls[len('Test') :]} in {source_path})"
+            for cls in sorted(_top_level_classes(test_file))
+            if cls.startswith("Test") and cls[len("Test") :] not in source_classes
+        )
     return errors
+
+
+def check(
+    src: Path,
+    tests: Path,
+    config: Mapping[str, object] | None = None,
+    owned: set[Path] | None = None,
+) -> list[str]:
+    """Return a list of layout violations (empty when the layout is clean).
+
+    Both directions are checked, and both matter: a missing test leaves code uncovered,
+    while an orphan test keeps passing after the code it named is gone.
+
+    *owned* holds template-written paths (see :func:`_template_owned`); test files in
+    it are skipped, since the repository neither wrote them nor can rename them.
+    """
+    exempt = _exempt_dirs(config or {})
+    return _forward_errors(src, tests) + _reverse_errors(src, tests, exempt, owned or set())
 
 
 def main(argv: list[str] | None = None) -> int:

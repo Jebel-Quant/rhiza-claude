@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test e2e book book-serve paper paper-figures clean changelog
+.PHONY: help install lint test e2e mutate book book-serve paper paper-figures clean changelog
 
 PAPER := rhiza-claude-intro
 
@@ -47,6 +47,99 @@ test:  ## Run the script test suite with a 100% coverage gate
 # green `make e2e` says nothing about the gate every other caller has to clear.
 e2e:  ## Run only the end-to-end tests, without the coverage gate
 	$(PYTEST) -k e2e --no-cov $(ARGS)
+
+# --------------------------------------------------------------------------- #
+# Mutation testing — deliberately NOT part of `make test`
+# --------------------------------------------------------------------------- #
+#
+# 100% branch coverage says every arm *ran*; it says nothing about whether any assertion
+# would notice if an arm were wrong. That gap is the whole reason this target exists, and
+# its first real run found one: `build_lock`'s `strategy = "merge"` can be changed to
+# `None` and `tests/scripts/test__rhiza_lock.py` still passes — only `test_sync.py`
+# catches it.
+#
+# Scoped to the three modules that decide what lands in a *user's* repository during
+# `/rhiza:update`, because a surviving mutant there is the costliest kind. A full-tree run
+# is slow enough to get switched off, which is worse than not having it.
+#
+# **The threshold is "no surviving mutant that changes behaviour", not zero survivors.**
+# Three categories are accepted, and each is a deliberate judgement rather than a shrug:
+#
+#   log text        `log(f"[DEL] {rel}")` → `log(f"XX[DEL] {rel}XX")`. Asserting log
+#                   strings would pin wording that is meant to be edited freely.
+#   `.get` defaults `lock.get("sha", "")` → `lock.get("sha", "XX")`. Reachable only from a
+#                   lock missing that field entirely, which the writer cannot produce.
+#   equivalent      `sys.path.insert(0, …)` → `insert(1, …)`. Same effect: the directory
+#                   still lands on the path ahead of anything that matters.
+#
+# Everything else is a test worth adding. On the first triaged module that split was 8 real
+# gaps out of 24 survivors — including a `_PROTECTED` path that could be changed to any
+# string (deleting the pointer, and with it the repo's rhiza-managed status) and a
+# `continue` that could become `break` (leaving every orphan after an excluded one on
+# disk). Both had 100% line *and* branch coverage the whole time.
+# Comma-separated: mutmut takes one `--paths-to-mutate` value and splits it itself.
+# Override to narrow a local run to one module, e.g.
+#   make mutate MUTATE_MODULES=plugin/scripts/_rhiza_lock.py
+MUTATE_MODULES := plugin/scripts/_rhiza_merge.py,plugin/scripts/_rhiza_lock.py,plugin/scripts/stage_synced.py
+
+# The tests that actually exercise the sync core — not just each module's mirrored file.
+# Scoping the runner to the mirror alone over-reports survivors, since much of this code is
+# driven through `sync.py`: `build_lock`'s `strategy = "merge"` can be mutated to `None`
+# and `test__rhiza_lock.py` still passes, while `test_sync.py` catches it.
+#
+# **Ordered cheapest-first, and that ordering is load-bearing.** mutmut runs the suite with
+# `-x`, so a mutant dies at the first failing test and pays for nothing after it. Measured
+# on this machine: resolve_conflicts 0.8s, _rhiza_lock 0.9s, stage_synced 1.0s, sync 5.8s,
+# _rhiza_merge 11.3s. Fastest-first turns most kills into a one-second run; the previous
+# order billed every mutant for the slowest file. `-k 'not e2e'` drops the network-bound
+# tests, which are far too slow to run once per mutant.
+MUTATE_TESTS := tests/scripts/test_resolve_conflicts.py \
+                tests/scripts/test__rhiza_lock.py \
+                tests/scripts/test_stage_synced.py \
+                tests/scripts/test_sync.py \
+                tests/scripts/test__rhiza_merge.py
+
+# Pinned to 3.12: mutmut 2.5.1 crashes on 3.14 (`cannot pickle 'itertools.count'`), and
+# the whole plugin is run under `--python 3.12` everywhere else anyway.
+MUTMUT := uvx --python 3.12 --with pytest --with pyyaml mutmut@2.5.1
+
+# **mutmut rewrites the files it mutates, in place.** An interrupted run therefore leaves a
+# live mutant in the working tree — which is exactly how this target's own development
+# produced a "failing test" that was really a mutated `_rhiza_lock.py`. So the run happens
+# in a throwaway git worktree and the developer's tree is never touched. The trap is worth
+# stating out loud because the symptom (a test failing for no reason you can see) is
+# thoroughly misleading.
+# The worktree is checked out at **HEAD**, so this measures the last commit and not the
+# working tree — commit before you read the numbers. That is the right default for the
+# scheduled job, and the isolation is worth more than the convenience either way.
+MUTATE_WORKTREE := $(TESTS)/mutate
+
+# mutmut exits 2 when mutants survive, which is information rather than breakage: survivors
+# are the output of this target, not a malfunction. The exit code is passed through so a
+# caller can act on it, and the worktree is removed either way.
+mutate:  ## Mutation-test the sync core in an isolated worktree (slow; not in `make test`)
+	@rm -rf $(MUTATE_WORKTREE)
+	@git worktree prune
+	@git worktree add --detach -q $(MUTATE_WORKTREE) HEAD
+	@mkdir -p $(TESTS)
+	@status=0; \
+	( cd $(MUTATE_WORKTREE) \
+	  && $(MUTMUT) run \
+	       --paths-to-mutate "$(MUTATE_MODULES)" \
+	       --tests-dir tests/scripts \
+	       --runner "python -m pytest -x -q --no-header -p no:cacheprovider -k 'not e2e' $(MUTATE_TESTS)" \
+	       --simple-output --no-progress \
+	  ; run=$$?; echo; $(MUTMUT) results; \
+	    echo "$(MUTATE_MODULES)" | tr ',' '\n' \
+	      | while read -r m; do [ -n "$$m" ] && $(MUTMUT) show "$$m"; done \
+	      > survivors.diff 2>&1 || true; \
+	    exit $$run \
+	) || status=$$?; \
+	cp $(MUTATE_WORKTREE)/survivors.diff $(TESTS)/mutation-survivors.diff 2>/dev/null || true; \
+	git worktree remove --force $(MUTATE_WORKTREE) 2>/dev/null || true; \
+	echo "survivor diffs: $(TESTS)/mutation-survivors.diff"; \
+	echo "mutmut exit status: $$status (0 = every mutant killed, 2 = some survived)"; \
+	exit $$status
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
 # all run via `make lint` (prek). For a single one, use e.g.

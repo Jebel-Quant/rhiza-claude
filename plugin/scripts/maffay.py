@@ -127,7 +127,9 @@ def pick(theme: str | None = None, seed: int | None = None) -> dict[str, Any] | 
     pool = candidates(theme)
     if not pool:
         return None
-    rng = random.Random(seed)  # nosec B311 - a bonmot, not a secret
+    # noqa/nosec: picking a Peter Maffay lyric, not a key. `--seed` exists so the tests
+    # can pin the choice, which a cryptographic generator would make impossible.
+    rng = random.Random(seed)  # noqa: S311  # nosec B311
     return rng.choice(pool)
 
 

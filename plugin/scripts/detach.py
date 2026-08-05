@@ -118,6 +118,37 @@ def _print_summary(removed: int, skipped: int, empty_dirs: int, errors: int) -> 
         _error(f"  Errors encountered: {errors}")
 
 
+def _drop_lock(lock_file: Path) -> tuple[int, int]:
+    """Delete the lock so the repo is no longer rhiza-managed; return ``(removed, errors)``.
+
+    Last, and deliberately so: while the lock is present the detach is resumable, because
+    it is the only record of which files were managed.
+    """
+    if not lock_file.exists():
+        return 0, 0
+    try:
+        lock_file.unlink()
+    except OSError as exc:
+        _error(f"Failed to delete {LOCK_REL}: {exc}")
+        return 0, 1
+    _info(f"[DEL] {LOCK_REL}")
+    return 1, 0
+
+
+def _report_outcome(errors: int) -> int:
+    """Print the closing guidance and return the process exit code."""
+    if errors:
+        _error(f"Detach completed with {errors} error(s)")
+        return 1
+    _info("Repository detached from rhiza successfully")
+    _info(
+        "\nNext steps:\n"
+        "  Review changes:  git status && git diff\n"
+        '  Commit:          git add . && git commit -m "chore: remove rhiza templates"'
+    )
+    return 0
+
+
 def detach(target: Path, *, force: bool) -> int:
     """Remove all rhiza-managed files; return a process exit code."""
     target = target.resolve()
@@ -147,29 +178,10 @@ def detach(target: Path, *, force: bool) -> int:
 
     removed, skipped, errors = _remove_files(files_to_remove, target)
     empty_dirs = _cleanup_empty_directories(files_to_remove, target)
+    lock_removed, lock_errors = _drop_lock(lock_file)
 
-    # Finally drop the lock file itself so the repo is no longer rhiza-managed.
-    if lock_file.exists():
-        try:
-            lock_file.unlink()
-            _info(f"[DEL] {LOCK_REL}")
-            removed += 1
-        except OSError as exc:
-            _error(f"Failed to delete {LOCK_REL}: {exc}")
-            errors += 1
-
-    _print_summary(removed, skipped, empty_dirs, errors)
-    if errors:
-        _error(f"Detach completed with {errors} error(s)")
-        return 1
-
-    _info("Repository detached from rhiza successfully")
-    _info(
-        "\nNext steps:\n"
-        "  Review changes:  git status && git diff\n"
-        '  Commit:          git add . && git commit -m "chore: remove rhiza templates"'
-    )
-    return 0
+    _print_summary(removed + lock_removed, skipped, empty_dirs, errors + lock_errors)
+    return _report_outcome(errors + lock_errors)
 
 
 def main(argv: list[str] | None = None) -> int:

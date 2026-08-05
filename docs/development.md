@@ -58,6 +58,7 @@ hooks unavailable, so the rules are still stated where they apply.
 make help        # list targets
 make lint        # run prek against every file
 make test        # run the script test suite (100% coverage gate)
+make mutate      # mutation-test the sync core (slow; scheduled, not a PR gate)
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts

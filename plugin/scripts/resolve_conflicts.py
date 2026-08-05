@@ -161,6 +161,30 @@ def find_conflicts(target: Path) -> tuple[list[Path], list[Path]]:
     return marked, rejects
 
 
+def _resolve_notes(
+    marked: list[Path],
+    rejects: list[Path],
+    outstanding: list[str],
+    resolved: list[dict[str, Any]],
+    *,
+    dry_run: bool,
+) -> list[str]:
+    """Build the notes for a completed resolve pass."""
+    notes: list[str] = []
+    if dry_run and resolved:
+        notes.append("dry run — nothing was written")
+    if outstanding:
+        notes.append(
+            f"{len(outstanding)} .rej file(s) remain. The sync no longer creates these — "
+            "`git apply --reject` was the only thing that ever did, and it is gone — so one "
+            "here came from an older sync or a hand-run `git apply`, and its contents cannot "
+            "be assumed redundant. Apply them by hand, then delete the .rej."
+        )
+    if not marked and not rejects:
+        notes.append("no conflicts found")
+    return notes
+
+
 def resolve(target: Path, *, dry_run: bool = False) -> dict[str, Any]:
     """Take the upstream side throughout *target*; return a summary dict."""
     marked, rejects = find_conflicts(target)
@@ -183,23 +207,10 @@ def resolve(target: Path, *, dry_run: bool = False) -> dict[str, Any]:
 
     outstanding = [str(path.relative_to(target)) for path in rejects]
 
-    notes: list[str] = []
-    if dry_run and resolved:
-        notes.append("dry run — nothing was written")
-    if outstanding:
-        notes.append(
-            f"{len(outstanding)} .rej file(s) remain. The sync no longer creates these — "
-            "`git apply --reject` was the only thing that ever did, and it is gone — so one "
-            "here came from an older sync or a hand-run `git apply`, and its contents cannot "
-            "be assumed redundant. Apply them by hand, then delete the .rej."
-        )
-    if not marked and not rejects:
-        notes.append("no conflicts found")
-
     return {
         "resolved": resolved,
         "rejects": outstanding,
-        "notes": notes,
+        "notes": _resolve_notes(marked, rejects, outstanding, resolved, dry_run=dry_run),
         "exit_code": EXIT_REJECTS_REMAIN if outstanding else EXIT_OK,
     }
 

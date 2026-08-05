@@ -72,7 +72,14 @@ def git_identity(target: Path) -> tuple[str | None, str | None]:
         return None, None
 
     def read(key: str) -> str | None:
-        """Return the value git config reports for *key*, or None when it is unset."""
+        """Return the value git config reports for *key*, or None when it is unset.
+
+        `git config --get` exits **1** for a key that is simply unset, which is the
+        commonest case here and not a failure — the empty stdout *is* the answer. Any
+        other non-zero exit (no repo, unreadable config) also yields empty stdout, and
+        "no identity available" is the same outcome for all of them.
+        """
+        # rc-ignored: `git config --get` exits 1 on an unset key; empty stdout is the answer.
         result = subprocess.run(  # nosec B603
             [git, "config", "--get", key], cwd=str(target), capture_output=True, text=True,
             check=False,

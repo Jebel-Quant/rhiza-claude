@@ -23,6 +23,7 @@ make help           # list every target
 make lint           # all prek hooks over every file
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
+make mutate         # mutation-test the sync core (slow, scheduled — not in `make test`)
 make book           # build the docs site into _book/ (runs paper + test first)
 make book-serve     # docs with live reload
 make paper          # build the LaTeX paper (needs tectonic or pdflatex)

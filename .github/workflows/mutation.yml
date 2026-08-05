@@ -1,0 +1,115 @@
+name: Mutation
+
+# Do the sync core's *assertions* bite, or does it merely have 100% coverage?
+#
+# `make test` gates at 100% line **and** branch coverage, which proves every arm ran. It
+# cannot prove that any assertion would notice if an arm were wrong — and coverage was the
+# only evidence this repo had for test strength. This job supplies the other kind.
+#
+# Scoped to the three modules that decide what lands in a *user's* repository during
+# `/rhiza:update` (`_rhiza_merge`, `_rhiza_lock`, `stage_synced`), because a surviving
+# mutant there is the costliest kind: it means a wrong merge or a wrong staged file set
+# could ship while the suite stays green.
+#
+# Deliberately **not** on the PR path. Mutation runs are slow and non-deterministic enough
+# that gating merges on them would get the job switched off, which is worse than not having
+# it. A separate workflow with its own name also keeps the signal legible: a red "Mutation"
+# means the tests are weaker than the coverage number suggests, which is a different fact
+# from a red "CI".
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Mondays, 07:00 UTC — an hour after Template drift
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation
+  cancel-in-progress: false
+
+jobs:
+  mutate:
+    name: mutation-test the sync core
+    # 60 minutes, which is double the ≤30 every other job here holds to, and the exception
+    # is deliberate. Cost scales with the *number of mutants*, not the suite's wall-clock
+    # time: each one reruns the sync-core tests, and while the runner is ordered so a killed
+    # mutant usually exits in about a second, a survivor pays for the slowest file
+    # (`test__rhiza_merge.py`, ~12s measured). Weekly and off the PR path, so the wait costs
+    # nobody's review cycle.
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # Full history: `make mutate` runs inside a `git worktree` checked out at HEAD, so
+      # the checkout has to be a real repository rather than a shallow snapshot.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      # No uv cache, for the same reason as Template drift: a weekly job's cache entry is
+      # evicted after seven days of no reads, so it would be rebuilt every run and read
+      # back never.
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: '0.12.1'
+
+      # `git worktree add` needs an identity configured on some git versions.
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # mutmut exits 2 when mutants survive. That is this job's *output*, not a crash, so
+      # the status is captured and turned into a summary rather than allowed to abort the
+      # step — a fatal error (exit 1) still fails the job.
+      - name: Run mutation testing over the sync core
+        id: mutate
+        run: |
+          set +e
+          make mutate | tee mutation.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Mutation testing — sync core'
+            echo
+            if [ "$status" -eq 0 ]; then
+              echo 'Every mutant was killed — the assertions bite, not just the coverage.'
+            elif [ "$status" -eq 2 ]; then
+              echo 'Some mutants **survived** — the tests would not notice those changes.'
+              echo 'Each one is either a test worth adding or an equivalent mutant worth recording.'
+            else
+              echo "mutmut exited $status (fatal, or a timeout/slow-test signal)."
+            fi
+            echo
+            echo '```'
+            tail -40 mutation.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Exit 1 is a fatal mutmut error and should fail the job; 2 (survivors) and 4
+          # (timeouts) are findings to read, not breakage.
+          if [ "$status" -eq 1 ]; then
+            exit 1
+          fi
+
+      - name: Upload the mutation log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-log
+          path: mutation.log
+          if-no-files-found: warn

@@ -25,3 +25,8 @@ docs/reports/
 
 # Paper PDF staged into the docs site by `make paper` — built, not committed
 docs/paper/
+
+# mutmut writes a .bak beside each file it mutates, and a cache; `make mutate` runs in
+# a throwaway worktree, but a hand-run `mutmut` in the tree would leave these behind.
+.mutmut-cache
+*.py.bak
