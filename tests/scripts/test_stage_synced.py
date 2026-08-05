@@ -318,3 +318,134 @@ class TestGitFailed:
         exc = st.GitFailed("fatal: not a git repository")
         assert exc.stderr == "fatal: not a git repository"
         assert "not a git repository" in str(exc)
+
+
+# --- gaps that mutation testing found (`make mutate`) -------------------------
+#
+# Fourteen survivors of the run above, all at 100% line and branch coverage. They cluster
+# into three kinds, and none of them is about *which* paths get staged — the existing tests
+# cover that thoroughly. What they missed is the summary's shape, the porcelain parser's
+# boundaries, and the hardening of how git is launched.
+
+
+def test_the_exit_codes_are_the_documented_literals():
+    """The module docstring promises 0/1/2, and callers switch on those numbers.
+
+    Every existing assertion compares against the constant, so the constants could take
+    any values and the suite would stay green — while `/rhiza:update`'s prose, which reads
+    "exit 1 means no lock, 2 means a git failure", quietly became wrong.
+    """
+    assert (st.EXIT_OK, st.EXIT_NO_LOCK, st.EXIT_GIT_ERROR) == (0, 1, 2)
+
+
+def test_the_summary_always_carries_the_same_four_keys(repo, tmp_path_factory):
+    """Callers index the summary directly, so a renamed key is a KeyError at the call site.
+
+    Asserted on all three exits — clean, no-lock and git-failure — because each builds its
+    dict independently and the git-failure one is assembled in a separate function.
+    """
+    expected = {"staged", "unstaged", "notes", "exit_code"}
+
+    _write_lock(repo, ["ruff.toml"])
+    (repo / "ruff.toml").write_text("# changed\n")
+    assert set(st.stage_synced(repo)) == expected
+
+    (repo / ".rhiza" / "template.lock").unlink()
+    assert set(st.stage_synced(repo)) == expected
+
+    # A directory outside any git repository, so git itself fails. It has to be a fresh
+    # temp root rather than a subdirectory of `repo`: git would find the parent repo and
+    # succeed, which is what made the first version of this assertion pass for the wrong
+    # reason.
+    bare = tmp_path_factory.mktemp("outside-any-repo")
+    (bare / ".rhiza").mkdir()
+    _write_lock(bare, ["ruff.toml"])
+    failure = st.stage_synced(bare)
+    assert set(failure) == expected
+    assert failure["exit_code"] == 2
+
+
+def test_git_is_launched_from_an_absolute_path(repo, monkeypatch):
+    """`shutil.which` is resolved rather than trusting `PATH` at exec time (ruff's S607).
+
+    The same hardening #130 applied to `status._remote_tags`. Mutating the lookup left
+    every test passing, because a bare `"git"` also works when git is on `PATH` — so what
+    the mutant really removes is the guarantee, not the behaviour.
+    """
+    seen: dict[str, object] = {}
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["env"] = kwargs.get("env", {})
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(st.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError):
+        st._git(repo, ["status", "--porcelain"])
+
+    argv = seen["argv"]
+    assert Path(argv[0]).is_absolute(), f"git must be resolved, got {argv[0]!r}"
+    assert Path(argv[0]).name.startswith("git")
+    assert argv[1:] == ["status", "--porcelain"]
+
+
+def test_the_terminal_prompt_is_disabled(repo, monkeypatch):
+    """`GIT_TERMINAL_PROMPT=0` stops git blocking on a credential prompt.
+
+    Unobservable from any outcome locally — nothing here needs auth — so the variable
+    could be renamed or set to "1" with the suite none the wiser. What it prevents is a
+    sync hanging forever in CI instead of failing.
+    """
+    seen: dict[str, object] = {}
+
+    def fake_run(argv, **kwargs):
+        seen["env"] = kwargs.get("env", {})
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(st.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError):
+        st._git(repo, ["status"])
+
+    assert seen["env"]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+@pytest.mark.parametrize(
+    ("line", "unstaged", "deleted"),
+    [
+        # The shortest real porcelain line: two status columns, a space, a 1-char path.
+        (" M a", ["a"], set()),
+        ("?? a", ["a"], set()),
+        (" D a", ["a"], {"a"}),
+        ("D  a", [], {"a"}),
+        ("M  a", [], set()),
+    ],
+)
+def test_the_porcelain_parser_accepts_a_single_character_path(line, unstaged, deleted):
+    """`len(line) >= 4` is the boundary, and `> 4` or `>= 5` would drop these.
+
+    A one-character path is unusual but legal, and both parsers silently ignored it under
+    the mutated bound — which for `deleted_paths` means an upstream deletion never staged.
+    """
+    assert st.unstaged_paths([line]) == unstaged
+    assert st.deleted_paths([line]) == deleted
+
+
+def test_a_duplicate_lock_entry_does_not_truncate_the_rest(repo):
+    """The dedupe must `continue`, not `break`.
+
+    `.rhiza/template.yml` is in `_CONFIG_PATHS` *and* commonly listed in the lock's
+    `files`, so the duplicate is hit early. With a `break` every template file after it
+    would be dropped from the staged set — a template bump PR missing most of its files,
+    reported as a success.
+    """
+    (repo / "ruff.toml").write_text("# changed\n")
+    (repo / "Makefile").write_text("all:\n")
+
+    # The duplicate comes *first*, so a `break` loses both real entries after it.
+    _write_lock(repo, [".rhiza/template.yml", "ruff.toml", "Makefile"])
+
+    summary = st.wanted_paths(repo, repo / ".rhiza" / "template.lock", set())
+
+    assert "ruff.toml" in summary
+    assert "Makefile" in summary
+    assert summary.count(".rhiza/template.yml") == 1

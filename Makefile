@@ -63,20 +63,42 @@ e2e:  ## Run only the end-to-end tests, without the coverage gate
 # is slow enough to get switched off, which is worse than not having it.
 #
 # **The threshold is "no surviving mutant that changes behaviour", not zero survivors.**
-# Three categories are accepted, and each is a deliberate judgement rather than a shrug:
+# Five categories are accepted, and each is a deliberate judgement rather than a shrug:
 #
 #   log text        `log(f"[DEL] {rel}")` → `log(f"XX[DEL] {rel}XX")`. Asserting log
-#                   strings would pin wording that is meant to be edited freely.
+#                   strings, argparse help or a `--json` indent would pin wording that is
+#                   meant to be edited freely.
 #   `.get` defaults `lock.get("sha", "")` → `lock.get("sha", "XX")`. Reachable only from a
 #                   lock missing that field entirely, which the writer cannot produce.
-#   equivalent      `sys.path.insert(0, …)` → `insert(1, …)`. Same effect: the directory
-#                   still lands on the path ahead of anything that matters.
+#   equivalent      `sys.path.insert(0, …)` → `insert(1, …)`, or `_BATCH = 100` → `101`.
+#                   Same effect for every input that can occur.
+#   pragma'd        the `except OSError` arms marked `# pragma: no cover`, e.g. an
+#                   unreadable snapshot file. Excluded from coverage for the same reason.
+#   module guard    `if __name__ == "__main__":`. Not reachable from an import.
 #
-# Everything else is a test worth adding. On the first triaged module that split was 8 real
-# gaps out of 24 survivors — including a `_PROTECTED` path that could be changed to any
-# string (deleting the pointer, and with it the repo's rhiza-managed status) and a
-# `continue` that could become `break` (leaving every orphan after an excluded one on
-# disk). Both had 100% line *and* branch coverage the whole time.
+# Everything else is a test worth adding. All three modules have now been triaged, and the
+# split is recorded because the *ratio* is the useful number — a module that suddenly grows
+# real survivors is the signal:
+#
+#   module              survivors  real gaps  accepted
+#   _rhiza_lock.py         24          8         16
+#   stage_synced.py        33         14         19
+#   _rhiza_merge.py         9          7          2
+#
+# `_rhiza_merge` is the instructive row: its property tests over generated edit triples
+# assert the merged *result*, so only nine mutants survived at all — the fewest of the
+# three, from the most intricate code. Its two accepted survivors are both pragma'd arms.
+#
+# What the real gaps were, in every case, was code with 100% line *and* branch coverage
+# whose output nothing checked:
+#
+#   * `_PROTECTED` could be changed to any string — deleting `.rhiza/template.yml`, and
+#     with it the repo's rhiza-managed status.
+#   * Three `continue`s could become `break`s: skipping an unchanged template file ended
+#     the whole scan, and a duplicate lock entry truncated the staged set.
+#   * `is_binary(target) or is_binary(upstream) or is_binary(base)` could become `and`,
+#     so a text file locally replaced by a binary one would be merged and corrupted.
+#   * Every documented exit code, and every key in the summary dicts callers index.
 # Comma-separated: mutmut takes one `--paths-to-mutate` value and splits it itself.
 # Override to narrow a local run to one module, e.g.
 #   make mutate MUTATE_MODULES=plugin/scripts/_rhiza_lock.py
