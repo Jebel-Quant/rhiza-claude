@@ -74,7 +74,7 @@ is worse than a shorter catalogue. `themes` must be non-empty (a test enforces i
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/maffay.md` |
+| **Source** | `plugin/skills/maffay/SKILL.md` |
 | **Invocation** | `/rhiza:maffay [theme keyword e.g. mut]  (optional; omit for the whole catalogue)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(uv*)` |

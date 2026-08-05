@@ -63,13 +63,13 @@ The plugin is **two kinds of markdown plus the Python they drive**.
 `.claude-plugin/marketplace.json` stays at the root and points inward with
 `"source": "./plugin"`.
 
-**Only two of the four directories inside `plugin/` are the spec's; the other two are
-ours.** This file used to claim all four were "mandated by the plugin spec", which is
+**Only three of the five directories inside `plugin/` are the spec's; the other two are
+ours.** This file used to claim they were all "mandated by the plugin spec", which is
 wrong, and the distinction matters because it is what tells you which ones you may move:
 
-- **`commands/` and `hooks/` are discovery locations.** Claude Code finds components by
-  looking for those names at the *plugin* root, so they cannot be renamed or nested.
-  Alongside them the spec also recognises `skills/`, `agents/`, `.mcp.json`, `.lsp.json`,
+- **`commands/`, `skills/` and `hooks/` are discovery locations.** Claude Code finds
+  components by looking for those names at the *plugin* root, so they cannot be renamed or
+  nested. Alongside them the spec also recognises `agents/`, `.mcp.json`, `.lsp.json`,
   `monitors/`, `bin/` and `settings.json` — none of which this plugin currently ships.
 - **`prompts/` and `scripts/` are this repo's own conventions.** The spec has never heard
   of either. `prompts/` exists precisely *because* it is not a discovery location: a
@@ -77,18 +77,29 @@ wrong, and the distinction matters because it is what tells you which ones you m
   `check_prompt_wiring.py` enforces. That reasoning stands on its own and never needed the
   spec to back it.
 
-**`commands/` is now the legacy spelling.** The current docs describe it as "Skills as flat
-Markdown files" and say to "use `skills/` for new plugins" — a `skills/<name>/SKILL.md`
-directory per skill. `commands/` still loads, and migrating is a deliberate change with
-knock-on effects across `check_command_contracts.py`, `check_docs_nav.py`,
-`render_command_docs.py` and every `/rhiza:<name>` reference, so it is not a tidy-up to
-undertake casually. Know that the ecosystem has moved, and check the current
-[plugin docs](https://code.claude.com/docs/en/plugins) before asserting what the spec
-requires.
+**`commands/` is the legacy spelling, and this plugin is mid-migration.** The docs now say
+custom commands "have been merged into skills", describe `commands/` as "Skills as flat
+Markdown files", and tell you to use `skills/<name>/SKILL.md` for new plugins. Both layouts
+load, and **`/rhiza:<name>` is identical either way** — a skill takes its command name from
+its *directory*, so moving a file changes nothing a user types.
+
+`maffay` has moved; the other seven have not. Two rules follow from that:
+
+- **Never discover commands by globbing a directory.** `_rhiza_layout.command_files(root)`
+  returns `(name, path)` across both layouts and is the only supported way to enumerate the
+  command surface. Four checkers import it. A `glob("*.md")` over `COMMANDS_DIR` silently
+  drops every migrated command.
+- **Never leave a command in both places.** Rule 10 of `check_command_contracts.py` fails
+  the build if a name is claimed by `commands/<name>.md` *and* `skills/<name>/SKILL.md`,
+  because which one wins at runtime is undefined. Moving a command means `git mv`, not `cp`.
+
+Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a personal one)
+`name` overrides the last segment of the command, so a stale one silently renames it.
 
 | Path | What it is |
 | --- | --- |
-| `plugin/commands/*.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. |
+| `plugin/commands/*.md` | Seven of the eight slash commands, one flat `.md` each — the legacy layout. |
+| `plugin/skills/<name>/SKILL.md` | The current layout. `maffay` only, so far. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
@@ -99,18 +110,31 @@ requires.
 | `.claude-plugin/marketplace.json` | The marketplace catalogue. |
 
 **`${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`**, so every
-`"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py"` in the prose is unaffected by the layout.
+`"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.py"` in the prose is unaffected by the layout — a
+skill reaches plugin-level scripts through that variable, not through `${CLAUDE_SKILL_DIR}`.
 Only the *source-checkout fallback* carries the prefix now — `plugin/scripts/<name>.py`.
-`plugin/scripts/_rhiza_layout.py` holds the one definition of where things live; the
-three checkers that span both halves import it rather than hardcoding `plugin/`.
+`plugin/scripts/_rhiza_layout.py` holds the one definition of where things live; the four
+checkers that span both halves import it rather than hardcoding `plugin/` or a layout.
 
-**`commands/` vs `prompts/` is the load-bearing distinction.** Procedures live outside
-`commands/` *specifically* so they cannot be invoked as slash commands — that's the
+**`scripts/` is one gated tree, not a location.** Seven gates are scoped to
+`plugin/scripts/` — mypy, interrogate, subprocess-discipline, the 100% coverage floor, both
+radon bars, and `check_command_contracts`' script/flag resolution — and five of them fail
+*open*. Bundling a script inside a skill directory to make that skill self-contained would
+therefore drop it out of the bar rather than move it, which is why `maffay.py` stayed put
+when `maffay` moved. Changing that means widening all seven scopes deliberately, in its own
+PR.
+
+**Commands vs `prompts/` is the load-bearing distinction.** Procedures live outside *both*
+discovery locations specifically so they cannot be invoked as slash commands — that's the
 guarantee, not an organisational preference. `plugin/scripts/check_prompt_wiring.py` enforces
 five rules about it: each procedure declares it isn't a slash command, carries no
 command frontmatter, never collides with a command name, is actually referenced
-somewhere, and is never invoked as a command. Don't "tidy" a procedure into
-`commands/`.
+somewhere, and is never invoked as a command. Don't "tidy" a procedure into `commands/` or
+`skills/`.
+
+**Procedures cannot become per-skill files**, either: `pr-base` is read by three commands
+and `install-uv` by two, so a shared procedure has no single skill folder to live in.
+`prompts/` stays at the plugin root however far the migration goes.
 
 Shared behaviour lives in the procedures, which is why `/init` and `/update` behave
 identically where they overlap. `plugin/commands/init.md` alone does not explain `/rhiza:init`.
@@ -160,7 +184,8 @@ rather than breaking in front of a user mid-task.
 
 **When adding or changing a command:**
 
-1. Edit `commands/<name>.md`; keep the frontmatter accurate.
+1. Edit its file — `skills/<name>/SKILL.md` for a new one, `commands/<name>.md` for the
+   seven not yet migrated; keep the frontmatter accurate.
 2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/scripts/test_<name>.py`.
 3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
    only — run `plugin/scripts/render_command_docs.py` for the **Reference** block, which is
@@ -179,8 +204,8 @@ off `main` and open a PR — never push to the default branch.
 - **`docs/reports/`, `docs/paper/`, `_book/`, `_tests/` are build outputs**, all
   gitignored. `make book` copies test reports into the site and renders the coverage
   badge *from the measured run*, so a published number can't be asserted by hand.
-- **`markdownlint` excludes `commands/`** — those files are prompts, not docs. The repo
-  root (this file included) is linted.
+- **`markdownlint` excludes `commands/` and `skills/`** — those files are prompts, not
+  docs. The repo root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
 - **The end-to-end tests are part of `make test`, not an opt-in extra.** `make e2e` exists,

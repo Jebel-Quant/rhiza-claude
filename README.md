@@ -36,9 +36,9 @@ neither.
 performs the first sync; `/quality` needs that content to exist. So "`/init` ran and no
 CI appeared" is the expected result of step one.
 
-**Two kinds of markdown, and the difference is enforced.** `commands/` holds the eight
-slash commands you invoke; `prompts/` holds eight **internal procedures** they `Read` —
-kept outside `commands/` so they can't be invoked directly. The procedures are where
+**Two kinds of markdown, and the difference is enforced.** `commands/` and `skills/` hold
+the eight slash commands you invoke; `prompts/` holds eight **internal procedures** they
+`Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.
 
@@ -156,7 +156,7 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
 ### Internals
 
 Not slash commands. These are **internal procedures** under `prompts/` —
-deliberately outside `commands/` so they can't be invoked directly. `/rhiza:init` and
+deliberately outside `commands/` and `skills/` so they can't be invoked directly. `/rhiza:init` and
 `/rhiza:update` read and follow them, and most are backed by a deterministic,
 stdlib-only script.
 
@@ -254,21 +254,27 @@ the repository root.** `.claude-plugin/marketplace.json` points at it with
 `"source": "./plugin"`, which is the documented way to keep a plugin in a subdirectory
 of its marketplace repo.
 
-Two of the four directories inside are the spec's and two are this repo's.
-`commands/` and `hooks/` are **discovery locations** — Claude Code finds components by
-those names at the plugin root, so they cannot be renamed. `prompts/` and `scripts/` are
-local conventions the spec has never heard of; `prompts/` exists precisely *because* it is
-not a discovery location, so a procedure kept there cannot be invoked as a slash command.
-Note that `commands/` is the legacy spelling — the current docs recommend `skills/` for new
-plugins — so check the [plugin docs](https://code.claude.com/docs/en/plugins) rather than
-this table before assuming what the spec requires.
+Three of the directories inside are the spec's and two are this repo's.
+`commands/`, `skills/` and `hooks/` are **discovery locations** — Claude Code finds
+components by those names at the plugin root, so they cannot be renamed. `prompts/` and
+`scripts/` are local conventions the spec has never heard of; `prompts/` exists precisely
+*because* it is not a discovery location, so a procedure kept there cannot be invoked as a
+slash command.
+
+`commands/` is the legacy spelling: the docs now say custom commands "have been merged into
+skills" and recommend `skills/<name>/SKILL.md` for new plugins. Both layouts load and
+`/rhiza:<name>` is identical either way — a skill takes its command name from its
+*directory* — so the migration is invisible from the outside. `maffay` has moved; the rest
+have not. Check the [plugin docs](https://code.claude.com/docs/en/plugins) rather than this
+table before assuming what the spec requires.
 
 | Path | Purpose |
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
 | `plugin/` | **The plugin as shipped.** Everything below is inside it. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/commands/` | The plugin's slash commands (one `.md` per command). |
+| `plugin/commands/` | Slash commands in the legacy flat layout (one `.md` per command). |
+| `plugin/skills/` | Slash commands in the current layout (`<name>/SKILL.md`, the directory naming the command). |
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive. |

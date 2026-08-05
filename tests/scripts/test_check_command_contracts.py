@@ -413,13 +413,75 @@ def test_parse_frontmatter_ignores_continuations_and_comments():
 
 
 def test_this_plugins_frontmatter_all_parses(repo_root: Path):
-    """The assertion that would have caught it: every shipped command loads."""
-    for path in sorted((repo_root / layout.COMMANDS_DIR).glob("*.md")):
+    """The assertion that would have caught it: every shipped command loads.
+
+    Discovered via `command_files`, not by globbing one directory — a command moved into
+    `skills/` must not drop out of the check that its frontmatter parses.
+    """
+    commands = layout.command_files(repo_root)
+    assert commands, "no commands discovered — the layout moved without this test"
+    for name, path in commands:
         block = ccc.frontmatter(path.read_text())
-        assert block is not None, f"{path.name} has no frontmatter"
+        assert block is not None, f"{name} has no frontmatter"
         mapping, problems = ccc.parse_frontmatter(block)
-        assert problems == [], f"{path.name}: {problems}"
+        assert problems == [], f"{name}: {problems}"
         assert {"description", "argument-hint", "allowed-tools"} <= set(mapping)
+
+
+# --- rule 10: one file per command --------------------------------------------
+
+
+def _as_skill(plugin: Path, name: str, body: str = "\nBody.\n") -> Path:
+    """Write `skills/<name>/SKILL.md`, with frontmatter the other rules accept."""
+    (plugin / layout.SKILLS_DIR / name).mkdir(parents=True, exist_ok=True)
+    path = plugin / layout.SKILLS_DIR / name / layout.SKILL_FILE
+    path.write_text(_GOOD_FRONTMATTER + body)
+    return path
+
+
+def test_a_command_in_the_skill_layout_is_contract_clean(plugin):
+    """The move must be invisible to every other rule."""
+    (plugin / layout.COMMANDS_DIR / "demo.md").unlink()
+    _as_skill(plugin, "demo")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_flags_a_command_defined_by_both_layouts(plugin):
+    """A copy that was never followed by a delete ships `/rhiza:demo` twice."""
+    _as_skill(plugin, "demo")
+    violations = ccc.check_contracts(plugin)
+    assert (
+        f"skills/demo/{layout.SKILL_FILE}: `demo` is also defined by commands/demo.md"
+        " — a command is one file, not two" in violations
+    )
+
+
+def test_two_differently_named_skills_are_not_a_collision(plugin):
+    _as_skill(plugin, "one")
+    _as_skill(plugin, "two")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_a_skill_violation_names_its_directory_not_its_basename(plugin):
+    """`SKILL.md` identifies nothing on its own, so the path carries the skill name."""
+    (plugin / layout.COMMANDS_DIR / "demo.md").unlink()
+    _as_skill(plugin, "demo", "\n```bash\nuv run python scripts/gone.py\n```\n")
+    violations = ccc.check_contracts(plugin)
+    assert f"skills/demo/{layout.SKILL_FILE}: invokes scripts/gone.py" in violations[0]
+
+
+def test_prose_may_invoke_a_command_that_lives_as_a_skill(plugin):
+    """Rule 5 keys off the command surface, not off a directory listing."""
+    _as_skill(plugin, "other")
+    _write(plugin, "\nThen invoke the `other` command via the Skill tool.\n")
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_flags_an_invocation_of_a_skill_that_does_not_exist(plugin):
+    """The same rule must still bite — passing above is not just rule 5 going quiet."""
+    _write(plugin, "\nThen invoke the `nope` command via the Skill tool.\n")
+    violations = ccc.check_contracts(plugin)
+    assert "commands/demo.md: tells the model to invoke `nope`, which is not a command" in violations
 
 
 # --- rule 7: prose outside commands/ ------------------------------------------
