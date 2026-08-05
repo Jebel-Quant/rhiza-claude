@@ -9,12 +9,17 @@ This repo **is the plugin**. It is *not* a rhiza-managed repo — there is no `.
 directory, no `template.yml`, no `template.lock`, and nothing here is synced from
 anywhere. That has two consequences worth internalising before you touch anything:
 
-- **`/rhiza:quality` will not run here, and that is correct.** Its step-0 precondition
-  is `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`; both are absent. The gates below
-  are this repo's own, not the template's.
+- **`/rhiza:quality` runs here in its degraded mode.** Its step-0 check looks for
+  `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`; both are absent, so it skips every
+  template-delivered gate, runs the targets this repo's own `Makefile` documents, and
+  scores the design work. It used to refuse outright. Read any score it produces as
+  what it says it is — a design-led assessment on this repo's own gates, not a Rhiza
+  verdict, and not comparable to a managed repo's number.
 - **The "locally-owned vs Rhiza-owned" scoping rule doesn't apply.** Every file here is
   locally owned. When you read that rule in `plugin/prompts/scorecard.md`, you're reading a
-  rule *this repo ships for other repos*, not one that governs it.
+  rule *this repo ships for other repos*, not one that governs it — which is also why
+  degraded mode inverts it: with no template, the `Makefile` and workflows are this
+  repo's own work and are squarely in scope.
 
 ## Commands
 

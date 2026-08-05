@@ -31,6 +31,23 @@ score meaningless and identical everywhere.
 Likewise, a gate that was **unavailable** (not in this profile — see `/quality`'s
 step 0) is out-of-scope, never a FAIL.
 
+**In degraded mode the split doesn't exist, and that inverts the rule.** When
+`/quality` runs on a repo that is unmanaged or unsynced, there is no template, so
+nothing is Rhiza-owned: the `Makefile`, the workflows, `.pre-commit-config.yaml` and
+the rest are the repo's **own** work and are all **in scope**. Carrying the exclusion
+list over unchanged would silently drop that repo's real infrastructure out of its own
+assessment — the mirror image of the mistake this rule exists to prevent. Score what
+the repo owns, which in degraded mode is everything.
+
+Two consequences follow, and neither is a judgement call:
+
+- **Template fidelity is not scored** — there is no template to be faithful to. Mark
+  it not-applicable, never 0.
+- **`/quality`'s own skipped gates are not findings.** "Not rhiza-managed" is a fact
+  about the repo, not a defect in it. Do not file it, and do not let it depress a mark.
+  If adopting the template would genuinely help, that belongs in the closing remark as
+  a suggestion, at most once.
+
 **And a check that doesn't apply to the language is out-of-scope too.** Test-layout
 parity is the clearest case: `check_test_layout.py` is built on Python module and class
 naming, so it says nothing about a Go or Rust repo. `language_profile.py` reports
