@@ -31,9 +31,20 @@ filename = ".claude-plugin/marketplace.json"
 search = '"version": "{current_version}"'
 replace = '"version": "{new_version}"'
 
-# The README documents pinning the marketplace to a released tag. Those are examples,
-# so they are deliberately NOT bumped here — rewriting them would churn the docs on
-# every release without making them more correct.
+# The README's install examples pin the marketplace to a released tag. They are the
+# first thing a reader copy-pastes, so a stale tag is worse than churn: left untracked
+# they drifted three minor versions behind before anyone noticed. Both `marketplace add`
+# lines carry the same text, and `search`/`replace` apply to every occurrence, so one
+# entry moves both.
+#
+# The "switch versions" example further down deliberately names an *earlier* release, to
+# show that pinning moves in both directions. It must therefore differ from the version
+# above, which is exactly why this pattern does not match it — and why it is not tracked
+# here. It needs a hand-refresh only if it ever falls off the releases page.
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = "Jebel-Quant/rhiza-claude#v{current_version}"
+replace = "Jebel-Quant/rhiza-claude#v{new_version}"
 
 # A repo whose CI stubs point at *itself* (the rhiza template does) must also bump
 # those pins, or the published tag ships workflows calling the previous version's
