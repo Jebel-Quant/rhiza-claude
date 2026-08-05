@@ -67,40 +67,45 @@ The plugin is **two kinds of markdown plus the Python they drive**.
 ours.** This file used to claim they were all "mandated by the plugin spec", which is
 wrong, and the distinction matters because it is what tells you which ones you may move:
 
-- **`commands/`, `skills/` and `hooks/` are discovery locations.** Claude Code finds
-  components by looking for those names at the *plugin* root, so they cannot be renamed or
-  nested. Alongside them the spec also recognises `agents/`, `.mcp.json`, `.lsp.json`,
-  `monitors/`, `bin/` and `settings.json` — none of which this plugin currently ships.
+- **`skills/` and `hooks/` are discovery locations.** Claude Code finds components by
+  looking for those names at the *plugin* root, so they cannot be renamed or nested. It
+  also recognises `commands/` (the legacy flat spelling, now unused here), plus `agents/`,
+  `.mcp.json`, `.lsp.json`, `monitors/`, `bin/` and `settings.json` — none of which this
+  plugin ships.
 - **`prompts/` and `scripts/` are this repo's own conventions.** The spec has never heard
   of either. `prompts/` exists precisely *because* it is not a discovery location: a
   procedure placed there cannot be invoked as a slash command, which is the guarantee
   `check_prompt_wiring.py` enforces. That reasoning stands on its own and never needed the
   spec to back it.
 
-**`commands/` is the legacy spelling, and this plugin is mid-migration.** The docs now say
-custom commands "have been merged into skills", describe `commands/` as "Skills as flat
-Markdown files", and tell you to use `skills/<name>/SKILL.md` for new plugins. Both layouts
-load, and **`/rhiza:<name>` is identical either way** — a skill takes its command name from
-its *directory*, so moving a file changes nothing a user types.
+**All eight commands are skills, and `plugin/commands/` no longer exists.** The docs say
+custom commands "have been merged into skills" and describe `commands/` as "Skills as flat
+Markdown files"; the migration to `skills/<name>/SKILL.md` finished across #138, #139 and
+#140. **`/rhiza:<name>` never changed** — a skill takes its command name from its
+*directory* — so nothing a user types was affected at any point.
 
-Four have moved — `detach`, `docs`, `maffay`, `status` — and four have not: `init`,
-`quality`, `release`, `update`. Two rules follow from that:
+Three things survive the migration and are easy to undo by accident:
 
 - **Never discover commands by globbing a directory.** `_rhiza_layout.command_files(root)`
-  returns `(name, path)` across both layouts and is the only supported way to enumerate the
-  command surface. Four checkers import it. A `glob("*.md")` over `COMMANDS_DIR` silently
-  drops every migrated command.
-- **Never leave a command in both places.** Rule 10 of `check_command_contracts.py` fails
+  returns `(name, path)` and is the only supported way to enumerate the command surface.
+  Four checkers import it. It still reads `COMMANDS_DIR` as well as `SKILLS_DIR`, which is
+  deliberate: a flat file someone adds back is then discovered and held to every contract
+  instead of being silently ignored. Don't "simplify" that away — the synthetic fixtures in
+  `tests/scripts/` exist to keep the flat path working.
+- **Never leave a command in two places.** Rule 10 of `check_command_contracts.py` fails
   the build if a name is claimed by `commands/<name>.md` *and* `skills/<name>/SKILL.md`,
   because which one wins at runtime is undefined. Moving a command means `git mv`, not `cp`.
+- **Assert on a command's content, never on its path.** `tests/scripts/` resolves a command
+  by name (`_command_text` in `test_check_prompt_wiring.py`); hardcoding
+  `commands/<name>.md` is what made those tests break on a move that changed nothing they
+  were checking.
 
 Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a personal one)
 `name` overrides the last segment of the command, so a stale one silently renames it.
 
 | Path | What it is |
 | --- | --- |
-| `plugin/commands/*.md` | Four of the eight slash commands, one flat `.md` each — the legacy layout. |
-| `plugin/skills/<name>/SKILL.md` | The current layout, and the other four. The **directory** is the command name. |
+| `plugin/skills/<name>/SKILL.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
@@ -135,10 +140,12 @@ somewhere, and is never invoked as a command. Don't "tidy" a procedure into `com
 
 **Procedures cannot become per-skill files**, either: `pr-base` is read by three commands
 and `install-uv` by two, so a shared procedure has no single skill folder to live in.
-`prompts/` stays at the plugin root however far the migration goes.
+`prompts/` stays at the plugin root — this was true throughout the migration and is why it
+survived it untouched.
 
 Shared behaviour lives in the procedures, which is why `/init` and `/update` behave
-identically where they overlap. `plugin/commands/init.md` alone does not explain `/rhiza:init`.
+identically where they overlap. `plugin/skills/init/SKILL.md` alone does not explain
+`/rhiza:init`.
 
 **The design split:** deterministic work belongs in tested Python; judgement belongs in
 markdown. Parsing a lock file, merging synced files, comparing versions, drawing a
@@ -185,8 +192,7 @@ rather than breaking in front of a user mid-task.
 
 **When adding or changing a command:**
 
-1. Edit its file — `skills/<name>/SKILL.md` for a new one, `commands/<name>.md` for the
-   seven not yet migrated; keep the frontmatter accurate.
+1. Edit `skills/<name>/SKILL.md`; keep the frontmatter accurate and add no `name:` field.
 2. Script-backed? Logic in `scripts/<name>.py`, tests in `tests/scripts/test_<name>.py`.
 3. Add `docs/commands/<name>.md` **and** an `mkdocs.yml` `nav` entry. Write the prose
    only — run `plugin/scripts/render_command_docs.py` for the **Reference** block, which is
@@ -205,8 +211,8 @@ off `main` and open a PR — never push to the default branch.
 - **`docs/reports/`, `docs/paper/`, `_book/`, `_tests/` are build outputs**, all
   gitignored. `make book` copies test reports into the site and renders the coverage
   badge *from the measured run*, so a published number can't be asserted by hand.
-- **`markdownlint` excludes `commands/` and `skills/`** — those files are prompts, not
-  docs. The repo root (this file included) is linted.
+- **`markdownlint` excludes `skills/`** (and `commands/`, for the flat path that still
+  loads) — those files are prompts, not docs. The repo root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
 - **The end-to-end tests are part of `make test`, not an opt-in extra.** `make e2e` exists,

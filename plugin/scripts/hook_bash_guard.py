@@ -7,7 +7,7 @@ that a ``/rhiza:<name>`` resolves. What they cannot verify is that a **correct c
 gets executed correctly**. Two rules in the prose are exactly the kind a model drops
 under pressure, and both fail quietly:
 
-1. **Bare ``make <target>``.** ``commands/quality.md`` asks for one bare ``make`` per
+1. **Bare ``make <target>``.** ``skills/quality/SKILL.md`` asks for one bare ``make`` per
    gate, because that matches the allow-listed ``Bash(make *)`` rule and runs without a
    permission prompt. Piping to ``tail`` is the reflex when output is long, and the cost
    lands on the *user* as a prompt per gate — eight of them in one ``/quality`` run.

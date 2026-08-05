@@ -92,7 +92,7 @@ no-op if `uv` is already there and otherwise offers to install it.
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/init.md` |
+| **Source** | `plugin/skills/init/SKILL.md` |
 | **Invocation** | `/rhiza:init [repo name]  (optional; defaults to the current folder name)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(curl*)`, `Bash(brew*)`, `Bash(ls*)`, `Bash(basename*)`, `Bash(pwd*)`, `Bash(date*)`, `Read`, `Write`, `Edit`, `AskUserQuestion`, `Skill` |

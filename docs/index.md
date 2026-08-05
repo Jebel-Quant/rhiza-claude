@@ -87,7 +87,7 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`commands/*.md` and `skills/*/SKILL.md` → slash commands** you invoke: eight of them,
+- **`skills/*/SKILL.md` → slash commands** you invoke: eight of them,
   each with a page here. Two layouts, one surface — `skills/` is the spelling the plugin
   docs now recommend, and a skill's *directory* is its command name, so `/rhiza:<name>`
   reads the same either way.
@@ -285,7 +285,7 @@ Thin, **read-only**, stdlib-only commands backed by bundled scripts — they rea
 ## Internals
 
 Not slash commands. These are **internal procedures** in the plugin's `prompts/`
-directory — deliberately outside `commands/` and `skills/` so they can't be invoked directly.
+directory — deliberately outside `skills/` so they can't be invoked directly.
 `/rhiza:init` and `/rhiza:update` read and follow them, and most are backed by a
 deterministic, stdlib-only script under `scripts/`. Documented here because their
 behaviour is part of what those commands do to your repo.

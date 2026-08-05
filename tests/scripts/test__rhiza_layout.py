@@ -17,9 +17,26 @@ def test_plugin_dir_exists(repo_root: Path):
 
 
 def test_commands_and_prompts_resolve(repo_root: Path):
-    assert (repo_root / layout.COMMANDS_DIR).is_dir()
     assert (repo_root / layout.SKILLS_DIR).is_dir()
     assert (repo_root / layout.PROMPTS_DIR).is_dir()
+
+
+def test_the_flat_layout_is_empty_but_still_supported(repo_root: Path):
+    """Every command has migrated, so no flat command file is left.
+
+    Asserted as "no `*.md` in it" rather than "the directory is absent", because those
+    differ by checkout: git tracks no empty directory, so a fresh clone has no
+    `plugin/commands/` at all, while a working copy where the files were `git mv`d away
+    keeps the emptied directory until something removes it. Both states are fine; a flat
+    command file reappearing is not.
+
+    `COMMANDS_DIR` deliberately stays: `command_files` still reads it, so a flat file
+    someone adds back is discovered and held to every contract rather than ignored. That
+    is what the synthetic fixtures throughout these tests exercise. Dropping the constant
+    would silently make such a file invisible, which is the one outcome worth preventing.
+    """
+    assert list((repo_root / layout.COMMANDS_DIR).glob("*.md")) == []
+    assert layout.command_files(repo_root), "no commands discovered from either layout"
 
 
 def test_scripts_dir_holds_this_module(repo_root: Path):

@@ -59,7 +59,7 @@ template's latest release.
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/update.md` |
+| **Source** | `plugin/skills/update/SKILL.md` |
 | **Invocation** | `/rhiza:update [version e.g. v1.2.0]  (optional; defaults to the template's latest release)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |

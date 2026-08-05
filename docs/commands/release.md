@@ -160,7 +160,7 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/release.md` |
+| **Source** | `plugin/skills/release/SKILL.md` |
 | **Invocation** | `/rhiza:release [version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)` |
 | **Model-invocable** | no — excluded from model invocation |
 | **Allowed tools** | `Bash(git*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(make*)`, `Bash(cat*)`, `Bash(grep*)`, `Read`, `Edit`, `AskUserQuestion` |

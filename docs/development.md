@@ -1,6 +1,6 @@
 # Development
 
-The plugin's slash commands are Markdown prompt files under `commands/` and `skills/`; the
+The plugin's slash commands are Markdown prompt files under `skills/`; the
 stdlib-only scripts they call live under `scripts/`, with tests under `tests/`.
 
 ## Layout
@@ -13,8 +13,7 @@ points inward with `"source": "./plugin"`.
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Marketplace manifest. Root, because that's where `marketplace add` looks. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/commands/` | Four slash commands in the legacy flat layout (one `.md` per command). |
-| `plugin/skills/` | The other four, in the current layout (`<name>/SKILL.md`). |
+| `plugin/skills/` | The plugin's eight slash commands (`<name>/SKILL.md`). |
 | `plugin/prompts/` | Internal procedures the commands `Read`. |
 | `plugin/hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
 | `plugin/scripts/` | Bundled stdlib-only Python scripts backing the commands. |
@@ -22,23 +21,24 @@ points inward with `"source": "./plugin"`.
 | `docs/` | This book. Not shipped. |
 | `paper/` | The LaTeX introduction. Not shipped. |
 
-**`commands/`, `skills/` and `hooks/` are the spec's; `prompts/` and `scripts/` are ours.**
-Claude Code discovers components by looking for the first three at the *plugin* root, so
-those names are fixed; alongside them it also recognises `agents/`, `.mcp.json`,
+**`skills/` and `hooks/` are the spec's; `prompts/` and `scripts/` are ours.**
+Claude Code discovers components by looking for those two at the *plugin* root, so
+those names are fixed; alongside them it also recognises `commands/`, `agents/`, `.mcp.json`,
 `.lsp.json`, `monitors/`, `bin/` and `settings.json`, none of which this plugin ships.
 `prompts/` and `scripts/` appear in no spec — `prompts/` is deliberately *not* a discovery
 location, which is what stops a procedure being invocable as a slash command.
 
-`commands/` is the legacy spelling: the docs now say custom commands "have been merged into
-skills", describe `commands/` as "Skills as flat Markdown files", and recommend
-`skills/<name>/SKILL.md` for new plugins. Both layouts load and `/rhiza:<name>` is the same
-either way, since a skill takes its command name from its **directory**. `detach`, `docs`,
-`maffay` and `status` have moved; `init`, `quality`, `release` and `update` have not.
+`commands/` is the legacy spelling — the docs now say custom commands "have been merged
+into skills" and describe `commands/` as "Skills as flat Markdown files". All eight commands
+migrated to `skills/<name>/SKILL.md`, so this repo has no `commands/` directory at all.
+`/rhiza:<name>` was unaffected throughout, since a skill takes its command name from its
+**directory**.
 
-Nothing enumerates commands by globbing a directory: `_rhiza_layout.command_files()` returns
-`(name, path)` across both layouts, and the four checkers that span the repo's two halves
-import it. A command left in *both* layouts fails
-`check_command_contracts.py` rule 10, because which file answers
+Two habits outlast the migration. Nothing enumerates commands by globbing a directory:
+`_rhiza_layout.command_files()` returns `(name, path)` and the four checkers that span the
+repo's two halves import it. It still reads the flat layout as well, so a `commands/<name>.md`
+someone adds back is discovered and held to every contract rather than ignored — and a name
+claimed by *both* fails `check_command_contracts.py` rule 10, because which file answers
 `/rhiza:<name>` at runtime is undefined. The
 [plugin docs](https://code.claude.com/docs/en/plugins) are the authority here, not this page.
 
