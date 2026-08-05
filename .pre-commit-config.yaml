@@ -27,7 +27,7 @@ repos:
     hooks:
       - id: markdownlint
         # Command .md files are prompts, not docs; CHANGELOG is generated.
-        exclude: '^(plugin/commands/|CHANGELOG\.md|\.github/)'
+        exclude: '^(plugin/(commands|skills)/|CHANGELOG\.md|\.github/)'
         args: ["--disable", "MD013", "MD041"]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
@@ -96,7 +96,7 @@ repos:
         pass_filenames: false
         # Includes the top-of-repo prose and the docs site: a dead script reference in
         # CONTRIBUTING.md used to survive precisely because no gate read that far.
-        files: '^(plugin/(commands|prompts)/.*\.md|plugin/scripts/.*\.py|docs/.*\.md|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
+        files: '^(plugin/(commands|skills|prompts)/.*\.md|plugin/scripts/.*\.py|docs/.*\.md|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
       # Ruff's `S` rules police how a process is launched; this polices whether anyone
       # notices it failed. Ten of the sixteen call sites pass `check=False` and read the
       # returncode by hand — correct everywhere today, with nothing making it stay so.
@@ -114,7 +114,7 @@ repos:
         # Rule 4 reads the top-of-repo prose too, so a README edit that names a
         # procedure must trigger it. That was missing, and it is how a bad
         # `plugin/prompts/…` rewrite reached a commit.
-        files: '^(plugin/((commands|prompts)/.*\.md|scripts/.*\.py)|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
+        files: '^(plugin/((commands|skills|prompts)/.*\.md|scripts/.*\.py)|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
       # `mkdocs build --strict` catches a nav entry with no page; it cannot catch a
       # command with no page, or a page missing from the nav. Those are the likely
       # directions, and CONTRIBUTING has required both since before anything checked.
@@ -123,7 +123,7 @@ repos:
         entry: uv run --python 3.12 --no-project python plugin/scripts/check_docs_nav.py
         language: system
         pass_filenames: false
-        files: '^(plugin/(commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md|mkdocs\.yml)$'
+        files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(commands|internals)/.*\.md|mkdocs\.yml)$'
       # docs-nav checks a page *exists*; this checks its facts are current. The
       # reference block on each page is generated from the frontmatter, so a renamed
       # argument or a widened allowed-tools list can't survive in the docs.
@@ -132,7 +132,7 @@ repos:
         entry: uv run --python 3.12 --no-project python plugin/scripts/render_command_docs.py --check
         language: system
         pass_filenames: false
-        files: '^(plugin/(commands|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
+        files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
 
   # Shared hooks from the sibling repo. Selective by necessity: rhiza-claude is
   # deliberately *not* rhiza-managed, so most of what rhiza-hooks ships keys off a

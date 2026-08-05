@@ -40,6 +40,10 @@ the code it actually calls:
    exists. Rule 7's other half, and missing for the same reason: ``docs/development.md``
    went on telling contributors to run ``tests/test_init_e2e.py`` long after that file
    was folded into ``test_init_scaffold.py``, because only ``scripts/`` was ever scanned.
+10. **One file per command** — no name is claimed by both ``commands/<name>.md`` and
+   ``skills/<name>/SKILL.md``. Claude Code loads both layouts, so the failure mode of a
+   part-migrated plugin is two files answering the same ``/rhiza:<name>`` with whichever
+   one wins undefined. A copy that was never followed by a delete fails here.
 
 Usage:
   uv run --python 3.12 --no-project python \
@@ -57,7 +61,7 @@ import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
-from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR, SCRIPTS_DIR
+from _rhiza_layout import PLUGIN_DIR, PROMPTS_DIR, SCRIPTS_DIR, command_files
 
 _FRONTMATTER_KEYS = ("description", "argument-hint", "allowed-tools")
 # Commands the model may not invoke off a description match — the user has to name them.
@@ -228,13 +232,17 @@ def check_script_calls(rel: str, blocks: list[str], scripts_dir: Path) -> list[s
     return violations
 
 
-def check_slash_commands(rel: str, text: str, commands_dir: Path) -> list[str]:
+def check_slash_commands(rel: str, text: str, names: set[str]) -> list[str]:
     """Rule 5: every command we tell the model to *invoke* exists.
 
     Only invocations are checked, not mentions. Prose legitimately refers to retired
     commands to explain history ("the view the retired ``/rhiza:tree`` gave",
     "absorbs ``/rhiza:validate``"), and flagging those would push authors to delete
     useful context. What must not dangle is an instruction to run something.
+
+    *names* is the whole command surface, gathered across both layouts, rather than a
+    directory to stat: a command moved into ``skills/`` is still the same command, and
+    prose that invokes it must not start failing because of where its file sits.
     """
     invoked = set(_SKILL_INVOCATION.findall(text))
     for block in bash_blocks(text):
@@ -242,7 +250,7 @@ def check_slash_commands(rel: str, text: str, commands_dir: Path) -> list[str]:
     return [
         f"{rel}: tells the model to invoke `{name}`, which is not a command"
         for name in sorted(invoked)
-        if not (commands_dir / f"{name}.md").is_file()
+        if name not in names
     ]
 
 
@@ -378,29 +386,51 @@ def check_script_references(rel: str, text: str, scripts_dir: Path) -> list[str]
     return violations
 
 
+def _rel(root: Path, path: Path) -> str:
+    """A command or procedure path as the violations name it — relative to ``plugin/``.
+
+    ``commands/init.md`` and ``skills/maffay/SKILL.md`` rather than either bare
+    basename: ``SKILL.md`` alone identifies nothing, and the ``plugin/`` prefix is noise
+    repeated on every line.
+    """
+    return path.relative_to(root / PLUGIN_DIR).as_posix()
+
+
+def check_one_file_per_command(root: Path, commands: list[tuple[str, Path]]) -> list[str]:
+    """Rule 10: no command name is claimed by both layouts."""
+    seen: dict[str, Path] = {}
+    violations = []
+    for name, path in commands:
+        if seen.setdefault(name, path) is not path:
+            violations.append(
+                f"{_rel(root, path)}: `{name}` is also defined by "
+                f"{_rel(root, seen[name])} — a command is one file, not two"
+            )
+    return violations
+
+
 def check_contracts(root: Path) -> list[str]:
     """Run every rule over the plugin at *root*; return all violations."""
-    commands_dir = root / COMMANDS_DIR
-    prompts_dir = root / PROMPTS_DIR
     scripts_dir = root / SCRIPTS_DIR
-    violations: list[str] = []
+    commands = command_files(root)
+    names = {name for name, _ in commands}
+    procedures = [(path.stem, path) for path in sorted((root / PROMPTS_DIR).glob("*.md"))]
+    violations: list[str] = check_one_file_per_command(root, commands)
 
-    for directory, is_command in ((commands_dir, True), (prompts_dir, False)):
-        if not directory.is_dir():
-            continue
-        for path in sorted(directory.glob("*.md")):
-            rel = f"{directory.name}/{path.name}"
+    for group, is_command in ((commands, True), (procedures, False)):
+        for name, path in group:
+            rel = _rel(root, path)
             text = path.read_text()
             blocks = bash_blocks(text)
             violations += check_frontmatter(rel, text, is_command=is_command)
             violations += check_bash_syntax(rel, blocks)
             violations += check_script_calls(rel, blocks, scripts_dir)
-            violations += check_slash_commands(rel, text, commands_dir)
+            violations += check_slash_commands(rel, text, names)
             if is_command:
                 violations += check_allowed_tools(rel, text, blocks)
-                violations += check_model_invocation(rel, path.stem, text)
+                violations += check_model_invocation(rel, name, text)
 
-    scripts_dir, tests_dir = root / SCRIPTS_DIR, root / "tests"
+    tests_dir = root / "tests"
     for path in prose_files(root):
         rel = path.relative_to(root).as_posix()
         text = path.read_text()
@@ -424,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     count = (
-        len(list((root / COMMANDS_DIR).glob("*.md")))
+        len(command_files(root))
         + len(list((root / PROMPTS_DIR).glob("*.md")))
         + len(prose_files(root))
     )

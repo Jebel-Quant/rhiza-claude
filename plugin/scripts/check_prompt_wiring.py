@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Check that the plugin's internal procedures under ``prompts/`` stay wired up.
 
-``commands/*.md`` are slash commands the user invokes. ``prompts/*.md`` are
-**internal procedures** a command reaches with the ``Read`` tool — deliberately
-outside ``commands/`` so they cannot be invoked directly. Nothing at runtime
-verifies that arrangement, so a rename or a stray file would only surface as a
-command failing mid-run, in front of a user. This is that check.
+``commands/*.md`` and ``skills/*/SKILL.md`` are slash commands the user invokes.
+``prompts/*.md`` are **internal procedures** a command reaches with the ``Read`` tool —
+deliberately outside *both* discovery locations so they cannot be invoked directly.
+Nothing at runtime verifies that arrangement, so a rename or a stray file would only
+surface as a command failing mid-run, in front of a user. This is that check.
 
 It enforces five rules:
 
 1. every procedure announces itself as **not a slash command**, so a reader (human
    or model) opening one mid-task knows it isn't user-facing;
 2. no procedure carries command frontmatter (``allowed-tools``/``argument-hint``),
-   which would be misleading and hints the file belongs in ``commands/``;
+   which would be misleading and hints the file belongs in a discovery location;
 3. no procedure name collides with a command name;
 4. every ``prompts/<name>.md`` path mentioned in the repo's prose resolves — a
    dangling reference is a command that breaks when it reaches that step;
@@ -34,7 +34,7 @@ import re
 import sys
 from pathlib import Path
 
-from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR
+from _rhiza_layout import PROMPTS_DIR, command_files
 
 _NOT_A_COMMAND = "Not a slash command"
 _FRONTMATTER_KEYS = ("allowed-tools:", "argument-hint:")
@@ -53,7 +53,7 @@ def _prose_files(root: Path) -> list[Path]:
     """Return every markdown file whose prompt references should resolve."""
     return sorted(
         [
-            *(root / COMMANDS_DIR).glob("*.md"),
+            *(path for _, path in command_files(root)),
             *(root / PROMPTS_DIR).glob("*.md"),
             *root.glob("*.md"),
         ]
@@ -84,9 +84,14 @@ def check_no_command_frontmatter(prompts_dir: Path) -> list[str]:
     return violations
 
 
-def check_no_name_collisions(commands_dir: Path, prompts_dir: Path) -> list[str]:
-    """Rule 3: a name is either a command or a procedure, never both."""
-    both = sorted(set(_names(commands_dir)) & set(_names(prompts_dir)))
+def check_no_name_collisions(root: Path, prompts_dir: Path) -> list[str]:
+    """Rule 3: a name is either a command or a procedure, never both.
+
+    The command side spans both layouts, so moving a command into ``skills/`` cannot
+    quietly free up its name for a procedure to take.
+    """
+    commands = {name for name, _ in command_files(root)}
+    both = sorted(commands & set(_names(prompts_dir)))
     return [f"{name!r} exists as both a command and a procedure" for name in both]
 
 
@@ -129,11 +134,11 @@ def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
 
 def check_wiring(root: Path) -> list[str]:
     """Run every rule against *root*; return all violations."""
-    commands_dir, prompts_dir = root / COMMANDS_DIR, root / PROMPTS_DIR
+    prompts_dir = root / PROMPTS_DIR
     return [
         *check_declares_internal(prompts_dir),
         *check_no_command_frontmatter(prompts_dir),
-        *check_no_name_collisions(commands_dir, prompts_dir),
+        *check_no_name_collisions(root, prompts_dir),
         *check_references_resolve(root),
         *check_no_orphans_and_no_skill_calls(root),
     ]

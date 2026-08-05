@@ -14,8 +14,10 @@ the nav and so ships as an orphan the site never links to.
 
 The four rules, checked in both directions:
 
-1. **Page exists** — every ``commands/<name>.md`` has ``docs/commands/<name>.md``, and
-   every ``prompts/<name>.md`` has ``docs/internals/<name>.md``.
+1. **Page exists** — every command has ``docs/commands/<name>.md`` and every
+   ``prompts/<name>.md`` has ``docs/internals/<name>.md``. The page is named for the
+   *command*, not for its file, so a command that moves from ``commands/<name>.md`` to
+   ``skills/<name>/SKILL.md`` keeps its page and its published URL.
 2. **Page is navigable** — each of those pages appears in ``mkdocs.yml``'s ``nav``.
 3. **No orphan page** — nothing under ``docs/commands/`` or ``docs/internals/`` without
    a backing command or procedure. A page for a command that was renamed or retired
@@ -44,10 +46,9 @@ import re
 import sys
 from pathlib import Path
 
-from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR
+from _rhiza_layout import PROMPTS_DIR, command_files
 
-# source directory -> the docs directory whose pages mirror it
-_MIRRORS = ((COMMANDS_DIR, "docs/commands"), (PROMPTS_DIR, "docs/internals"))
+_DOCS_DIRS = ("docs/commands", "docs/internals")
 # A top-level `nav:` key, and the next top-level key that ends the block.
 _NAV_START = re.compile(r"^nav:\s*$", re.M)
 _TOP_LEVEL_KEY = re.compile(r"^[A-Za-z_]", re.M)
@@ -80,16 +81,21 @@ def _stems(directory: Path) -> set[str]:
     return {path.stem for path in directory.glob("*.md")}
 
 
-def check_mirror(root: Path, source: str, docs: str, targets: set[str]) -> list[str]:
-    """Apply all four rules to one source/docs directory pair."""
+def check_mirror(root: Path, sources: dict[str, str], docs: str, targets: set[str]) -> list[str]:
+    """Apply all four rules to one source/docs pair.
+
+    *sources* maps each name to the repo-relative path that defines it, so a violation
+    can name the real file. For commands that path is either layout's; the page name is
+    the command name in both cases.
+    """
     violations = []
-    source_stems = _stems(root / source)
+    source_stems = set(sources)
     page_stems = _stems(root / docs)
 
     for stem in sorted(source_stems - page_stems):
-        violations.append(f"{source}/{stem}.md has no page at {docs}/{stem}.md")
+        violations.append(f"{sources[stem]} has no page at {docs}/{stem}.md")
     for stem in sorted(page_stems - source_stems):
-        violations.append(f"{docs}/{stem}.md has no matching {source}/{stem}.md — orphan page")
+        violations.append(f"{docs}/{stem}.md has no command or procedure behind it — orphan page")
 
     # The nav is written relative to docs/, so `docs/commands/x.md` appears as
     # `commands/x.md`. Accept the full path too, so a repo that spells it out isn't
@@ -105,12 +111,23 @@ def check_mirror(root: Path, source: str, docs: str, targets: set[str]) -> list[
     return violations
 
 
+def _sources(root: Path) -> tuple[dict[str, str], dict[str, str]]:
+    """The commands and the procedures at *root*, each as ``name -> relative path``."""
+    commands = {name: path.relative_to(root).as_posix() for name, path in command_files(root)}
+    procedures = {
+        path.stem: path.relative_to(root).as_posix() for path in (root / PROMPTS_DIR).glob("*.md")
+    }
+    return commands, procedures
+
+
 def check_docs_nav(root: Path) -> list[str]:
     """Run the rules over both mirrors at *root*; return all violations."""
     targets = nav_targets(root / "mkdocs.yml")
     violations: list[str] = []
-    for source, docs in _MIRRORS:
-        violations += check_mirror(root, source, docs, targets)
+    # strict: the two source groups and the two docs directories are a fixed pairing, so
+    # a mismatch is a bug here rather than something to silently truncate.
+    for sources, docs in zip(_sources(root), _DOCS_DIRS, strict=True):
+        violations += check_mirror(root, sources, docs, targets)
     return violations
 
 
@@ -128,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ✗ {violation}", file=sys.stderr)
         return 1
 
-    pages = sum(len(_stems(root / docs)) for _, docs in _MIRRORS)
+    pages = sum(len(_stems(root / docs)) for docs in _DOCS_DIRS)
     print(f"docs and nav are in parity ({pages} page(s) checked)")
     return 0
 

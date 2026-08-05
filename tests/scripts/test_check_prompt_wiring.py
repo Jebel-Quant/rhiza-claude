@@ -67,6 +67,32 @@ def test_flags_a_name_that_is_both_a_command_and_a_procedure(plugin):
     assert any("both a command and a procedure" in v for v in violations)
 
 
+def test_flags_a_procedure_whose_name_a_skill_also_claims(plugin):
+    """Moving a command into `skills/` must not free its name up for a procedure."""
+    (plugin / layout.SKILLS_DIR / "skeleton").mkdir(parents=True)
+    (plugin / layout.SKILLS_DIR / "skeleton" / layout.SKILL_FILE).write_text("x")
+    violations = cw.check_wiring(plugin)
+    assert "'skeleton' exists as both a command and a procedure" in violations
+
+
+def test_a_skill_can_reach_a_procedure(plugin):
+    """Rule 5: a skill referencing a procedure keeps it from reading as an orphan."""
+    (plugin / layout.COMMANDS_DIR / "init.md").unlink()
+    (plugin / layout.SKILLS_DIR / "init").mkdir(parents=True)
+    (plugin / layout.SKILLS_DIR / "init" / layout.SKILL_FILE).write_text(
+        "---\ndescription: x\n---\n\n`Read` prompts/skeleton.md and follow it.\n"
+    )
+    assert cw.check_wiring(plugin) == []
+
+
+def test_flags_a_dangling_reference_from_a_skill(plugin):
+    """Rule 4 must read the skill layout too, or a bad reference ships unnoticed."""
+    (plugin / layout.SKILLS_DIR / "docs").mkdir(parents=True)
+    (plugin / layout.SKILLS_DIR / "docs" / layout.SKILL_FILE).write_text("Read prompts/gone.md\n")
+    violations = cw.check_wiring(plugin)
+    assert any("references missing prompts/gone.md" in v for v in violations)
+
+
 # --- rule 4: references resolve ---------------------------------------------
 
 
@@ -172,7 +198,9 @@ def test_this_repo_is_wired_correctly(repo_root: Path):
 def test_the_expected_procedures_exist(name, repo_root):
     """Pins the current set, so adding or removing one is a deliberate edit here."""
     assert (repo_root / layout.PROMPTS_DIR / f"{name}.md").is_file()
-    assert not (repo_root / layout.COMMANDS_DIR / f"{name}.md").exists()
+    # Neither layout, not just the flat one: the guarantee is that a procedure is not
+    # invocable, and `skills/<name>/SKILL.md` would make it invocable just as surely.
+    assert name not in {command for command, _ in layout.command_files(repo_root)}
 
 
 def test_init_and_update_both_start_with_install_uv(repo_root: Path):

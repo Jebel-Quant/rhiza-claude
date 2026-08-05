@@ -40,11 +40,14 @@ A hand-written explanation that the generator must not touch.
 """
 
 
-def _repo(tmp_path, commands=None, prompts=None, pages=None, internals=None):
+def _repo(tmp_path, commands=None, prompts=None, pages=None, internals=None, skills=None):
     """Build a miniature repo with the directory shape the renderer expects."""
     for name, text in (commands or {}).items():
         (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True, exist_ok=True)
         (tmp_path / layout.COMMANDS_DIR / f"{name}.md").write_text(text)
+    for name, text in (skills or {}).items():
+        (tmp_path / layout.SKILLS_DIR / name).mkdir(parents=True, exist_ok=True)
+        (tmp_path / layout.SKILLS_DIR / name / layout.SKILL_FILE).write_text(text)
     for name, text in (prompts or {}).items():
         (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True, exist_ok=True)
         (tmp_path / layout.PROMPTS_DIR / f"{name}.md").write_text(text)
@@ -92,20 +95,29 @@ def test_tools_with_nothing_declared():
 
 
 def test_command_block_carries_the_facts_that_drift():
-    block = rcd.command_block("thing", rcd.frontmatter(COMMAND))
-    assert f"`{layout.COMMANDS_DIR}/thing.md`" in block
+    source = f"{layout.COMMANDS_DIR}/thing.md"
+    block = rcd.command_block("thing", rcd.frontmatter(COMMAND), source)
+    assert f"`{source}`" in block
     assert "`/rhiza:thing [a path]  (optional)`" in block
     assert "| **Model-invocable** | yes |" in block
     assert "`Bash(git*)`, `Read`" in block
 
 
+def test_command_block_publishes_the_source_it_is_given():
+    """A skill's source is its `SKILL.md`, which `name` alone cannot reconstruct."""
+    source = f"{layout.SKILLS_DIR}/maffay/{layout.SKILL_FILE}"
+    block = rcd.command_block("maffay", rcd.frontmatter(COMMAND), source)
+    assert f"| **Source** | `{source}` |" in block
+    assert "`/rhiza:maffay [a path]  (optional)`" in block
+
+
 def test_command_block_reports_a_model_invocation_opt_out():
-    block = rcd.command_block("detach", rcd.frontmatter(DESTRUCTIVE))
+    block = rcd.command_block("detach", rcd.frontmatter(DESTRUCTIVE), "x.md")
     assert "no — excluded from model invocation" in block
 
 
 def test_command_block_without_an_argument_hint():
-    block = rcd.command_block("thing", {"allowed-tools": "Read"})
+    block = rcd.command_block("thing", {"allowed-tools": "Read"}, "x.md")
     assert "`/rhiza:thing`" in block
 
 
@@ -130,6 +142,16 @@ def test_readers_of_finds_commands_and_procedures(tmp_path):
         prompts={"skeleton": "self reference prompts/skeleton.md", "scorecard": "no ref"},
     )
     assert rcd.readers_of("skeleton", root) == ["commands/init"]
+
+
+def test_readers_of_finds_a_skill_that_reads_a_procedure(tmp_path):
+    """A skill is a command, so it is credited as one — the link is `../commands/`."""
+    root = _repo(
+        tmp_path,
+        skills={"docs": "Read prompts/license.md first"},
+        prompts={"license": "no ref"},
+    )
+    assert rcd.readers_of("license", root) == ["commands/docs"]
 
 
 def test_readers_of_ignores_a_procedures_own_self_reference(tmp_path):
@@ -177,8 +199,23 @@ def test_render_covers_commands_and_procedures(tmp_path):
     assert {p.name for p in wanted} == {"thing.md", "proc.md"}
 
 
+def test_render_publishes_a_skills_real_source_path(tmp_path):
+    """The Source row must send a reader to the file that exists, not to the old one."""
+    root = _repo(tmp_path, skills={"maffay": COMMAND}, pages={"maffay": PAGE})
+    (page,) = rcd.render(root)
+    text = rcd.render(root)[page]
+    assert f"`{layout.SKILLS_DIR}/maffay/{layout.SKILL_FILE}`" in text
+    assert f"{layout.COMMANDS_DIR}/maffay.md" not in text
+
+
 def test_render_skips_a_command_with_no_page(tmp_path):
     root = _repo(tmp_path, commands={"thing": COMMAND})
+    assert rcd.render(root) == {}
+
+
+def test_render_skips_a_procedure_with_no_page(tmp_path):
+    """The commands and the procedures are separate loops, so each skip needs covering."""
+    root = _repo(tmp_path, prompts={"proc": "a procedure"})
     assert rcd.render(root) == {}
 
 

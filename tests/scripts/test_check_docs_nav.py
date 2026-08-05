@@ -92,7 +92,24 @@ def test_flags_a_page_whose_command_was_removed(repo):
     (repo / "docs" / "commands" / "retired.md").write_text("# stale instructions\n")
     violations = cdn.check_docs_nav(repo)
     assert (
-        f"docs/commands/retired.md has no matching {layout.COMMANDS_DIR}/retired.md — orphan page"
+        "docs/commands/retired.md has no command or procedure behind it — orphan page" in violations
+    )
+
+
+def test_a_command_that_moved_into_skills_keeps_its_page(repo):
+    """The page is named for the command, so migrating a file must not orphan its docs."""
+    (repo / layout.COMMANDS_DIR / "demo.md").unlink()
+    (repo / layout.SKILLS_DIR / "demo").mkdir(parents=True)
+    (repo / layout.SKILLS_DIR / "demo" / layout.SKILL_FILE).write_text("# demo\n")
+    assert cdn.check_docs_nav(repo) == []
+
+
+def test_flags_a_skill_with_no_page(repo):
+    (repo / layout.SKILLS_DIR / "fresh").mkdir(parents=True)
+    (repo / layout.SKILLS_DIR / "fresh" / layout.SKILL_FILE).write_text("# fresh\n")
+    violations = cdn.check_docs_nav(repo)
+    assert (
+        f"{layout.SKILLS_DIR}/fresh/{layout.SKILL_FILE} has no page at docs/commands/fresh.md"
         in violations
     )
 

@@ -42,7 +42,7 @@ import re
 import sys
 from pathlib import Path
 
-from _rhiza_layout import COMMANDS_DIR, PROMPTS_DIR
+from _rhiza_layout import PROMPTS_DIR, command_files
 
 _BEGIN = "<!-- generated:begin — rendered by plugin/scripts/render_command_docs.py; do not edit -->"
 _END = "<!-- generated:end -->"
@@ -78,8 +78,13 @@ def _tools(value: str) -> str:
     return ", ".join(f"`{tool}`" for tool in tools) if tools else "_none declared_"
 
 
-def command_block(name: str, meta: dict[str, str]) -> str:
-    """The reference table for a slash command."""
+def command_block(name: str, meta: dict[str, str], source: str) -> str:
+    """The reference table for a slash command.
+
+    *source* is passed in rather than derived from *name*: a command is either
+    ``commands/<name>.md`` or ``skills/<name>/SKILL.md``, and publishing the wrong one
+    would send a reader to a file that isn't there.
+    """
     hint = _unquote(meta.get("argument-hint", "")).strip()
     invocation = f"/rhiza:{name} {hint}".strip()
     invocable = (
@@ -88,7 +93,7 @@ def command_block(name: str, meta: dict[str, str]) -> str:
         else "yes"
     )
     rows = [
-        ("Source", f"`{COMMANDS_DIR}/{name}.md`"),
+        ("Source", f"`{source}`"),
         ("Invocation", f"`{invocation}`"),
         ("Model-invocable", invocable),
         ("Allowed tools", _tools(meta.get("allowed-tools", ""))),
@@ -135,15 +140,16 @@ def _table(rows: list[tuple[str, str]]) -> str:
 def readers_of(name: str, root: Path) -> list[str]:
     """Which commands and procedures reference ``prompts/<name>.md``, sorted."""
     found = set()
-    # The returned prefix is the *kind* ("commands"/"prompts"), not the directory —
-    # _classify keys off it to build the right relative link, and the directory now
-    # carries a `plugin/` segment that has no place in a docs URL.
-    for kind, directory in (("commands", COMMANDS_DIR), ("prompts", PROMPTS_DIR)):
-        for path in sorted((root / directory).glob("*.md")):
-            if path.stem == name:
-                continue
-            if name in _PROMPT_REF.findall(path.read_text(encoding="utf-8")):
-                found.add(f"{kind}/{path.stem}")
+    # The prefix is the *kind* ("commands"/"prompts"), not the directory — _classify keys
+    # off it to build the right relative link, and neither the `plugin/` segment nor a
+    # command's layout has any place in a docs URL.
+    candidates = [("commands", stem, path) for stem, path in command_files(root)]
+    candidates += [("prompts", path.stem, path) for path in (root / PROMPTS_DIR).glob("*.md")]
+    for kind, stem, path in sorted(candidates):
+        if stem == name:
+            continue
+        if name in _PROMPT_REF.findall(path.read_text(encoding="utf-8")):
+            found.add(f"{kind}/{stem}")
     return sorted(found)
 
 
@@ -157,16 +163,16 @@ def splice(page: str, block: str) -> str:
 def render(root: Path) -> dict[Path, str]:
     """Map every docs page to the text it should have."""
     wanted: dict[Path, str] = {}
-    for source, docs_dir in ((COMMANDS_DIR, "commands"), (PROMPTS_DIR, "internals")):
-        for path in sorted((root / source).glob("*.md")):
-            page = root / "docs" / docs_dir / f"{path.stem}.md"
-            if not page.is_file():
-                continue
-            block = (
-                command_block(path.stem, frontmatter(path.read_text(encoding="utf-8")))
-                if source == COMMANDS_DIR
-                else procedure_block(path.stem, readers_of(path.stem, root))
-            )
+    for name, path in command_files(root):
+        page = root / "docs" / "commands" / f"{name}.md"
+        if page.is_file():
+            meta = frontmatter(path.read_text(encoding="utf-8"))
+            block = command_block(name, meta, path.relative_to(root).as_posix())
+            wanted[page] = splice(page.read_text(encoding="utf-8"), block)
+    for path in sorted((root / PROMPTS_DIR).glob("*.md")):
+        page = root / "docs" / "internals" / f"{path.stem}.md"
+        if page.is_file():
+            block = procedure_block(path.stem, readers_of(path.stem, root))
             wanted[page] = splice(page.read_text(encoding="utf-8"), block)
     return wanted
 

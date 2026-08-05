@@ -10,7 +10,8 @@ By participating you agree to abide by our
 
 | Path | Purpose |
 | --- | --- |
-| `commands/` | The plugin's slash commands — one Markdown prompt per command. |
+| `commands/` | Slash commands in the legacy flat layout — one Markdown prompt per command. |
+| `skills/` | Slash commands in the current layout — `<name>/SKILL.md`, the directory naming the command. |
 | `scripts/` | Bundled, stdlib-only Python backing the commands (tested). |
 | `tests/` | The pytest suite for `scripts/`. |
 | `docs/` | The MkDocs documentation site. |
@@ -62,8 +63,13 @@ prose or scripts, `make lint && make test` is enough.
 
 ### Adding or changing a command
 
-1. Edit (or add) the prompt file under `commands/<name>.md`. Keep the
-   frontmatter (`description`, `argument-hint`, `allowed-tools`) accurate.
+1. Edit (or add) the prompt file. New commands go in `skills/<name>/SKILL.md`, the
+   layout the plugin docs now recommend; seven existing ones are still flat files at
+   `commands/<name>.md`. Keep the frontmatter (`description`, `argument-hint`,
+   `allowed-tools`) accurate, and don't add a `name:` field — in a plugin skill it
+   overrides the command name. Never leave a command in both layouts — rule 10 of
+   `check_command_contracts.py` fails the build, because which file answers
+   `/rhiza:<name>` is then undefined.
 2. If the command is backed by a script, put the logic in
    `scripts/<name>.py` (stdlib-only) and cover it in `tests/scripts/test_<name>.py` —
    the suite enforces **100% coverage**, strict **mypy**, and **100% docstring**
