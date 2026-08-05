@@ -13,8 +13,8 @@ points inward with `"source": "./plugin"`.
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Marketplace manifest. Root, because that's where `marketplace add` looks. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/commands/` | Slash commands in the legacy flat layout (one `.md` per command). |
-| `plugin/skills/` | Slash commands in the current layout (`<name>/SKILL.md`). |
+| `plugin/commands/` | Four slash commands in the legacy flat layout (one `.md` per command). |
+| `plugin/skills/` | The other four, in the current layout (`<name>/SKILL.md`). |
 | `plugin/prompts/` | Internal procedures the commands `Read`. |
 | `plugin/hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
 | `plugin/scripts/` | Bundled stdlib-only Python scripts backing the commands. |
@@ -32,8 +32,8 @@ location, which is what stops a procedure being invocable as a slash command.
 `commands/` is the legacy spelling: the docs now say custom commands "have been merged into
 skills", describe `commands/` as "Skills as flat Markdown files", and recommend
 `skills/<name>/SKILL.md` for new plugins. Both layouts load and `/rhiza:<name>` is the same
-either way, since a skill takes its command name from its **directory**. `maffay` has
-moved; the rest have not.
+either way, since a skill takes its command name from its **directory**. `detach`, `docs`,
+`maffay` and `status` have moved; `init`, `quality`, `release` and `update` have not.
 
 Nothing enumerates commands by globbing a directory: `_rhiza_layout.command_files()` returns
 `(name, path)` across both layouts, and the four checkers that span the repo's two halves

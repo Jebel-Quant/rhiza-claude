@@ -70,7 +70,7 @@ PyYAML.
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/status.md` |
+| **Source** | `plugin/skills/status/SKILL.md` |
 | **Invocation** | `/rhiza:status [path to a repo root]  (optional; defaults to the current repo)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(uv*)`, `Read` |

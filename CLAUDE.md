@@ -83,7 +83,8 @@ Markdown files", and tell you to use `skills/<name>/SKILL.md` for new plugins. B
 load, and **`/rhiza:<name>` is identical either way** — a skill takes its command name from
 its *directory*, so moving a file changes nothing a user types.
 
-`maffay` has moved; the other seven have not. Two rules follow from that:
+Four have moved — `detach`, `docs`, `maffay`, `status` — and four have not: `init`,
+`quality`, `release`, `update`. Two rules follow from that:
 
 - **Never discover commands by globbing a directory.** `_rhiza_layout.command_files(root)`
   returns `(name, path)` across both layouts and is the only supported way to enumerate the
@@ -98,8 +99,8 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 
 | Path | What it is |
 | --- | --- |
-| `plugin/commands/*.md` | Seven of the eight slash commands, one flat `.md` each — the legacy layout. |
-| `plugin/skills/<name>/SKILL.md` | The current layout. `maffay` only, so far. The **directory** is the command name. |
+| `plugin/commands/*.md` | Four of the eight slash commands, one flat `.md` each — the legacy layout. |
+| `plugin/skills/<name>/SKILL.md` | The current layout, and the other four. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |

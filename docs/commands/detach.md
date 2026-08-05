@@ -49,7 +49,7 @@ So this is the inverse of the **sync**, not of the **installation**.
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/detach.md` |
+| **Source** | `plugin/skills/detach/SKILL.md` |
 | **Invocation** | `/rhiza:detach [path to a repo root]  (optional; defaults to the current repo)` |
 | **Model-invocable** | no — excluded from model invocation |
 | **Allowed tools** | `Bash(uv*)`, `Bash(python3*)`, `Read` |

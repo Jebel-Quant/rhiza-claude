@@ -264,17 +264,18 @@ slash command.
 `commands/` is the legacy spelling: the docs now say custom commands "have been merged into
 skills" and recommend `skills/<name>/SKILL.md` for new plugins. Both layouts load and
 `/rhiza:<name>` is identical either way — a skill takes its command name from its
-*directory* — so the migration is invisible from the outside. `maffay` has moved; the rest
-have not. Check the [plugin docs](https://code.claude.com/docs/en/plugins) rather than this
-table before assuming what the spec requires.
+*directory* — so the migration is invisible from the outside. Half have moved (`detach`,
+`docs`, `maffay`, `status`); `init`, `quality`, `release` and `update` have not. Check the
+[plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before
+assuming what the spec requires.
 
 | Path | Purpose |
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
 | `plugin/` | **The plugin as shipped.** Everything below is inside it. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/commands/` | Slash commands in the legacy flat layout (one `.md` per command). |
-| `plugin/skills/` | Slash commands in the current layout (`<name>/SKILL.md`, the directory naming the command). |
+| `plugin/commands/` | Four slash commands in the legacy flat layout (one `.md` per command). |
+| `plugin/skills/` | The other four, in the current layout (`<name>/SKILL.md`, the directory naming the command). |
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
