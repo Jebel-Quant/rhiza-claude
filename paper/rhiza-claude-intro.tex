@@ -15,8 +15,13 @@
 % Every transcript in those figures was captured from the plugin's own scripts;
 % see the header of render_figures.py for the command behind each one.
 %
-% Every claim here is true of release v0.6.1. When the plugin changes, this file is
+% Every claim here is true of release v0.6.2. When the plugin changes, this file is
 % part of the change — a stale introduction is worse than none.
+%
+% One figure is a screenshot rather than generated output (images/plugin-cropped.png),
+% so it cannot be re-rendered from the current tree and dates itself: it was captured at
+% v0.6.0, before /rhiza:uninstall was renamed to /rhiza:detach and before /rhiza:maffay
+% existed. Its caption says so rather than the body pretending otherwise.
 
 \documentclass[11pt,a4paper]{article}
 
@@ -73,7 +78,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{slate}An introduction to rhiza-claude}
-\fancyhead[R]{\small\color{slate}v0.6.1}
+\fancyhead[R]{\small\color{slate}v0.6.2}
 \fancyfoot[C]{\small\color{slate}\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \renewcommand{\headrule}{\hbox to\headwidth{\color{slate!30}\leaders\hrule height \headrulewidth\hfill}}
@@ -81,7 +86,7 @@
 \title{\vspace{-1.4cm}\textbf{An introduction to rhiza-claude}\\[0.3em]
 \large\color{slate} What the plugin is for, before what it contains}
 \author{\normalsize Jebel Quant}
-\date{\normalsize Release v0.6.1}
+\date{\normalsize Release v0.6.2}
 
 \begin{document}
 \maketitle
@@ -91,8 +96,8 @@
 \noindent
 \textbf{rhiza-claude} is a Claude Code plugin for repositories that share their
 scaffolding with a template repository instead of each carrying a private copy of it.
-This document is the part the reference pages cannot be: not a catalogue of the seven
-markdown files under \file{commands/}, but an account of the problem they exist to
+This document is the part the reference pages cannot be: not a catalogue of the eight
+skills under \file{skills/}, but an account of the problem they exist to
 solve --- the two-repository boundary a sync respects, what ``rhiza-managed'' actually
 means on disk, the order the commands are meant to be run in, and why a plugin whose
 selling point is determinism keeps half of itself in prose. It covers installation,
@@ -116,8 +121,11 @@ current gates}, because nothing anywhere records which vintage of the scaffoldin
 one received.
 
 \textbf{rhiza} is that scaffolding kept once, in a \emph{template repository}:
-\href{https://github.com/jebel-quant/rhiza}{\texttt{jebel-quant/rhiza}} for Python,
-\texttt{rhiza-go} for Go. \textbf{rhiza-claude} --- this plugin --- is how an
+\href{https://github.com/jebel-quant/rhiza}{\texttt{jebel-quant/rhiza}}, one
+multi-language template serving Python, Rust and Go alike. The language you pick selects
+a \emph{profile} within it (\texttt{github-project}, \texttt{rust-local},
+\texttt{go-local}), never a different repository --- see \S\ref{sec:languages}.
+\textbf{rhiza-claude} --- this plugin --- is how an
 individual repository adopts that template, keeps up with its releases, and is told how
 well it is doing against the gates the template delivers.
 
@@ -227,7 +235,7 @@ two lines, typed inside Claude Code:
 The first line registers the \emph{marketplace} --- this repository, read straight from
 git; the second installs the \emph{plugin} it publishes. From a shell, \texttt{make
 install} runs the equivalent \texttt{claude plugin} commands, which is the form to
-prefer in a setup script. Either way the seven commands then appear namespaced under
+prefer in a setup script. Either way the eight commands then appear namespaced under
 \texttt{/rhiza:}, and typing \texttt{/rhiza} is enough for Claude Code to autocomplete
 them.
 
@@ -238,11 +246,15 @@ them.
     The installed plugin as Claude Code reports it. One plugin, from the
     \texttt{rhiza-claude} marketplace, cached under
     \file{\textasciitilde/.claude/plugins/} at a specific version and commit,
-    contributing exactly the seven slash commands this document describes. It is scoped
+    contributing the slash commands this document describes. It is scoped
     to the user configuration rather than to one project, which is why \cmd{init} is
     available in a directory that is not yet rhiza-managed --- the case it exists to
     handle. Cropped from a full-window screenshot to the region that carries those
-    facts; captured at v0.6.0, one patch release before the v0.6.1 described here.}
+    facts. This is the one figure that cannot be re-rendered from the current tree, and
+    it shows its age: captured at v0.6.0, so the command list names \cmd{uninstall}
+    rather than the \cmd{detach} it was renamed to, and \cmd{maffay} --- the eighth ---
+    did not yet exist. What the figure is evidence for is the \emph{shape} of an
+    installation, and that has not changed.}
   \label{fig:plugin}
 \end{figure}
 
@@ -254,7 +266,7 @@ rather than per plugin --- append the version's git tag as a \texttt{\#<ref>} su
 adding the marketplace:
 
 \begin{lstlisting}
-/plugin marketplace add Jebel-Quant/rhiza-claude#v0.6.1
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.6.2
 /plugin install rhiza@rhiza-claude
 \end{lstlisting}
 
@@ -409,25 +421,48 @@ The plugin ships two kinds of markdown, and the distinction is enforced rather t
 conventional:
 
 \begin{itemize}[leftmargin=1.4em, itemsep=0.3em]
-  \item \file{commands/*.md} are \textbf{slash commands} you invoke: seven of them, each
-        with a reference page.
-  \item \file{prompts/*.md} are \textbf{internal procedures}: seven shared steps a
+  \item \file{skills/<name>/SKILL.md} are \textbf{slash commands} you invoke: eight of
+        them, each with a reference page. The \emph{directory} carries the name, so the
+        file that answers \cmd{init} is \file{skills/init/SKILL.md}.
+  \item \file{prompts/*.md} are \textbf{internal procedures}: eight shared steps a
         command reaches with the \texttt{Read} tool, kept deliberately \emph{outside}
-        \file{commands/} so they cannot be invoked directly.
+        \file{skills/} so they cannot be invoked directly.
 \end{itemize}
 
 \noindent
-Procedures are not implementation trivia, and filing them under ``internals'' undersells
-them: they are where the shared behaviour lives, which is why \file{init.md} alone does
-not explain what \cmd{init} does. Installing \texttt{uv}, choosing a work branch off an
-untouched default, scaffolding a \file{pyproject.toml}, writing a licence, gathering
-design evidence, applying the scoring rubric --- each is a procedure, and that is
-exactly why \cmd{init} and \cmd{update} behave identically everywhere they overlap. A
-check in CI enforces the arrangement: no procedure may carry command frontmatter, none
-may collide with a command name, every referenced procedure path must resolve, and no
-procedure may be orphaned.
+That second point is the load-bearing one, and it is why \file{prompts/} sits where it
+does. Claude Code discovers components by looking for particular directory names at the
+plugin root --- \file{skills/} and \file{hooks/} are two of them, and this plugin ships
+both. \file{prompts/} is deliberately \emph{not} one of them: a procedure placed there
+cannot be reached as a slash command, which is a guarantee about the surface rather than
+a filing preference.
 
-\section{The seven commands, and what each writes}
+\medskip
+\noindent
+Procedures are not implementation trivia, and filing them under ``internals'' undersells
+them: they are where the shared behaviour lives, which is why
+\file{skills/init/SKILL.md} alone does
+not explain what \cmd{init} does. Installing \texttt{uv}, choosing a work branch off an
+untouched default, scaffolding a \file{pyproject.toml}, pinning a Python version, writing
+a licence, gathering design evidence, applying the scoring rubric, recording which
+upstream failures are known --- each is a procedure, and that is
+exactly why \cmd{init} and \cmd{update} behave identically everywhere they overlap. Nor
+can they be folded into the skills that read them: \file{pr-base} is read by three
+commands and \file{install-uv} by two, so a shared procedure has no single skill folder
+to live in.
+
+\medskip
+\noindent
+A check in CI enforces the arrangement, in six rules: every procedure declares that it
+is not a slash command, none carries command frontmatter, none collides with a command
+name, every referenced procedure path resolves, none is orphaned --- and, the sixth, no
+shipped prose names a discovery location this plugin does not have. That last rule gates
+the \emph{reasoning} rather than the wiring. Rules one to five will happily pass a file
+that explains itself by arguing against a directory which no longer exists, and an
+argument from an absent constraint reads, to a later human or model, as a constraint that
+no longer binds.
+
+\section{The eight commands, and what each writes}
 
 An introduction should say which of these change your repository, because that is the
 first thing anyone actually wants to know.
@@ -450,6 +485,8 @@ those files; no commit, no pull request \\[0.35em]
 one local commit and one tag; never pushes \\[0.35em]
 \cmd{status} & report the pointer \emph{and} the lock &
 nothing --- read-only \\[0.35em]
+\cmd{maffay} & print one bonmot from a random Peter Maffay song &
+nothing --- needs no repository at all \\[0.35em]
 \cmd{detach} & delete every file the lock records, prune empty dirs &
 removes files; confirms first \\
 \bottomrule
@@ -462,6 +499,18 @@ repository do it through a pull request you review --- neither \cmd{init} nor
 \cmd{update} pushes to your default branch. And the ones that assess rather than act
 (\cmd{quality}, \cmd{status}) write nothing at all, which is what makes them safe to run
 on a repository you have just inherited and do not yet understand.
+
+\medskip
+\noindent
+Two commands sit outside the sequence entirely, and it is worth saying why they are here.
+\cmd{release} needs no \file{.rhiza/} at all --- it reads the repository's own
+\texttt{[tool.bumpversion]} configuration, so it works on any git repository, this plugin
+included. \cmd{maffay} needs even less: no repository, no git, no template. It draws a
+line from a Peter Maffay song and prints it, which is the whole command. It earns its
+place because the song is drawn by a \emph{script} rather than by the model --- asked to
+choose at random, a model reaches for the same few favourites --- and that makes it the
+smallest complete illustration of this plugin's central split: even picking at random is
+deterministic work, so it belongs in tested code.
 
 \subsection*{Common confusions}
 
@@ -597,12 +646,35 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 \texttt{rhiza} CLI to install}, which is the most common point of confusion about what
 this actually requires.
 
-Honest scope, at v0.6.1: seven user-facing commands, seven internal procedures. It is
+Honest scope, at v0.6.2: eight user-facing commands, eight internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command
 is something you invoke, and the two commands that change a shared repository
 (\cmd{init}, \cmd{update}) do it by opening a pull request you review.
+
+\subsection*{Three languages, one template}
+\label{sec:languages}
+
+\cmd{init} offers Python, Rust and Go, and all three point at the same multi-language
+template. The language chooses a \emph{profile} inside it --- \texttt{github-project},
+\texttt{rust-local}, \texttt{go-local} --- never a different repository, which is worth
+stating because ``a template per language'' is the natural assumption and it is wrong.
+
+They are not equally supported, and the difference is better known before the bootstrap
+than after. All three initialise, sync, report and release identically. What differs is
+the far end: \textbf{Rust and Go have no hosted CI workflows yet}, and \cmd{quality}'s
+gate list \emph{is} the Python profile --- the one this plugin has actually been run
+against. On a Rust or Go repository it instead probes the \file{Makefile} for the targets
+that are really there, scores those, and marks the language-specific subcategories
+out-of-scope.
+
+That is a deliberate trade rather than an unfinished edge. A hand-written table of gates
+for a profile the plugin has never run against would be prose asserting what it cannot
+back; discovery degrades honestly where a guessed table would simply lie. The cost is
+real and \cmd{quality} states it in its own output: a Rust or Go scorecard rests on a
+narrower base than a Python one, and the report says which gates it found and which
+subcategories it skipped.
 
 \section{Glossary}
 
@@ -611,8 +683,13 @@ The words that carry the model, in one place. Each is used above in exactly this
 \begin{description}[leftmargin=0pt, style=nextline, itemsep=0.3em]
   \item[template repository]
         The upstream repository holding the shared scaffolding ---
-        \texttt{jebel-quant/rhiza} for Python, \texttt{rhiza-go} for Go, or a fork of
-        either. You read from it; you do not sync \emph{to} it.
+        \texttt{jebel-quant/rhiza}, or a fork of it. One repository serves Python, Rust
+        and Go; the language selects a profile within it. You read from it; you do not
+        sync \emph{to} it.
+  \item[profile]
+        The subset of the template a language takes: \texttt{github-project},
+        \texttt{rust-local}, \texttt{go-local}. Chosen at \cmd{init}, recorded in the
+        pointer, and the reason three languages need only one template.
   \item[pointer --- \file{template.yml}]
         Declared intent: which template repository, and which pinned \texttt{ref}. The
         one file \cmd{init} writes itself, and the file \cmd{update} bumps.
@@ -627,9 +704,14 @@ The words that carry the model, in one place. Each is used above in exactly this
         arrived, which is observable as \file{.rhiza/rhiza.mk}. Both are required by
         \cmd{quality}, and the gap between the two is the state \cmd{init}
         deliberately leaves you in.
+  \item[skill --- \file{skills/<name>/SKILL.md}]
+        The file behind one slash command. Claude Code discovers it by scanning
+        \file{skills/} at the plugin root, and takes the command name from the
+        \emph{directory}, so \file{skills/init/SKILL.md} answers \cmd{init}.
   \item[procedure --- \file{prompts/}]
-        A shared step a command reaches with the \texttt{Read} tool, kept outside
-        \file{commands/} so it cannot be invoked as a slash command.
+        A shared step a command reaches with the \texttt{Read} tool. \file{prompts/} is
+        not a directory Claude Code scans, which is exactly why procedures live there:
+        one cannot be invoked as a slash command.
   \item[gate]
         A \texttt{make} target delivered by the sync that either passes or fails: lint,
         types, docstring coverage, tests, dependency and security checks, test layout.

@@ -26,8 +26,8 @@ repos:
     rev: v0.49.0
     hooks:
       - id: markdownlint
-        # Command .md files are prompts, not docs; CHANGELOG is generated.
-        exclude: '^(plugin/(commands|skills)/|CHANGELOG\.md|\.github/)'
+        # A SKILL.md is a prompt, not docs; CHANGELOG is generated.
+        exclude: '^(plugin/skills/|CHANGELOG\.md|\.github/)'
         args: ["--disable", "MD013", "MD041"]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema

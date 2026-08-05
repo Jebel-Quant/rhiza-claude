@@ -87,19 +87,26 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`skills/*/SKILL.md` → slash commands** you invoke: eight of them,
-  each with a page here. Two layouts, one surface — `skills/` is the spelling the plugin
-  docs now recommend, and a skill's *directory* is its command name, so `/rhiza:<name>`
-  reads the same either way.
-- **`prompts/*.md` → internal procedures**: seven shared steps a command reaches with
-  the `Read` tool, deliberately kept *outside* both so they cannot be invoked
+- **`skills/<name>/SKILL.md` → slash commands** you invoke: eight of them, each with a
+  page here. The *directory* carries the command name, so `skills/init/SKILL.md` is the
+  file that answers `/rhiza:init`.
+- **`prompts/*.md` → internal procedures**: eight shared steps a command reaches with
+  the `Read` tool, deliberately kept *outside* `skills/` so they cannot be invoked
   directly.
 
+That second point is the load-bearing one. Claude Code finds components by scanning
+particular directory names at the plugin root — `skills/` and `hooks/` are two of them,
+and this plugin ships both. `prompts/` is deliberately *not* one, which is the guarantee:
+a procedure kept there **cannot** be reached as a slash command.
+
 Procedures are not implementation trivia — they're where the shared behaviour lives, so
-`init.md` alone doesn't explain what `/rhiza:init` does. Installing `uv`, choosing a
-work branch, scaffolding a `pyproject.toml`, writing a licence, gathering design
-evidence, applying the scoring rubric: all of that is a procedure, which is exactly why
-`/init` and `/update` behave identically where they overlap. They're documented under
+`skills/init/SKILL.md` alone doesn't explain what `/rhiza:init` does. Installing `uv`,
+choosing a work branch, scaffolding a `pyproject.toml`, pinning a Python version, writing
+a licence, gathering design evidence, applying the scoring rubric, recording which
+upstream failures are known: all of that is a procedure, which is exactly why
+`/init` and `/update` behave identically where they overlap. Nor can they be folded into
+the skills that read them — `pr-base` is read by three commands and `install-uv` by two,
+so a shared procedure has no single skill folder to live in. They're documented under
 [Internals](#internals) below.
 
 ## Why the commands are prose
