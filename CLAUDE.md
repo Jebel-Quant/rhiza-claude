@@ -61,9 +61,30 @@ The plugin is **two kinds of markdown plus the Python they drive**.
 
 **The shipped plugin is `plugin/`. The repo that builds it is everything else.**
 `.claude-plugin/marketplace.json` stays at the root and points inward with
-`"source": "./plugin"`. The four directories inside `plugin/` are mandated by the plugin
-spec, which requires `commands/`, `hooks/`, `prompts/` and `scripts/` at the *plugin*
-root — so that grouping is not a choice you can tidy further.
+`"source": "./plugin"`.
+
+**Only two of the four directories inside `plugin/` are the spec's; the other two are
+ours.** This file used to claim all four were "mandated by the plugin spec", which is
+wrong, and the distinction matters because it is what tells you which ones you may move:
+
+- **`commands/` and `hooks/` are discovery locations.** Claude Code finds components by
+  looking for those names at the *plugin* root, so they cannot be renamed or nested.
+  Alongside them the spec also recognises `skills/`, `agents/`, `.mcp.json`, `.lsp.json`,
+  `monitors/`, `bin/` and `settings.json` — none of which this plugin currently ships.
+- **`prompts/` and `scripts/` are this repo's own conventions.** The spec has never heard
+  of either. `prompts/` exists precisely *because* it is not a discovery location: a
+  procedure placed there cannot be invoked as a slash command, which is the guarantee
+  `check_prompt_wiring.py` enforces. That reasoning stands on its own and never needed the
+  spec to back it.
+
+**`commands/` is now the legacy spelling.** The current docs describe it as "Skills as flat
+Markdown files" and say to "use `skills/` for new plugins" — a `skills/<name>/SKILL.md`
+directory per skill. `commands/` still loads, and migrating is a deliberate change with
+knock-on effects across `check_command_contracts.py`, `check_docs_nav.py`,
+`render_command_docs.py` and every `/rhiza:<name>` reference, so it is not a tidy-up to
+undertake casually. Know that the ecosystem has moved, and check the current
+[plugin docs](https://code.claude.com/docs/en/plugins) before asserting what the spec
+requires.
 
 | Path | What it is |
 | --- | --- |

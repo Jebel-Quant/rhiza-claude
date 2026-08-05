@@ -46,8 +46,22 @@ jobs:
       - name: Install the Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      # Two manifests, two validations, and both are needed. `validate .` reads the
+      # *marketplace* manifest at the repo root; `validate ./plugin` reads the plugin's own.
+      # The second is the one Anthropic's community-marketplace review pipeline runs on a
+      # submission ("Run `claude plugin validate ./your-plugin` locally before you submit …
+      # The review pipeline runs the same check"), so it is the one whose passing predicts
+      # whether a submission is accepted. Only the marketplace check was gated here, which
+      # left the submission-relevant half unguarded.
+      #
+      # `--strict` promotes warnings to errors. The plugin passes clean today, and gating it
+      # keeps that true: a warning the review pipeline would report is a warning worth seeing
+      # on the PR that introduced it, not at submission time.
       - name: Validate the marketplace manifest
         run: claude plugin validate .
+
+      - name: Validate the plugin manifest, as the submission review does
+        run: claude plugin validate ./plugin --strict
 
       - name: Add this checkout as a local marketplace
         run: claude plugin marketplace add "$GITHUB_WORKSPACE"

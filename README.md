@@ -252,9 +252,16 @@ Python ones. Add hosted CI yourself until those land.
 **The shipped plugin lives in `plugin/`; everything that builds or checks it stays at
 the repository root.** `.claude-plugin/marketplace.json` points at it with
 `"source": "./plugin"`, which is the documented way to keep a plugin in a subdirectory
-of its marketplace repo. The four directories inside are there because the plugin spec
-requires `commands/`, `hooks/`, `prompts/` and `scripts/` at the *plugin* root — not
-because the repo chose to scatter them.
+of its marketplace repo.
+
+Two of the four directories inside are the spec's and two are this repo's.
+`commands/` and `hooks/` are **discovery locations** — Claude Code finds components by
+those names at the plugin root, so they cannot be renamed. `prompts/` and `scripts/` are
+local conventions the spec has never heard of; `prompts/` exists precisely *because* it is
+not a discovery location, so a procedure kept there cannot be invoked as a slash command.
+Note that `commands/` is the legacy spelling — the current docs recommend `skills/` for new
+plugins — so check the [plugin docs](https://code.claude.com/docs/en/plugins) rather than
+this table before assuming what the spec requires.
 
 | Path | Purpose |
 | --- | --- |

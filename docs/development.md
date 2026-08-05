@@ -21,10 +21,22 @@ points inward with `"source": "./plugin"`.
 | `docs/` | This book. Not shipped. |
 | `paper/` | The LaTeX introduction. Not shipped. |
 
-Those four directories sit inside `plugin/` because the plugin spec requires
-`commands/`, `hooks/`, `prompts/` and `scripts/` at the *plugin* root. `plugin/` itself
-is the choice — it keeps eight top-level directories down to four and makes "is this
-shipped?" answerable from the path.
+Of those four, **`commands/` and `hooks/` are the spec's and the other two are ours.**
+Claude Code discovers components by looking for `commands/` and `hooks/` at the *plugin*
+root, so those names are fixed; alongside them it also recognises `skills/`, `agents/`,
+`.mcp.json`, `.lsp.json`, `monitors/`, `bin/` and `settings.json`, none of which this
+plugin ships. `prompts/` and `scripts/` appear in no spec — `prompts/` is deliberately
+*not* a discovery location, which is what stops a procedure being invocable as a slash
+command.
+
+`commands/` is the legacy spelling: the current docs describe it as "Skills as flat
+Markdown files" and recommend `skills/` for new plugins. Migrating would touch
+`check_command_contracts.py`, `check_docs_nav.py`, `render_command_docs.py` and every
+`/rhiza:<name>` reference, so it has not been done — but the ecosystem has moved, and the
+[plugin docs](https://code.claude.com/docs/en/plugins) are the authority, not this page.
+
+`plugin/` itself is the choice — it keeps eight top-level directories down to four and
+makes "is this shipped?" answerable from the path.
 
 `${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`, so command prose is unchanged; only
 source-checkout fallbacks gained the prefix. `plugin/scripts/_rhiza_layout.py` is the
