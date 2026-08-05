@@ -22,7 +22,10 @@ The four rules, checked in both directions:
    a backing command or procedure. A page for a command that was renamed or retired
    goes on serving stale instructions long after the command stopped existing.
 4. **No dangling nav entry** — every ``nav`` target that names a file under those two
-   directories resolves.
+   directories resolves. Rules 2 and 4 accept the same two spellings of a target
+   (``skills/x.md`` and ``docs/skills/x.md``), which has to hold on both sides: while only
+   rule 2 normalised them, an entry spelled the long way at a page that was never written
+   counted as wiring and was then never checked for existence.
 
 The ``nav`` is read by collecting ``*.md`` targets out of the block rather than by
 parsing YAML. The bundled subset parser in ``_rhiza_yaml.py`` was written for the flat
@@ -104,7 +107,14 @@ def check_mirror(root: Path, sources: dict[str, str], docs: str, targets: set[st
         if not {f"{relative}/{stem}.md", f"{docs}/{stem}.md"} & targets:
             violations.append(f"{docs}/{stem}.md exists but is not in mkdocs.yml's nav")
 
-    for target in sorted(t for t in targets if t.startswith(f"{relative}/")):
+    # Rule 4 has to normalise the *same* two spellings, or the asymmetry is a hole: rule 2
+    # accepts `docs/<dir>/x.md` as wiring, while a check that only matched `<dir>/x.md`
+    # never went on to confirm that file exists. A nav entry spelled the long way at a
+    # page that was never written therefore passed both rules. Stripping the prefix first
+    # also fixes the path that gets resolved — `root/docs/docs/<dir>/x.md` is nobody's file.
+    # Deduplicated, so a nav naming both spellings reports the violation once.
+    normalised = {t.removeprefix("docs/") for t in targets}
+    for target in sorted(t for t in normalised if t.startswith(f"{relative}/")):
         if not (root / "docs" / target).is_file():
             violations.append(f"mkdocs.yml nav points at docs/{target}, which does not exist")
     return violations

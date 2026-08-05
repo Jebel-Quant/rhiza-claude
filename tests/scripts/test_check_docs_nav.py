@@ -124,6 +124,31 @@ def test_flags_a_nav_entry_pointing_at_a_missing_page(repo):
     assert "mkdocs.yml nav points at docs/skills/demo.md, which does not exist" in violations
 
 
+def test_flags_a_missing_page_named_with_the_docs_prefix(repo):
+    """The spelling rule 2 accepts as wiring must still be checked for existence.
+
+    While only rule 2 normalised the `docs/` prefix, this tree passed both rules: the
+    long-form entry counted as wiring, and the dangling check — matching `skills/` alone —
+    never looked at it. A nav pointing at a page nobody wrote was therefore green.
+    """
+    (repo / "mkdocs.yml").write_text(_MKDOCS.replace("skills/demo.md", "docs/skills/gone.md"))
+    violations = cdn.check_docs_nav(repo)
+    assert "mkdocs.yml nav points at docs/skills/gone.md, which does not exist" in violations
+
+
+def test_reports_a_missing_page_once_when_the_nav_names_both_spellings(repo):
+    """Normalising collapses the two spellings, so the violation is not duplicated."""
+    (repo / "mkdocs.yml").write_text(
+        _MKDOCS.replace(
+            "      - demo: skills/demo.md",
+            "      - demo: skills/gone.md\n      - demo again: docs/skills/gone.md",
+        )
+    )
+    violations = cdn.check_docs_nav(repo)
+    dangling = [v for v in violations if "which does not exist" in v]
+    assert dangling == ["mkdocs.yml nav points at docs/skills/gone.md, which does not exist"]
+
+
 # --- nav parsing --------------------------------------------------------------
 
 
