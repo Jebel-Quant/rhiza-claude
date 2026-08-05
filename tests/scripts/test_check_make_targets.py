@@ -19,6 +19,7 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
+import _rhiza_layout as layout
 import check_make_targets as cmt
 import pytest
 from conftest import assert_ok, run_cmd
@@ -28,8 +29,15 @@ pytestmark = pytest.mark.skipif(shutil.which("make") is None, reason="make not a
 
 @pytest.fixture(scope="session")
 def quality_md(repo_root: Path) -> Path:
-    """`/quality`'s command file — the single source of the gate list the probe reads."""
-    return repo_root / "plugin" / "commands" / "quality.md"
+    """`/quality`'s command file — the single source of the gate list the probe reads.
+
+    Resolved by name rather than by path. Hardcoding one silently pointed at a file that
+    no longer existed when `/quality` moved layouts, and `probe` reads a missing file as a
+    repo with *no gates*: every assertion here failed with an empty target list rather
+    than with "file not found", which is a slow thing to diagnose.
+    """
+    found = {name: path for name, path in layout.command_files(repo_root)}
+    return found["quality"]
 
 
 # --- the target list comes from the prose, not from a duplicate ---------------

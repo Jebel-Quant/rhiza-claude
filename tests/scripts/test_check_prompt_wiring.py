@@ -203,10 +203,22 @@ def test_the_expected_procedures_exist(name, repo_root):
     assert name not in {command for command, _ in layout.command_files(repo_root)}
 
 
+def _command_text(repo_root: Path, name: str) -> str:
+    """The body of the shipped command *name*, whichever layout defines it.
+
+    These assertions are about what a command *says*, not where its file sits, so they
+    resolve the name through `command_files` rather than joining a directory. Hardcoding
+    `commands/<name>.md` made them break on a migration that changed nothing they check.
+    """
+    found = {command: path for command, path in layout.command_files(repo_root)}
+    assert name in found, f"{name} is not a shipped command"
+    return found[name].read_text()
+
+
 def test_init_and_update_both_start_with_install_uv(repo_root: Path):
     """Both entry points must install `uv` before anything that depends on it."""
-    for command, dependent in (("init.md", "init_scaffold.py"), ("update.md", "sync.py")):
-        text = (repo_root / layout.COMMANDS_DIR / command).read_text()
+    for command, dependent in (("init", "init_scaffold.py"), ("update", "sync.py")):
+        text = _command_text(repo_root, command)
         assert "prompts/install-uv.md" in text, f"{command} does not follow install-uv"
         assert text.index("prompts/install-uv.md") < text.index(dependent)
 
@@ -218,21 +230,21 @@ def test_skeleton_reaches_python_version(repo_root: Path):
     )
 
 
-@pytest.mark.parametrize("command", ["init.md", "update.md"])
+@pytest.mark.parametrize("command", ["init", "update"])
 def test_both_entry_points_share_the_pr_base_procedure(command, repo_root):
     """The 'never push to the default branch' rule lives in one place, not two."""
-    assert "prompts/pr-base.md" in (repo_root / layout.COMMANDS_DIR / command).read_text()
+    assert "prompts/pr-base.md" in _command_text(repo_root, command)
 
 
 @pytest.mark.parametrize("name", ["design-analysis", "scorecard"])
 def test_quality_reads_its_two_procedures(name, repo_root):
     """The judgement-heavy halves of /quality live in prompts/, not inline."""
-    assert f"prompts/{name}.md" in (repo_root / layout.COMMANDS_DIR / "quality.md").read_text()
+    assert f"prompts/{name}.md" in _command_text(repo_root, "quality")
 
 
 def test_quality_gathers_evidence_before_scoring(repo_root: Path):
     """Marks must follow the evidence, so design-analysis is read before scorecard."""
-    text = (repo_root / layout.COMMANDS_DIR / "quality.md").read_text()
+    text = _command_text(repo_root, "quality")
     assert text.index("prompts/design-analysis.md") < text.index("prompts/scorecard.md")
 
 
@@ -242,7 +254,7 @@ def test_the_scoping_rule_lives_only_in_the_scorecard(repo_root: Path):
     /quality restating it would let the two drift, and a drifted scoping rule silently
     changes every score.
     """
-    quality = (repo_root / layout.COMMANDS_DIR / "quality.md").read_text()
+    quality = _command_text(repo_root, "quality")
     scorecard = (repo_root / layout.PROMPTS_DIR / "scorecard.md").read_text()
     assert "In scope:" in scorecard
     assert "In scope:" not in quality
@@ -250,6 +262,6 @@ def test_the_scoping_rule_lives_only_in_the_scorecard(repo_root: Path):
 
 def test_pr_base_is_reached_before_any_commit_is_pushed(repo_root: Path):
     """The branch must exist before the push, in both callers."""
-    for command in ("init.md", "update.md"):
-        text = (repo_root / layout.COMMANDS_DIR / command).read_text()
+    for command in ("init", "update"):
+        text = _command_text(repo_root, command)
         assert text.index("prompts/pr-base.md") < text.index("git push")

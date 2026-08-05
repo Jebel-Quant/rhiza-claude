@@ -10,8 +10,7 @@ By participating you agree to abide by our
 
 | Path | Purpose |
 | --- | --- |
-| `commands/` | Slash commands in the legacy flat layout — one Markdown prompt per command. |
-| `skills/` | Slash commands in the current layout — `<name>/SKILL.md`, the directory naming the command. |
+| `skills/` | The plugin's slash commands — `<name>/SKILL.md`, the directory naming the command. |
 | `scripts/` | Bundled, stdlib-only Python backing the commands (tested). |
 | `tests/` | The pytest suite for `scripts/`. |
 | `docs/` | The MkDocs documentation site. |
@@ -64,8 +63,7 @@ prose or scripts, `make lint && make test` is enough.
 ### Adding or changing a command
 
 1. Edit (or add) the prompt file. New commands go in `skills/<name>/SKILL.md`, the
-   layout the plugin docs now recommend; four existing ones are still flat files at
-   `commands/<name>.md`. Keep the frontmatter (`description`, `argument-hint`,
+   layout the plugin docs now recommend. Keep the frontmatter (`description`, `argument-hint`,
    `allowed-tools`) accurate, and don't add a `name:` field — in a plugin skill it
    overrides the command name. Never leave a command in both layouts — rule 10 of
    `check_command_contracts.py` fails the build, because which file answers

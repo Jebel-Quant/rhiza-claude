@@ -96,7 +96,7 @@ one worth scoring.
 
 | | |
 | --- | --- |
-| **Source** | `plugin/commands/quality.md` |
+| **Source** | `plugin/skills/quality/SKILL.md` |
 | **Invocation** | `/rhiza:quality [path or topic to scope the assessment to]  (optional; defaults to the whole repo)` |
 | **Model-invocable** | yes |
 | **Allowed tools** | `Bash(make*)`, `Bash(git*)`, `Bash(gh*)`, `Bash(glab*)`, `Bash(uv*)`, `Bash(uvx*)`, `Bash(python3*)`, `Bash(grep*)`, `Bash(find*)`, `Bash(wc*)`, `Bash(sed*)`, `Bash(sort*)`, `Bash(uniq*)`, `Grep`, `Glob`, `Read`, `Edit`, `Write`, `AskUserQuestion` |

@@ -10,7 +10,7 @@ that it was unsynced. Six of the seven are absent in this plugin's own repo.
 Two things make that hard to catch by hand, and this script addresses both:
 
 * **The target list is derived from the command's prose**, not duplicated here. It is
-  parsed out of the numbered gate list in `commands/quality.md`, so the probe and the
+  parsed out of the numbered gate list in `skills/quality/SKILL.md`, so the probe and the
   command cannot drift — add a gate to the prose and it gets probed automatically.
 * **Availability varies by profile.** `typecheck`, `security` and `docs-coverage` come
   from the template's *tests* bundle and `fmt`/`deptry` from *core*, so a repo on a
@@ -49,7 +49,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# The numbered gate list in commands/quality.md: "1. `make fmt` — …".
+# The numbered gate list in skills/quality/SKILL.md: "1. `make fmt` — …".
 _GATE = re.compile(r"^\s*\d+\.\s+`make ([a-z][a-z0-9-]*)`", re.MULTILINE)
 _MAKEFILES = ("Makefile", "makefile", "GNUmakefile")
 # A self-documenting target — `test:  ## Run the suite` — the convention every rhiza
@@ -287,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     command_file = (
         Path(args.command_file)
         if args.command_file
-        else Path(__file__).resolve().parent.parent / "commands" / "quality.md"
+        else Path(__file__).resolve().parent.parent / "skills" / "quality" / "SKILL.md"
     )
     summary = probe(Path(args.target_dir).resolve(), command_file)
     if args.require and summary["unavailable"]:
