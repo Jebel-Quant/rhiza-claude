@@ -27,14 +27,16 @@ can't be swept in. There is no blanket `git add --all` in the flow.
 is a *pointer* (which template, which pinned ref — what we'd sync *from*), and
 `.rhiza/template.lock` is a *record* (repo, ref, SHA, timestamp, strategy, every managed
 file — what actually arrived). They can disagree, which is why `/rhiza:status` reports
-both and `/rhiza:quality` insists on `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`
-before scoring: its gates *are* the synced `make` targets. `/rhiza:release` needs
-neither.
+both and `/rhiza:quality` checks for `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`
+before scoring: its gates *are* the synced `make` targets, so without them it drops to
+a **degraded mode** — template gates skipped, your own `make` targets run, design
+scored in full, and the report says so. `/rhiza:release` needs neither.
 
-**The order matters** — `/rhiza:init` → merge → `/rhiza:update` → merge →
+**The order still matters** — `/rhiza:init` → merge → `/rhiza:update` → merge →
 `/rhiza:quality`. `/init` writes one file of its own and **syncs nothing**; `/update`
-performs the first sync; `/quality` needs that content to exist. So "`/init` ran and no
-CI appeared" is the expected result of step one.
+performs the first sync; `/quality` needs that content for its *full* assessment. So
+"`/init` ran and no CI appeared" is the expected result of step one, and a `/quality`
+run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
 the eight slash commands you invoke; `prompts/` holds eight **internal procedures** they

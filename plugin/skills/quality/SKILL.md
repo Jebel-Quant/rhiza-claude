@@ -1,5 +1,5 @@
 ---
-description: Run the Rhiza code-quality gates and score this repo, then optionally file findings as issues. Requires a rhiza-managed AND synced repo. Assesses only — it proposes fixes but never applies them.
+description: Run the Rhiza code-quality gates and score this repo, then optionally file findings as issues. Falls back to a design-led assessment when the repo isn't rhiza-managed or synced. Assesses only — it proposes fixes but never applies them.
 argument-hint: "[path or topic to scope the assessment to]  (optional; defaults to the whole repo)"
 allowed-tools: Bash(make*), Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(python3*), Bash(grep*), Bash(find*), Bash(wc*), Bash(sed*), Bash(sort*), Bash(uniq*), Grep, Glob, Read, Edit, Write, AskUserQuestion
 ---
@@ -10,28 +10,47 @@ synced from `jebel-quant/rhiza`; it adapts to whichever repo it runs in by
 reading that repo's `CLAUDE.md`, `.rhiza/template.lock`, and git remote at
 runtime.
 
-## 0. Preconditions — a synced, rhiza-managed repo
+## 0. Establish the mode — how much of this repo is Rhiza's
 
-**`/quality` only runs in a rhiza-managed repo that has been synced.** These two
-checks come **first — before any `make`, any tool, any analysis**:
+These two checks come **first — before any `make`, any tool, any analysis**, because
+they decide which half of this command applies:
 
 ```bash
 test -f .rhiza/template.yml   # rhiza-managed at all?
 test -f .rhiza/rhiza.mk       # ...and actually synced?
 ```
 
-- **No `.rhiza/template.yml` → stop immediately.** The repo isn't rhiza-managed.
-  Scoring a repo against Rhiza standards it never adopted is a category error, not a
-  low score. Say so plainly and point at `/rhiza:init`. Do not run a single gate, and
-  do not produce a partial scorecard.
-- **No `.rhiza/rhiza.mk` → stop.** Managed but never synced — the state `/init`
-  leaves behind, since it deliberately doesn't sync. Point at `/rhiza:update`, which
-  performs the first sync.
+| Both present | **Full mode** — the template's gates plus the design assessment. |
+| `template.yml` only | **Degraded mode** — managed but never synced, the state `/init` deliberately leaves behind. Mention `/rhiza:update` performs the first sync, then continue. |
+| Neither | **Degraded mode** — not rhiza-managed. Mention `/rhiza:init` once, as information, then continue. |
 
-Why this is a hard precondition rather than a graceful degradation: **every gate
-below is a `make` target that the sync delivers.** Without `.rhiza/rhiza.mk` all of
-them fail with "No rule to make target", and the scorecard would report a broken
-repo when the truth is an unsynced one. A misleading score is worse than no score.
+**Degraded mode is a narrower assessment, not a refusal.** Skip the template-delivered
+gates, run whatever the repo's *own* makefile provides, and score the design work in
+full. Say which mode you're in before the first gate, so nothing that follows is read
+as a Rhiza verdict when it isn't.
+
+**What degrading must never become is running the template's gates anyway.** Every
+numbered gate below is a `make` target the sync delivers; without `.rhiza/rhiza.mk`
+they fail with "No rule to make target", and reporting those as FAIL describes a broken
+repo when the truth is an unsynced one. That was the original reason this was a hard
+stop, and it still holds — the answer is to *not run them and mark them unavailable*,
+which is exactly what the existing out-of-scope rule already does for a reduced profile.
+An unavailable gate is never a FAIL, in any mode.
+
+So in degraded mode:
+
+- **Skip** every gate in the numbered list, and every `.rhiza/`-dependent step:
+  `make rhiza-test` (there is no `.rhiza/tests/`), template fidelity, and the
+  `known-issues.md` lookup (it is keyed by the template ref in `.rhiza/template.lock`,
+  which does not exist).
+- **Run** the targets `check_make_targets.py` reports as `undeclared` — the repo's own
+  documented ones. An unmanaged repo with a working `make test` and `make lint` is the
+  Go/Rust case generalised: the named list describes a template this repo isn't using,
+  and the discovered targets are the real gates. Score those.
+- **Do steps 3 and 4 in full.** The design analysis reads source, not `.rhiza/`, so it
+  is unaffected — and in degraded mode it carries most of the assessment.
+- **Score nothing you did not measure.** A skipped gate is out-of-scope, never a 0 and
+  never an assumed pass.
 
 ### Which language is this repo?
 
@@ -154,19 +173,29 @@ Before any scoring, report what the gates said:
 - failures grouped by file, with the specific rule or error and the line;
 - a prioritized list of what to fix first — blocking errors before style nits.
 
-**On a Rust or Go repo, say what the score rests on.** The numbered gate list above is
-the **Python** profile — it is the one this plugin has actually run against. On another
-language most of those targets are unavailable, the marks come from the targets
-`check_make_targets.py` *discovered*, and language-specific subcategories (test-layout
-parity above all) are out-of-scope rather than measured. So state, in the report:
+**Whenever the base is narrower than a full Python run, say so.** Two situations
+produce that, and they compound:
 
+- **A Rust or Go repo.** The numbered gate list above is the **Python** profile — the
+  one this plugin has actually run against. On another language most of those targets
+  are unavailable, the marks come from the targets `check_make_targets.py`
+  *discovered*, and language-specific subcategories (test-layout parity above all) are
+  out-of-scope rather than measured.
+- **Degraded mode** (step 0). No template gate ran at all; every mark rests on the
+  repo's own discovered targets plus the design analysis.
+
+So state, in the report:
+
+- **which mode** produced it, and — in degraded mode — that no Rhiza gate ran;
 - that the gates were **discovered**, and which ones ran;
-- which subcategories were skipped as not applicable to the language;
-- that the result therefore rests on a narrower base than a Python run and the two
-  numbers are not comparable.
+- which subcategories were skipped as not applicable, and why (no template / not this
+  language);
+- that the result rests on a narrower base and **is not comparable** to a full run.
 
 A scorecard that silently rests on fewer gates reads as an equivalent number. Saying so
 costs three lines and is the difference between a narrower score and a misleading one.
+This matters most in degraded mode, where the number is *least* comparable and the
+temptation to read it as "the Rhiza score" is strongest.
 
 ## 3. Gather the design evidence
 

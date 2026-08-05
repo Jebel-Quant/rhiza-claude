@@ -211,10 +211,89 @@ def test_main_honours_an_explicit_language(tmp_path, capsys):
 # --- the real repo ------------------------------------------------------------
 
 
-def test_this_repo_is_not_detected_as_managed(repo_root: Path):
-    """rhiza-claude has no .rhiza/ and no manifest — it must not claim a language."""
-    language, _ = lp.detect(repo_root)
+def test_this_repo_is_detected_as_python_by_census(repo_root: Path):
+    """rhiza-claude has no .rhiza/ and no manifest, yet is unambiguously Python.
+
+    This test used to assert the opposite. Detection leant on the pointer and the
+    manifest, so the one repo `/quality`'s degraded mode was written for was the one it
+    could not profile — no source root, no complexity commands, a subcategory silently
+    unscored. The census is the fallback that closes it.
+    """
+    language, reason = lp.detect(repo_root)
+    assert language is not None and language.name == "python"
+    assert "census" in reason
+    # The repo root, not `src/` — which does not exist here. A source root the tools
+    # cannot point at is the same failure as no source root at all.
+    assert language.source_root == "."
+    assert (repo_root / language.source_root).is_dir()
+
+
+def test_a_declared_language_still_beats_the_census(tmp_path):
+    """The census is last for a reason: it observes, the other three signals declare."""
+    (tmp_path / "main.go").write_text("package main\n")
+    (tmp_path / ".rhiza").mkdir()
+    (tmp_path / ".rhiza" / "template.yml").write_text("language: rust\n")
+    language, reason = lp.detect(tmp_path)
+    assert language is not None and language.name == "rust"
+    assert "census" not in reason
+
+
+# --- the census of last resort ------------------------------------------------
+
+
+def test_the_census_finds_a_clear_majority(tmp_path):
+    """Three Python files and one Go file is a Python repo with a helper script."""
+    for name in ("a.py", "b.py", "c.py"):
+        (tmp_path / name).write_text("")
+    (tmp_path / "tool.go").write_text("")
+    found = lp.census(tmp_path)
+    assert found is not None
+    winner, counts = found
+    assert winner == "python"
+    assert counts == {"python": 3, "go": 1}
+
+
+def test_the_census_refuses_a_plurality(tmp_path):
+    """An even split is not a majority — better unknown than confidently wrong."""
+    (tmp_path / "a.py").write_text("")
+    (tmp_path / "b.go").write_text("")
+    assert lp.census(tmp_path) is None
+
+
+def test_the_census_counts_nothing_in_an_empty_repo(tmp_path):
+    """No source files at all is the plainest unknown there is."""
+    assert lp.census(tmp_path) is None
+
+
+def test_the_census_ignores_vendored_and_generated_trees(tmp_path):
+    """A Python virtualenv must not make a Go module look like a Python project."""
+    (tmp_path / "main.go").write_text("package main\n")
+    for skipped in ("node_modules", "venv", "__pycache__", ".git"):
+        directory = tmp_path / skipped
+        directory.mkdir()
+        for index in range(5):
+            (directory / f"dep{index}.py").write_text("")
+    found = lp.census(tmp_path)
+    assert found is not None
+    assert found == ("go", {"go": 1})
+
+
+def test_the_census_descends_into_real_subdirectories(tmp_path):
+    """Pruning must not become 'only look at the top level'."""
+    nested = tmp_path / "plugin" / "scripts"
+    nested.mkdir(parents=True)
+    (nested / "deep.py").write_text("")
+    found = lp.census(tmp_path)
+    assert found == ("python", {"python": 1})
+
+
+def test_a_repo_with_no_majority_is_still_unknown(tmp_path):
+    """The census widens detection; it must not turn every repo into a guess."""
+    (tmp_path / "a.py").write_text("")
+    (tmp_path / "b.rs").write_text("")
+    language, reason = lp.detect(tmp_path)
     assert language is None
+    assert "no clear majority" in reason
 
 
 # --- end-to-end: a real crate -------------------------------------------------

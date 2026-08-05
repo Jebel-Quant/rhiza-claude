@@ -141,6 +141,16 @@ def check_references_resolve(root: Path) -> list[str]:
     return violations
 
 
+def _skill_call_violations(root: Path, path: Path, text: str, prompts: set[str]) -> list[str]:
+    """Return the 'invoked as a command' violations in one prose file."""
+    return [
+        f"{path.relative_to(root)} invokes {name!r} via the Skill tool, but it is a "
+        "procedure, not a command — reach it with Read"
+        for name in _SKILL_INVOCATION.findall(text)
+        if name in prompts
+    ]
+
+
 def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
     """Rule 5: every procedure is referenced, and none is invoked as a command."""
     prompts = set(_names(root / PROMPTS_DIR))
@@ -152,19 +162,24 @@ def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
         # A file referencing itself doesn't make it reachable.
         own = path.stem if path.parent.name == "prompts" else None
         referenced |= {name for name in _PROMPT_REF.findall(text) if name != own}
-        for name in _SKILL_INVOCATION.findall(text):
-            if name in prompts:
-                rel = path.relative_to(root)
-                violations.append(
-                    f"{rel} invokes {name!r} via the Skill tool, but it is a procedure, "
-                    "not a command — reach it with Read"
-                )
+        violations += _skill_call_violations(root, path, text, prompts)
 
     violations += [
         f"prompts/{name}.md is never referenced — no command can reach it"
         for name in sorted(prompts - referenced)
     ]
     return violations
+
+
+def _dead_layout_paths(root: Path, path: Path, text: str) -> list[str]:
+    """Return the absent-directory references in one shipped prose file."""
+    exempt = {name for name, _ in _LAYOUT_EXEMPT.findall(text)}
+    found = {name for prefix, name in _LAYOUT_PATH.findall(text) if prefix in _PLUGIN_PREFIXES}
+    return [
+        f"{path.relative_to(root)} refers to {name}/, which this plugin does not have"
+        for name in sorted(found - exempt)
+        if not (root / PLUGIN_DIR / name).is_dir()
+    ]
 
 
 def check_no_dead_layout_paths(root: Path) -> list[str]:
@@ -181,14 +196,7 @@ def check_no_dead_layout_paths(root: Path) -> list[str]:
     """
     violations = []
     for path in _shipped_prose(root):
-        text = path.read_text()
-        exempt = {name for name, _ in _LAYOUT_EXEMPT.findall(text)}
-        found = {name for prefix, name in _LAYOUT_PATH.findall(text) if prefix in _PLUGIN_PREFIXES}
-        violations += [
-            f"{path.relative_to(root)} refers to {name}/, which this plugin does not have"
-            for name in sorted(found - exempt)
-            if not (root / PLUGIN_DIR / name).is_dir()
-        ]
+        violations += _dead_layout_paths(root, path, path.read_text())
     return violations
 
 

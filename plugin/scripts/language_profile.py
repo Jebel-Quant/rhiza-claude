@@ -20,10 +20,21 @@ profile, are discovered at runtime by `check_make_targets.py`, and asserting the
 a table is how prose starts lying about repos it has never seen.
 
 Detection prefers what the repo declares over what it looks like: an explicit
-`--language`, then `language:` in `.rhiza/template.yml`, then the manifest on disk.
-A repo with no manifest and no pointer is reported as `unknown` rather than guessed
-into a default, because a wrong language is worse than an absent one — it produces a
-confident scorecard measuring the wrong things.
+`--language`, then `language:` in `.rhiza/template.yml`, then the manifest on disk,
+and only then a census of the source files themselves.
+
+The census exists because two of the first three signals assume a managed repo, and
+`/quality` gained a degraded mode for repos that are not one. This repo was the proof:
+unambiguously Python, gated by mypy and interrogate, and undetectable — its version
+lives in `.claude-plugin/` manifests, so there is no `pyproject.toml` to find.
+
+It is last, and it is deliberately timid. It requires a **strict majority** of the
+counted files, so a polyglot repo with no manifest stays `unknown` rather than being
+resolved by a plurality; and because a census says nothing about *where* the code
+sits, it reports the repo root as the source root instead of a conventional `src/`
+that may not exist. A wrong language is worse than an absent one — it produces a
+confident scorecard measuring the wrong things — so every widening here is one the
+`reason` string admits to.
 
 Usage:
   uv run --python 3.12 --no-project python \\
@@ -38,8 +49,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 
@@ -106,6 +118,16 @@ _LANGUAGES: dict[str, Language] = {
 # the Cargo manifest is the one that makes it a crate.
 _BY_MANIFEST = (("Cargo.toml", "rust"), ("go.mod", "go"), ("pyproject.toml", "python"))
 
+# Suffix -> language, for the census of last resort.
+_BY_SUFFIX = {".py": "python", ".go": "go", ".rs": "rust"}
+
+# Directories the census never descends into. Every one of them holds code that is not
+# this repo's own — vendored dependencies, virtualenvs, or build output — and counting
+# it would let a Python virtualenv decide that a Go repo is Python.
+_CENSUS_SKIP = frozenset(
+    {"node_modules", "vendor", "target", "build", "dist", "venv", "__pycache__", "_book"}
+)
+
 
 def languages() -> tuple[str, ...]:
     """Return every language name this plugin knows, in registry order."""
@@ -138,6 +160,31 @@ def declared_language(target: Path) -> str | None:
     return None
 
 
+def census(target: Path) -> tuple[str, dict[str, int]] | None:
+    """Count *target*'s source files by language; return the strict-majority winner.
+
+    Returns the winning language and the full tally (so the caller can report what it
+    saw), or None when nothing was counted or no language holds a strict majority.
+    Requiring a majority rather than a plurality is what keeps a repo with a handful of
+    build scripts in another language from being misread as that language.
+    """
+    counts: dict[str, int] = {}
+    for _root, dirnames, filenames in os.walk(target):
+        # Prune in place so os.walk never descends — cheaper than filtering after, and
+        # it keeps a large node_modules from dominating the walk.
+        dirnames[:] = [d for d in dirnames if d not in _CENSUS_SKIP and not d.startswith(".")]
+        for filename in filenames:
+            name = _BY_SUFFIX.get(Path(filename).suffix)
+            if name is not None:
+                counts[name] = counts.get(name, 0) + 1
+    if not counts:
+        return None
+    winner = max(counts, key=lambda key: counts[key])
+    if counts[winner] * 2 <= sum(counts.values()):
+        return None
+    return winner, counts
+
+
 def detect(target: Path, explicit: str | None = None) -> tuple[Language | None, str]:
     """Determine *target*'s language; return the profile and how it was determined."""
     if explicit:
@@ -148,7 +195,18 @@ def detect(target: Path, explicit: str | None = None) -> tuple[Language | None, 
     for manifest, name in _BY_MANIFEST:
         if (target / manifest).is_file():
             return _LANGUAGES[name], f"found {manifest}"
-    return None, "no --language, no .rhiza/template.yml, and no recognised manifest"
+    counted = census(target)
+    if counted is not None:
+        winner, counts = counted
+        tally = ", ".join(f"{name} {n}" for name, n in sorted(counts.items()))
+        # The census located files, not a layout, so the repo root is the only source
+        # root it can honestly claim — `src/` may not exist at all, as it doesn't here.
+        return replace(_LANGUAGES[winner], source_root="."), f"source-file census ({tally})"
+    return (
+        None,
+        "no --language, no .rhiza/template.yml, no recognised manifest, "
+        "and no clear majority in a source-file census",
+    )
 
 
 def facts(language: Language, target: Path) -> dict[str, object]:

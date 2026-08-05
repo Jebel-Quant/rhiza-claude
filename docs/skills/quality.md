@@ -9,19 +9,24 @@ findings as issues.
 
 The optional argument scopes the assessment; it defaults to the whole repo.
 
-!!! important "Requires a rhiza-managed **and synced** repo"
+!!! important "Two modes, decided by what `.rhiza/` holds"
     `/quality` checks for `.rhiza/template.yml` and `.rhiza/rhiza.mk` before doing
-    anything, and stops if either is missing:
+    anything, and adapts rather than refusing:
 
-    - **no `template.yml`** — the repo isn't rhiza-managed. Scoring it against
-      standards it never adopted is a category error, not a low score. Run
-      [`/rhiza:init`](init.md).
-    - **no `rhiza.mk`** — managed but never synced, which is the state `/init`
-      deliberately leaves behind. Run [`/rhiza:update`](update.md) first.
+    - **both present** — *full mode*: the template's gates plus the design assessment.
+    - **`template.yml` only** — *degraded mode*: managed but never synced, the state
+      [`/rhiza:init`](init.md) deliberately leaves behind.
+      [`/rhiza:update`](update.md) performs the first sync.
+    - **neither** — *degraded mode*: the repo isn't rhiza-managed.
 
-    Every gate is a `make` target the sync delivers, so without them all the gates
-    fail with *"No rule to make target"* and the scorecard would report a broken repo
-    when the truth is an unsynced one.
+    In degraded mode it skips every template-delivered gate, runs whatever targets your
+    own `Makefile` provides, and scores the design work in full.
+
+    What it will **not** do is run the template's gates anyway. Every one is a `make`
+    target the sync delivers, so without `.rhiza/rhiza.mk` they all fail with *"No rule
+    to make target"* — and reporting that as FAIL would describe a broken repo when the
+    truth is an unsynced one. Skipped gates are scored out-of-scope, never failures, and
+    the report names which mode produced the number.
 
 ## What it does
 
