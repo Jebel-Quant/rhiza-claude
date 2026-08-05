@@ -69,36 +69,32 @@ wrong, and the distinction matters because it is what tells you which ones you m
 
 - **`skills/` and `hooks/` are discovery locations.** Claude Code finds components by
   looking for those names at the *plugin* root, so they cannot be renamed or nested. It
-  also recognises `commands/` (the legacy flat spelling, now unused here), plus `agents/`,
-  `.mcp.json`, `.lsp.json`, `monitors/`, `bin/` and `settings.json` — none of which this
-  plugin ships.
+  also recognises `agents/`, `.mcp.json`, `.lsp.json`, `monitors/`, `bin/` and
+  `settings.json` — none of which this plugin ships.
 - **`prompts/` and `scripts/` are this repo's own conventions.** The spec has never heard
   of either. `prompts/` exists precisely *because* it is not a discovery location: a
   procedure placed there cannot be invoked as a slash command, which is the guarantee
   `check_prompt_wiring.py` enforces. That reasoning stands on its own and never needed the
   spec to back it.
 
-**All eight commands are skills, and `plugin/commands/` no longer exists.** The docs say
-custom commands "have been merged into skills" and describe `commands/` as "Skills as flat
-Markdown files"; the migration to `skills/<name>/SKILL.md` finished across #138, #139 and
-#140. **`/rhiza:<name>` never changed** — a skill takes its command name from its
-*directory* — so nothing a user types was affected at any point.
+**Every command is a skill: `plugin/skills/<name>/SKILL.md`, and the *directory* is the
+command name.** `skills/init/SKILL.md` is the file that answers `/rhiza:init`.
 
-Three things survive the migration and are easy to undo by accident:
+Three habits go with that, and each is easy to undo by accident:
 
 - **Never discover commands by globbing a directory.** `_rhiza_layout.command_files(root)`
   returns `(name, path)` and is the only supported way to enumerate the command surface.
-  Four checkers import it. It still reads `COMMANDS_DIR` as well as `SKILLS_DIR`, which is
-  deliberate: a flat file someone adds back is then discovered and held to every contract
-  instead of being silently ignored. Don't "simplify" that away — the synthetic fixtures in
-  `tests/scripts/` exist to keep the flat path working.
+  Four checkers import it. It also still resolves `COMMANDS_DIR` — the flat spelling this
+  plugin does not use — so a stray flat file is held to every contract instead of being
+  silently ignored. That tolerance is load-bearing in one direction only: don't
+  "simplify" it away without also dropping rule 10 and the synthetic fixtures in
+  `tests/scripts/` that cover it.
 - **Never leave a command in two places.** Rule 10 of `check_command_contracts.py` fails
-  the build if a name is claimed by `commands/<name>.md` *and* `skills/<name>/SKILL.md`,
-  because which one wins at runtime is undefined. Moving a command means `git mv`, not `cp`.
+  the build when one name is claimed by two files, because which one wins at runtime is
+  undefined. Moving a command means `git mv`, not `cp`.
 - **Assert on a command's content, never on its path.** `tests/scripts/` resolves a command
-  by name (`_command_text` in `test_check_prompt_wiring.py`); hardcoding
-  `commands/<name>.md` is what made those tests break on a move that changed nothing they
-  were checking.
+  by name (`_command_text` in `test_check_prompt_wiring.py`); a hardcoded path is what made
+  those tests break on a move that changed nothing they were checking.
 
 Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a personal one)
 `name` overrides the last segment of the command, so a stale one silently renames it.
@@ -126,36 +122,36 @@ checkers that span both halves import it rather than hardcoding `plugin/` or a l
 `plugin/scripts/` — mypy, interrogate, subprocess-discipline, the 100% coverage floor, both
 radon bars, and `check_command_contracts`' script/flag resolution — and five of them fail
 *open*. Bundling a script inside a skill directory to make that skill self-contained would
-therefore drop it out of the bar rather than move it, which is why `maffay.py` stayed put
-when `maffay` moved. Changing that means widening all seven scopes deliberately, in its own
-PR.
+therefore drop it out of the bar rather than move it — which is why every script lives in
+`plugin/scripts/`, `maffay.py` included, however self-contained its skill looks. Changing
+that means widening all seven scopes deliberately, in its own PR.
 
-**Commands vs `prompts/` is the load-bearing distinction.** Procedures live outside *both*
-discovery locations specifically so they cannot be invoked as slash commands — that's the
+**Skills vs `prompts/` is the load-bearing distinction.** Procedures live outside every
+discovery location specifically so they cannot be invoked as slash commands — that's the
 guarantee, not an organisational preference. `plugin/scripts/check_prompt_wiring.py` enforces
 six rules about it: each procedure declares it isn't a slash command, carries no
 command frontmatter, never collides with a command name, is actually referenced
 somewhere, and is never invoked as a command — and, rule 6, **no shipped prose names a
-discovery location the plugin doesn't have.** Don't "tidy" a procedure into `commands/` or
-`skills/`.
+discovery location the plugin doesn't have.** Don't "tidy" a procedure into `skills/`.
 
 **Rule 6 gates the reasoning, not the wiring, and its scope is deliberate.** Rules 1–5 check
-that a procedure declares itself un-invocable; none reads *why*. That's how eleven shipped
-files kept arguing "in `prompts/`, not `commands/`" after #140 deleted `commands/` — an
-argument from a directory that isn't there reads as a constraint that no longer binds. Rule 6
-covers `plugin/`'s own markdown only — the six discovery-location names (`agents`, `bin`,
-`commands`, `hooks`, `monitors`, `skills`), unprefixed or under `plugin/` or
+that a procedure declares itself un-invocable; none reads *why*. A file can therefore pass
+all five while justifying itself against a directory this plugin does not have — and an
+argument from an absent constraint reads, to the next human or model, as a constraint that
+no longer binds. Rule 6 fails the build on that class of claim. It
+covers `plugin/`'s own markdown only, and its gated tokens are the six discovery-location
+names Claude Code scans for (`agents`, `bin`, `commands`, `hooks`, `monitors`, `skills`),
+unprefixed or under `plugin/` or
 `${CLAUDE_PLUGIN_ROOT}/`. Two exclusions carry their weight: **this file is not checked**,
-because narrating the layout means naming what's *gone* (the sentence above is a rule-6
-violation by construction), and prose about *another* repo's layout gets
+because specifying the rule means naming the very tokens it gates (the list above is a
+rule-6 violation by construction), and prose about *another* repo's layout gets
 `<!-- rhiza-layout-exempt: <dir>/ <reason> -->`, scoped to that directory in that file. The
 reason is mandatory — a bare pragma doesn't match, so the violation stands. One exemption
 exists today, at `plugin/prompts/design-analysis.md`.
 
 **Procedures cannot become per-skill files**, either: `pr-base` is read by three commands
 and `install-uv` by two, so a shared procedure has no single skill folder to live in.
-`prompts/` stays at the plugin root — this was true throughout the migration and is why it
-survived it untouched.
+`prompts/` stays at the plugin root.
 
 Shared behaviour lives in the procedures, which is why `/init` and `/update` behave
 identically where they overlap. `plugin/skills/init/SKILL.md` alone does not explain
@@ -225,8 +221,8 @@ off `main` and open a PR — never push to the default branch.
 - **`docs/reports/`, `docs/paper/`, `_book/`, `_tests/` are build outputs**, all
   gitignored. `make book` copies test reports into the site and renders the coverage
   badge *from the measured run*, so a published number can't be asserted by hand.
-- **`markdownlint` excludes `skills/`** (and `commands/`, for the flat path that still
-  loads) — those files are prompts, not docs. The repo root (this file included) is linted.
+- **`markdownlint` excludes `plugin/skills/`** — a `SKILL.md` is a prompt, not docs. The
+  repo root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
 - **The end-to-end tests are part of `make test`, not an opt-in extra.** `make e2e` exists,

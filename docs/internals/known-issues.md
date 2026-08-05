@@ -12,8 +12,8 @@ non-issue is marked out-of-scope rather than FAIL — and, in one case, so the o
 
 ## Why it is a separate file
 
-These notes used to sit inline in `plugin/commands/quality.md`, as two long block quotes on the
-path between "run the gates" and "report the results". That was wrong twice over.
+These notes used to sit inline in the `quality` command itself, as two long block quotes on
+the path between "run the gates" and "report the results". That was wrong twice over.
 
 **They were loaded on every run.** Around eighteen lines describing failures most runs
 never encounter, in the stretch where the command is deciding what to do about a result.

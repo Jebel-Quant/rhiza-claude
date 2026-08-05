@@ -261,10 +261,8 @@ components by those names at the plugin root, so they cannot be renamed. `prompt
 *because* it is not a discovery location, so a procedure kept there cannot be invoked as a
 slash command.
 
-Claude Code also recognises `commands/`, the legacy flat spelling — the docs now say custom
-commands "have been merged into skills". All eight of this plugin's commands are skills, so
-there is no `commands/` directory here; `/rhiza:<name>` was identical either way, because a
-skill takes its command name from its *directory*. Check the
+All eight commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
+names the command, so `skills/init/SKILL.md` is what answers `/rhiza:init`. Check the
 [plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before
 assuming what the spec requires.
 

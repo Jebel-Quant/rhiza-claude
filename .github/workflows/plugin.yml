@@ -88,18 +88,14 @@ jobs:
           echo "$details"
           echo "::endgroup::"
 
-          # Every command we ship must surface as a registered command. Both layouts
-          # load: `commands/<name>.md` is named by its file, `skills/<name>/SKILL.md`
-          # by its directory.
+          # Every command we ship must surface as a registered command. A skill takes
+          # its command name from its *directory*, so that is what we look for.
           missing=0
           total=0
-          for f in plugin/commands/*.md plugin/skills/*/SKILL.md; do
+          for f in plugin/skills/*/SKILL.md; do
             [ -f "$f" ] || continue
             total=$((total + 1))
-            case "$f" in
-              */SKILL.md) name="$(basename "$(dirname "$f")")" ;;
-              *) name="$(basename "$f" .md)" ;;
-            esac
+            name="$(basename "$(dirname "$f")")"
             if ! grep -qw "$name" <<<"$details"; then
               echo "✗ command '$name' is not registered by the installed plugin"
               missing=1

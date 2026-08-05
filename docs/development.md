@@ -23,23 +23,22 @@ points inward with `"source": "./plugin"`.
 
 **`skills/` and `hooks/` are the spec's; `prompts/` and `scripts/` are ours.**
 Claude Code discovers components by looking for those two at the *plugin* root, so
-those names are fixed; alongside them it also recognises `commands/`, `agents/`, `.mcp.json`,
+those names are fixed; alongside them it also recognises `agents/`, `.mcp.json`,
 `.lsp.json`, `monitors/`, `bin/` and `settings.json`, none of which this plugin ships.
 `prompts/` and `scripts/` appear in no spec — `prompts/` is deliberately *not* a discovery
 location, which is what stops a procedure being invocable as a slash command.
 
-`commands/` is the legacy spelling — the docs now say custom commands "have been merged
-into skills" and describe `commands/` as "Skills as flat Markdown files". All eight commands
-migrated to `skills/<name>/SKILL.md`, so this repo has no `commands/` directory at all.
-`/rhiza:<name>` was unaffected throughout, since a skill takes its command name from its
-**directory**.
+**Every command is a skill.** `plugin/skills/<name>/SKILL.md`, where the **directory**
+carries the command name — `skills/init/SKILL.md` is the file that answers `/rhiza:init`.
+Do **not** add a `name:` field to a `SKILL.md`: in a *plugin* skill it overrides that last
+path segment, so a stale one silently renames the command.
 
-Two habits outlast the migration. Nothing enumerates commands by globbing a directory:
-`_rhiza_layout.command_files()` returns `(name, path)` and the four checkers that span the
-repo's two halves import it. It still reads the flat layout as well, so a `commands/<name>.md`
-someone adds back is discovered and held to every contract rather than ignored — and a name
-claimed by *both* fails `check_command_contracts.py` rule 10, because which file answers
-`/rhiza:<name>` at runtime is undefined. The
+Two habits go with that. Nothing enumerates the command surface by globbing a directory —
+`_rhiza_layout.command_files()` returns `(name, path)`, and the four checkers that span the
+repo's two halves import it rather than hardcoding a layout. And nothing may leave one
+command name claimed by two files: `check_command_contracts.py` rule 10 fails the build on
+that, because which file answers `/rhiza:<name>` at runtime is undefined, so moving a
+command is a `git mv` and never a `cp`. The
 [plugin docs](https://code.claude.com/docs/en/plugins) are the authority here, not this page.
 
 `plugin/` itself is the choice — it keeps eight top-level directories down to four and
