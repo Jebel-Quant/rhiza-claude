@@ -7,7 +7,7 @@ deliberately outside *both* discovery locations so they cannot be invoked direct
 Nothing at runtime verifies that arrangement, so a rename or a stray file would only
 surface as a command failing mid-run, in front of a user. This is that check.
 
-It enforces five rules:
+It enforces six rules:
 
 1. every procedure announces itself as **not a slash command**, so a reader (human
    or model) opening one mid-task knows it isn't user-facing;
@@ -18,7 +18,16 @@ It enforces five rules:
    dangling reference is a command that breaks when it reaches that step;
 5. no procedure is orphaned — each is referenced by at least one command or
    procedure, and none is invoked "via the Skill tool", which only works for real
-   commands.
+   commands;
+6. no shipped prose names a discovery location this plugin does not have.
+
+Rule 6 is the one that guards the *reasoning* rather than the wiring. Rules 1–5 assert
+that a procedure declares itself un-invocable and stays reachable; none of them reads
+*why* the prose says it is un-invocable. When all eight commands moved to ``skills/``
+and ``commands/`` stopped existing, eleven shipped files still explained themselves as
+"in ``prompts/``, not ``commands/``" — an argument from a directory that is no longer
+there, which a model can reasonably read as a constraint that no longer binds. Rule 6
+fails the build on that class of claim.
 
 Usage:
   uv run --python 3.12 --no-project python \
@@ -34,12 +43,26 @@ import re
 import sys
 from pathlib import Path
 
-from _rhiza_layout import PROMPTS_DIR, command_files
+from _rhiza_layout import PLUGIN_DIR, PROMPTS_DIR, command_files
 
 _NOT_A_COMMAND = "Not a slash command"
 _FRONTMATTER_KEYS = ("allowed-tools:", "argument-hint:")
 _PROMPT_REF = re.compile(r"prompts/([a-zA-Z0-9_-]+)\.md")
 _SKILL_INVOCATION = re.compile(r"`([a-zA-Z0-9_-]+)` command via the Skill tool")
+
+_DISCOVERY_DIRS = ("agents", "bin", "commands", "hooks", "monitors", "skills")
+"""The directory names Claude Code scans at a plugin root.
+
+Deliberately not "every directory the prose mentions": `.rhiza/`, `tests/`, `docs/` and
+`scripts/` name a *managed repo's* layout far more often than this plugin's, so gating
+them would be noise. These six are unambiguous — prose naming one is making a claim
+about where Claude Code looks for components.
+"""
+
+_PATH_CHARS = r"[\w${}./-]"
+_LAYOUT_PATH = re.compile(rf"(?<!{_PATH_CHARS})({_PATH_CHARS}*?)({'|'.join(_DISCOVERY_DIRS)})/")
+_PLUGIN_PREFIXES = ("", f"{PLUGIN_DIR}/", "${CLAUDE_PLUGIN_ROOT}/")
+_LAYOUT_EXEMPT = re.compile(r"<!--\s*rhiza-layout-exempt:\s*([a-z]+)/\s+(\S[^>]*?)\s*-->")
 
 
 def _names(directory: Path) -> list[str]:
@@ -47,6 +70,18 @@ def _names(directory: Path) -> list[str]:
     if not directory.is_dir():
         return []
     return sorted(p.stem for p in directory.glob("*.md"))
+
+
+def _shipped_prose(root: Path) -> list[Path]:
+    """Return every markdown file the plugin ships — the text a model reads at runtime.
+
+    Repo-level prose is deliberately excluded. ``CLAUDE.md`` narrates this layout
+    *including which directories are gone*, so "``plugin/commands/`` no longer exists"
+    is a true and useful sentence there and a rule-6 violation here. The distinction is
+    the point: rule 6 governs claims a model acts on mid-task, not claims a maintainer
+    reads while changing the layout.
+    """
+    return sorted([*(path for _, path in command_files(root)), *(root / PROMPTS_DIR).glob("*.md")])
 
 
 def _prose_files(root: Path) -> list[Path]:
@@ -132,6 +167,31 @@ def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
     return violations
 
 
+def check_no_dead_layout_paths(root: Path) -> list[str]:
+    """Rule 6: shipped prose never names a discovery location the plugin lacks.
+
+    A reference is only checked when it is unprefixed, or reached the way a skill
+    actually reaches the plugin root — ``plugin/`` in a source checkout,
+    ``${CLAUDE_PLUGIN_ROOT}/`` at runtime. ``docs/commands/`` is a site path and passes.
+
+    The escape hatch is an HTML comment naming the directory and giving a reason:
+    ``<!-- rhiza-layout-exempt: commands/ the repo under assessment, not this plugin -->``.
+    It is scoped to that directory in that file, and the reason is mandatory — a
+    pragma without one does not match, so the violation stands.
+    """
+    violations = []
+    for path in _shipped_prose(root):
+        text = path.read_text()
+        exempt = {name for name, _ in _LAYOUT_EXEMPT.findall(text)}
+        found = {name for prefix, name in _LAYOUT_PATH.findall(text) if prefix in _PLUGIN_PREFIXES}
+        violations += [
+            f"{path.relative_to(root)} refers to {name}/, which this plugin does not have"
+            for name in sorted(found - exempt)
+            if not (root / PLUGIN_DIR / name).is_dir()
+        ]
+    return violations
+
+
 def check_wiring(root: Path) -> list[str]:
     """Run every rule against *root*; return all violations."""
     prompts_dir = root / PROMPTS_DIR
@@ -141,6 +201,7 @@ def check_wiring(root: Path) -> list[str]:
         *check_no_name_collisions(root, prompts_dir),
         *check_references_resolve(root),
         *check_no_orphans_and_no_skill_calls(root),
+        *check_no_dead_layout_paths(root),
     ]
 
 

@@ -75,6 +75,8 @@ layers, cycles and hotspots:
 
 - **Layering direction.** A lower layer must not import an upper one — `models/`
   importing `commands/` or `cli` is a violation. Name the offending import.
+  <!-- rhiza-layout-exempt: commands/ a layer in the repo under assessment, not this plugin's layout -->
+
 - **Import cycles — including ones hidden behind deferred (function-local) imports.**
   A module-level cycle usually crashes and gets fixed; a function-local one survives
   for years and is the more common finding. Grep inside function bodies, don't just

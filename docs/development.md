@@ -101,7 +101,9 @@ The prose hooks are the unusual ones. `command-contracts` treats each command as
 a contract — its frontmatter parses, its bash blocks are valid shell, the scripts
 and flags it names exist, and exactly the destructive commands
 (`detach`, `release`) declare `disable-model-invocation: true`. `prompt-wiring`
-keeps the `prompts/` procedures referenced and un-invocable. `docs-nav` requires a
+keeps the `prompts/` procedures referenced and un-invocable — and, since a procedure's
+*reason* for being un-invocable is as load-bearing as its wiring, fails the build when
+shipped prose names a discovery location the plugin doesn't have. `docs-nav` requires a
 `docs/` page and an `mkdocs.yml` nav entry for every command and procedure, in
 both directions, so neither an undocumented command nor an orphaned page can ship.
 `docs-reference-blocks` is its content half: each page carries a **Reference** table

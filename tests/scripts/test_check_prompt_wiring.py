@@ -151,6 +151,94 @@ def test_allows_skill_invocation_of_a_real_command(plugin):
     assert cw.check_wiring(plugin) == []
 
 
+# --- rule 6: no dead discovery-location paths --------------------------------
+
+
+def _procedure(justification: str) -> str:
+    """A procedure whose declaration argues from *justification*."""
+    return f"# Skeleton\n\n> **Not a slash command.** This file lives in {justification}.\n"
+
+
+def test_flags_a_procedure_justified_against_a_directory_that_is_absent(plugin):
+    """The #141 regression: the argument for un-invocability names a vanished directory."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure("`prompts/`, not `hooks/`, so the user cannot invoke it")
+    )
+    violations = cw.check_wiring(plugin)
+    assert any("refers to hooks/, which this plugin does not have" in v for v in violations)
+
+
+def test_flags_a_dead_path_in_a_skill_body(plugin):
+    """Rule 1 only reads `prompts/`, so three of #141's eleven files sat outside it."""
+    (plugin / layout.SKILLS_DIR / "quality").mkdir(parents=True)
+    (plugin / layout.SKILLS_DIR / "quality" / layout.SKILL_FILE).write_text(
+        "Procedures sit outside `hooks/` so the user can't invoke them.\n"
+    )
+    violations = cw.check_wiring(plugin)
+    assert any("skills/quality" in v and "refers to hooks/" in v for v in violations)
+
+
+def test_accepts_a_discovery_location_that_exists(plugin):
+    """Naming a real directory is a true claim, and rule 6 must leave it alone."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure("`prompts/`, which is not `commands/`")
+    )
+    assert cw.check_wiring(plugin) == []
+
+
+def test_ignores_a_path_under_a_foreign_prefix(plugin):
+    """`docs/agents/` is a site path, not a claim about where Claude Code looks."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure("`prompts/`; see docs/agents/index.md for the rest")
+    )
+    assert cw.check_wiring(plugin) == []
+
+
+@pytest.mark.parametrize("prefix", ["plugin/", "${CLAUDE_PLUGIN_ROOT}/"])
+def test_flags_a_dead_path_reached_through_the_plugin_root(prefix, plugin):
+    """Both spellings of the plugin root are how a skill actually reaches it."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure(f"`prompts/`; the hook is at {prefix}hooks/hooks.json")
+    )
+    violations = cw.check_wiring(plugin)
+    assert any("refers to hooks/" in v for v in violations)
+
+
+def test_an_exemption_with_a_reason_suppresses_the_violation(plugin):
+    """Prose about *another* repo's layout needs an escape hatch, or the rule gets deleted."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure("`prompts/`; a repo importing `hooks/` from a model layer is a violation")
+        + "<!-- rhiza-layout-exempt: hooks/ the repo under assessment, not this plugin -->\n"
+    )
+    assert cw.check_wiring(plugin) == []
+
+
+def test_an_exemption_without_a_reason_does_not_suppress(plugin):
+    """Fail closed: an unexplained pragma is not an exemption."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure("`prompts/`, not `hooks/`") + "<!-- rhiza-layout-exempt: hooks/ -->\n"
+    )
+    violations = cw.check_wiring(plugin)
+    assert any("refers to hooks/" in v for v in violations)
+
+
+def test_an_exemption_covers_only_the_directory_it_names(plugin):
+    """Exempting one path must not blanket the file."""
+    (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure("`prompts/`, and not `hooks/` nor `agents/`")
+        + "<!-- rhiza-layout-exempt: hooks/ deliberately discussed here -->\n"
+    )
+    violations = cw.check_wiring(plugin)
+    assert any("refers to agents/" in v for v in violations)
+    assert not any("refers to hooks/" in v for v in violations)
+
+
+def test_repo_level_prose_may_name_an_absent_directory(plugin):
+    """CLAUDE.md documents the layout *including what is gone*; that is not a violation."""
+    (plugin / "CLAUDE.md").write_text("`plugin/hooks/` no longer exists after the migration.\n")
+    assert cw.check_wiring(plugin) == []
+
+
 # --- tolerance for a partial root -------------------------------------------
 
 

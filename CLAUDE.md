@@ -133,10 +133,24 @@ PR.
 **Commands vs `prompts/` is the load-bearing distinction.** Procedures live outside *both*
 discovery locations specifically so they cannot be invoked as slash commands — that's the
 guarantee, not an organisational preference. `plugin/scripts/check_prompt_wiring.py` enforces
-five rules about it: each procedure declares it isn't a slash command, carries no
+six rules about it: each procedure declares it isn't a slash command, carries no
 command frontmatter, never collides with a command name, is actually referenced
-somewhere, and is never invoked as a command. Don't "tidy" a procedure into `commands/` or
+somewhere, and is never invoked as a command — and, rule 6, **no shipped prose names a
+discovery location the plugin doesn't have.** Don't "tidy" a procedure into `commands/` or
 `skills/`.
+
+**Rule 6 gates the reasoning, not the wiring, and its scope is deliberate.** Rules 1–5 check
+that a procedure declares itself un-invocable; none reads *why*. That's how eleven shipped
+files kept arguing "in `prompts/`, not `commands/`" after #140 deleted `commands/` — an
+argument from a directory that isn't there reads as a constraint that no longer binds. Rule 6
+covers `plugin/`'s own markdown only — the six discovery-location names (`agents`, `bin`,
+`commands`, `hooks`, `monitors`, `skills`), unprefixed or under `plugin/` or
+`${CLAUDE_PLUGIN_ROOT}/`. Two exclusions carry their weight: **this file is not checked**,
+because narrating the layout means naming what's *gone* (the sentence above is a rule-6
+violation by construction), and prose about *another* repo's layout gets
+`<!-- rhiza-layout-exempt: <dir>/ <reason> -->`, scoped to that directory in that file. The
+reason is mandatory — a bare pragma doesn't match, so the violation stands. One exemption
+exists today, at `plugin/prompts/design-analysis.md`.
 
 **Procedures cannot become per-skill files**, either: `pr-base` is read by three commands
 and `install-uv` by two, so a shared procedure has no single skill folder to live in.
