@@ -440,3 +440,134 @@ def test_a_merge_file_refusal_is_classified_as_unmergeable(tmp_path, monkeypatch
 
     assert outcome.unmergeable == ["f.txt"]
     assert outcome.conflicted == []
+
+
+# --- gaps that mutation testing found (`make mutate`) -------------------------
+#
+# Seven survivors of the run above, all at 100% line and branch coverage. The property
+# tests are strong on *merged content* — which is why only nine mutants survived at all —
+# and these cover what they do not reach: the constants that classify an outcome, and the
+# structural details of getting a file into place.
+
+
+def test_the_refusal_code_is_the_literal_git_uses(tmp_path, monkeypatch):
+    """255 is `git merge-file`'s own "I will not merge this", not a value we choose.
+
+    `test_a_merge_file_refusal_is_classified_as_unmergeable` monkeypatches `merge_file` to
+    return `merge._MERGE_REFUSED`, so it passes for *any* value of that constant. Anything
+    other than 255 would reclassify a real refusal as a conflict count — reporting markers
+    in a file that has none.
+    """
+    assert merge._MERGE_REFUSED == 255
+
+    base, upstream = _trees(tmp_path, {"f.txt": b"old\n"}, {"f.txt": b"new\n"})
+    target = tmp_path / "t"
+    target.mkdir()
+    (target / "f.txt").write_text("local\n")
+    monkeypatch.setattr(merge.git, "merge_file", lambda *a: 255)
+
+    outcome = merge.merge_trees(_ctx(), target, base, upstream)
+    assert outcome.unmergeable == ["f.txt"]
+    assert outcome.conflicted == []
+
+
+def test_a_conflict_count_is_not_mistaken_for_a_refusal(tmp_path, monkeypatch):
+    """The other side of the same boundary: a small positive status is N conflicts."""
+    base, upstream = _trees(tmp_path, {"f.txt": b"old\n"}, {"f.txt": b"new\n"})
+    target = tmp_path / "t"
+    target.mkdir()
+    (target / "f.txt").write_text("local\n")
+    monkeypatch.setattr(merge.git, "merge_file", lambda *a: 1)
+
+    outcome = merge.merge_trees(_ctx(), target, base, upstream)
+    assert outcome.conflicted == ["f.txt"]
+    assert outcome.unmergeable == []
+
+
+def test_the_sniff_window_is_exactly_git_s(tmp_path):
+    """A NUL at the last sniffed byte counts; one byte later does not.
+
+    The existing test puts the NUL well past the window, so the boundary itself was
+    unasserted and `_SNIFF_BYTES` could drift by one either way.
+    """
+    assert merge._SNIFF_BYTES == 8192
+
+    inside = tmp_path / "inside"
+    inside.write_bytes(b"a" * (merge._SNIFF_BYTES - 1) + b"\x00")
+    assert merge.is_binary(inside) is True
+
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"a" * merge._SNIFF_BYTES + b"\x00")
+    assert merge.is_binary(outside) is False
+
+
+def test_a_change_is_immutable(tmp_path):
+    """`Change` is frozen so a classification cannot be rewritten after the fact."""
+    change = merge.Change("f.txt", is_new=True, is_deleted=False)
+    with pytest.raises(Exception, match="(?i)frozen|cannot assign"):
+        change.path = "other.txt"  # type: ignore[misc]
+
+
+def test_an_identical_file_does_not_stop_the_scan(tmp_path):
+    """Skipping an unchanged file must `continue`, not end the walk.
+
+    Paths are visited in sorted order, so an unchanged `a.txt` sits before a changed
+    `z.txt`. With a `break` the changed file would silently never be merged — the sync
+    would report success having skipped an upstream change.
+    """
+    base, upstream = _trees(
+        tmp_path, {"a.txt": b"same\n", "z.txt": b"old\n"}, {"a.txt": b"same\n", "z.txt": b"new\n"}
+    )
+    assert merge.changed_files(base, upstream) == [
+        merge.Change("z.txt", is_new=False, is_deleted=False)
+    ]
+
+
+def test_a_new_nested_file_gets_its_parent_directories(tmp_path):
+    """`_copy` must create parents: a new template file is usually several levels down.
+
+    `changed_files` was already tested on a nested path; actually *installing* one was
+    not, so `mkdir(parents=True)` could become `parents=False` unnoticed.
+    """
+    base, upstream = _trees(tmp_path, {}, {".github/workflows/ci.yml": b"on: push\n"})
+    target = tmp_path / "t"
+    target.mkdir()
+
+    outcome = merge.merge_trees(_ctx(), target, base, upstream)
+
+    assert outcome.merged == [".github/workflows/ci.yml"]
+    assert (target / ".github" / "workflows" / "ci.yml").read_text() == "on: push\n"
+
+
+@pytest.mark.parametrize("binary_side", ["target", "upstream", "base"])
+def test_a_binary_on_any_one_side_is_predicted_not_attempted(tmp_path, monkeypatch, binary_side):
+    """The three binary checks are `or`, and each side alone must be enough.
+
+    Asserting the *outcome* is not enough here, and finding that out was the point of the
+    exercise: with the checks changed to `and`, `git merge-file` gets invoked and refuses
+    on its own, so `unmergeable` is recorded either way and the file is left alone either
+    way. The mutant survived a test that checked only the result.
+
+    What the `or` chain actually buys is in this module's docstring — the refusal is
+    *predicted*, "rather than surfacing as a bare error". So that is what is asserted:
+    `git merge-file` is never reached. Which also means each side must be sufficient
+    alone, since the existing binary test makes all three binary at once.
+    """
+    contents = {"target": b"LOCAL\x00BIN", "upstream": b"UP\x00BIN", "base": b"BASE\x00BIN"}
+    text = {"target": b"local text\n", "upstream": b"new text\n", "base": b"old text\n"}
+    pick = {side: contents[side] if side == binary_side else text[side] for side in text}
+
+    base, upstream = _trees(tmp_path, {"f.dat": pick["base"]}, {"f.dat": pick["upstream"]})
+    target = tmp_path / "t"
+    target.mkdir()
+    (target / "f.dat").write_bytes(pick["target"])
+
+    def refuse_to_run(*_args: Any) -> int:
+        raise AssertionError("git merge-file was called on binary input")
+
+    monkeypatch.setattr(merge.git, "merge_file", refuse_to_run)
+
+    outcome = merge.merge_trees(_ctx(), target, base, upstream)
+
+    assert outcome.unmergeable == ["f.dat"]
+    assert (target / "f.dat").read_bytes() == pick["target"], "local content was clobbered"
