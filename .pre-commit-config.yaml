@@ -97,6 +97,15 @@ repos:
         # Includes the top-of-repo prose and the docs site: a dead script reference in
         # CONTRIBUTING.md used to survive precisely because no gate read that far.
         files: '^(plugin/(commands|prompts)/.*\.md|plugin/scripts/.*\.py|docs/.*\.md|(README|CONTRIBUTING|CLAUDE|SECURITY)\.md)$'
+      # Ruff's `S` rules police how a process is launched; this polices whether anyone
+      # notices it failed. Ten of the sixteen call sites pass `check=False` and read the
+      # returncode by hand — correct everywhere today, with nothing making it stay so.
+      - id: subprocess-discipline
+        name: every subprocess call accounts for a non-zero exit
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_subprocess_discipline.py
+        language: system
+        pass_filenames: false
+        files: '^plugin/scripts/.*\.py$'
       - id: prompt-wiring
         name: internal procedures under prompts/ stay wired up
         entry: uv run --python 3.12 --no-project python plugin/scripts/check_prompt_wiring.py

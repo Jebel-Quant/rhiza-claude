@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -122,10 +123,19 @@ def _remote_url(host: str, repo: str) -> str:
 
 
 def _remote_tags(host: str, repo: str) -> list[str]:
-    """Return the remote's tag names via `git ls-remote --tags`, or [] on failure."""
+    """Return the remote's tag names via `git ls-remote --tags`, or [] on failure.
+
+    The git binary is resolved through `shutil.which` rather than left to a ``PATH``
+    lookup at exec time, matching every other call site here. A bare ``"git"`` is
+    resolved against whatever ``PATH`` happens to hold, which is the one difference
+    between this and the rest of the module (ruff's S607).
+    """
+    git = shutil.which("git")
+    if git is None:  # pragma: no cover - git is present everywhere this runs
+        return []
     try:
-        proc = subprocess.run(  # nosec B603 B607
-            ["git", "ls-remote", "--tags", _remote_url(host, repo)],
+        proc = subprocess.run(  # noqa: S603 - a fixed argv, never a shell
+            [git, "ls-remote", "--tags", _remote_url(host, repo)],
             capture_output=True,
             text=True,
             check=True,
@@ -169,6 +179,25 @@ def _print_outdated(payload: dict[str, Any]) -> None:
     print(_outdated_message(payload["ref"], tags))
 
 
+def _print_summary(payload: dict[str, Any]) -> None:
+    """Print the human-readable header block for a lock file.
+
+    `templates` and `include` are alternatives, not both — the lock records whichever
+    selection mode the pointer used, so printing one or the other keeps the output honest
+    about which mode is in force.
+    """
+    print(f"Repository : {payload['repository']}")
+    print(f"Ref        : {payload['ref']}")
+    sha = payload["sha"]
+    print(f"SHA        : {sha[:12]}" if sha else "SHA        : (unknown)")
+    print(f"Synced at  : {payload['synced_at'] or '(unknown)'}")
+    print(f"Strategy   : {payload['strategy'] or '(unknown)'}")
+    if payload["templates"]:
+        print(f"Templates  : {', '.join(payload['templates'])}")
+    elif payload["include"]:
+        print(f"Include    : {', '.join(payload['include'])}")
+
+
 def status(
     target: Path,
     *,
@@ -195,16 +224,7 @@ def status(
         print(json.dumps(payload, indent=2))
         return 0
 
-    print(f"Repository : {payload['repository']}")
-    print(f"Ref        : {payload['ref']}")
-    sha = payload["sha"]
-    print(f"SHA        : {sha[:12]}" if sha else "SHA        : (unknown)")
-    print(f"Synced at  : {payload['synced_at'] or '(unknown)'}")
-    print(f"Strategy   : {payload['strategy'] or '(unknown)'}")
-    if payload["templates"]:
-        print(f"Templates  : {', '.join(payload['templates'])}")
-    elif payload["include"]:
-        print(f"Include    : {', '.join(payload['include'])}")
+    _print_summary(payload)
     if check:
         _print_outdated(payload)
     if show_files:

@@ -32,6 +32,7 @@ make install        # install the rhiza plugin via the Claude Code CLI
 make lint           # run all prek hooks against every file
 make test           # run the script test suite with a 100% coverage gate
 make e2e            # run only the end-to-end tests, without the coverage gate
+make mutate         # mutation-test the sync core in an isolated worktree (slow)
 make book           # build the documentation site into _book/
 make book-serve     # serve the docs locally with live reload
 make paper          # build the LaTeX paper and stage it for the docs site

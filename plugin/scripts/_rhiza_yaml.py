@@ -201,18 +201,30 @@ def _emit_scalar(value: Any) -> str:
     return text
 
 
+def _misreads_as_non_string(text: str) -> bool:
+    """Would *text*, emitted bare, be read back as something other than this string?"""
+    # `scalar` is the reference reader, so a value it does not return unchanged would come
+    # back as a bool, int, None, list or flow-map. The float and timestamp shapes are
+    # PyYAML's YAML 1.1 surprises, which `scalar` deliberately leaves as strings.
+    return scalar(text) != text or bool(_TIMESTAMP.match(text)) or _is_float(text)
+
+
+def _starts_with_yaml_syntax(text: str) -> bool:
+    """Does *text* open with a character YAML reads as structure rather than content?"""
+    # Indicators, anchors, tags, quotes, comments and flow punctuation, all of which
+    # change the meaning of the line when they lead it.
+    if text[0] in "!&*?|>%@`\"'#[]{},":
+        return True
+    # `-` and `:` are only structural as a bare token or when followed by a space:
+    # `-item` and `a:b` are ordinary scalars, `- item` and `a: b` are not.
+    return text[0] in "-:" and (len(text) == 1 or text[1] == " ")
+
+
 def _needs_quote(text: str) -> bool:
     """Return True when *text* must be single-quoted to survive a round-trip."""
     if text == "":
         return True
-    if scalar(text) != text:
-        # Would be re-read as bool/int/None/list/flow-map rather than a string.
-        return True
-    if _TIMESTAMP.match(text) or _is_float(text):
-        return True
-    if text[0] in "!&*?|>%@`\"'#[]{},":
-        return True
-    if text[0] in "-:" and (len(text) == 1 or text[1] == " "):
+    if _misreads_as_non_string(text) or _starts_with_yaml_syntax(text):
         return True
     return text != text.strip() or ": " in text or text.endswith(":") or "\n" in text
 

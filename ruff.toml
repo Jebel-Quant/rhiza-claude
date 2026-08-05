@@ -9,4 +9,33 @@ select = [
   "I",   # isort (import ordering)
   "UP",  # pyupgrade
   "B",   # flake8-bugbear
+  "S",   # flake8-bandit (security)
 ]
+
+# `S` is selected because this plugin's whole job is driving other people's tools — git,
+# make, uv, gh, glab — over paths and refs read from a template repo. Two of its rules fire
+# on that by construction, so they are silenced here with a reason rather than left to
+# accumulate `noqa` comments at twelve call sites:
+#
+#   S404  importing subprocess at all. Unavoidable: every command shells out to git.
+#   S603  subprocess.run without shell=True. Every call site passes a **list** argv and
+#         none uses a shell, which is the safe form — S603 flags the call regardless, so
+#         it cannot distinguish the safe shape from the unsafe one here.
+#
+# The risk those two rules gesture at is real but different: not *how* a process is
+# launched, but whether a failure is noticed. That is enforced by
+# `plugin/scripts/check_subprocess_discipline.py`, which requires every call to pass
+# `check=` explicitly and to inspect the returncode, hand the process back, or state why
+# it ignores it. S607 (partial executable path) is deliberately **not** ignored — the
+# call sites resolve their binary through `shutil.which`.
+ignore = [
+  "S404",
+  "S603",
+]
+
+[lint.per-file-ignores]
+# Tests assert — that is what they are for — and they drive real git, uv and cargo
+# subprocesses against throwaway repos on purpose.
+"tests/**" = ["S101", "S603", "S607"]
+# The paper's figure script runs a LaTeX engine over files it just wrote itself.
+"paper/**" = ["S603", "S607"]
