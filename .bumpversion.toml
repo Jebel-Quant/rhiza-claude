@@ -37,10 +37,11 @@ replace = '"version": "{new_version}"'
 # lines carry the same text, and `search`/`replace` apply to every occurrence, so one
 # entry moves both.
 #
-# The "switch versions" example further down deliberately names an *earlier* release, to
-# show that pinning moves in both directions. It must therefore differ from the version
-# above, which is exactly why this pattern does not match it — and why it is not tracked
-# here. It needs a hand-refresh only if it ever falls off the releases page.
+# The "switch versions" example further down is a `#<tag>` placeholder, not a version, so
+# there is nothing here to track and nothing to age. It used to name an earlier release —
+# it has to differ from the one above, since its whole point is that pinning moves in both
+# directions — which meant no release could keep it current and it drifted three minor
+# versions before anyone noticed.
 [[tool.bumpversion.files]]
 filename = "README.md"
 search = "Jebel-Quant/rhiza-claude#v{current_version}"

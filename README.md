@@ -93,12 +93,21 @@ claude plugin install rhiza@rhiza-claude
 
 Pinning happens at the marketplace layer, not per plugin — once the marketplace
 is added, `/plugin install` uses whatever ref it points at. To switch versions,
-remove the marketplace and re-add it at the desired tag:
+remove the marketplace and re-add it at the tag you want, which works in either
+direction — an older release as readily as a newer one:
 
 ```
 /plugin marketplace remove rhiza-claude
-/plugin marketplace add Jebel-Quant/rhiza-claude#v0.6.2
+/plugin marketplace add Jebel-Quant/rhiza-claude#<tag>
 ```
+
+`<tag>` is any published tag from the [releases
+page](https://github.com/Jebel-Quant/rhiza-claude/releases). It is a placeholder
+here on purpose: the two examples above pin the current release and are rewritten
+by `bump-my-version` on every release, but this one has to name a *different* tag
+to show that switching goes both ways — so a literal version here would be one no
+release could keep current, and it silently aged three minor versions before
+anyone noticed.
 
 ## Prerequisites
 
