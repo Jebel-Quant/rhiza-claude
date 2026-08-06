@@ -395,13 +395,32 @@ and report both values.
 Then guard and tag:
 
 ```bash
+HIGHEST="$(git tag --list 'v*' | sort -V | tail -1)"
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
-  "$TARGET" --current "$CURRENT"
+  "$TARGET" --current "$HIGHEST"
 git tag -a "$TARGET" -m "release $TARGET"
 ```
 The guard runs **again**, on the merged history: it is cheap, and between phases the repo
 gained commits and possibly tags, so the fact that `TARGET` was legal in phase A is no
 longer evidence that it is legal now. Non-zero exit means stop. **Never** `-f`.
+
+**Pass the highest tag, not `$CURRENT` — this is the one place the two phases differ.**
+The script's floor is `max(current, highest tag)`, and in phase A that is exactly right:
+`CURRENT` is the *released* version and `TARGET` has to beat it. By phase B the bump has
+merged, so `CURRENT` **is** `TARGET`, and asking it to strictly increase past itself
+cannot be satisfied by any version:
+
+```
+error  v0.8.0 does not strictly increase past v0.8.0 (current 0.8.0, highest tag v0.7.0)
+```
+
+That is not a fluke of one release — passing `$CURRENT` here fails *every* phase-B run and
+strands the tag permanently. It shipped that way and was caught on the first real use.
+
+The invariant worth checking has not changed: **do not reuse or move a tag, and do not go
+backwards against what is published.** The highest tag is what expresses that once the
+declared version has already moved, and the script's refusal of an existing tag still
+fires, so a re-tag or a moved tag is still blocked.
 
 Then hand the push over — this is the deliberate human action that triggers release CI:
 
