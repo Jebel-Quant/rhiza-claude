@@ -1,0 +1,39 @@
+# Dev-toolchain pins. NOT runtime dependencies.
+#
+# `plugin/scripts/` is stdlib-only and that is gated — nothing here is imported by the
+# shipped plugin, and a user installing it needs none of it. These are the tools the
+# Makefile and the prek hooks invoke through `uvx`, which otherwise resolves the newest
+# release at call time. That is how CI could turn red with no commit in this repo, and
+# how a green PR could stop being green while nobody touched it.
+#
+# The Makefile exports UV_CONSTRAINT pointing here, so every `uvx` call is constrained
+# from this one file — the same shape as UV_PYTHON reading `.python-version`.
+#
+# Deliberately a requirements file rather than a `pyproject.toml`: a manifest would flip
+# `language_profile.py` from census detection to manifest detection, hand `deptry` a
+# dependency list to audit, and invite the reading that this repo has runtime
+# dependencies. It has none.
+#
+# Dependabot watches this file (see .github/dependabot.yml), so a tool release arrives
+# as a reviewable PR that CI validates, instead of arriving unannounced mid-run.
+#
+# The 7 `rev:`-pinned hooks in .pre-commit-config.yaml are already pinned by prek and are
+# not repeated here; bump those with `uvx prek update`.
+
+# Hook runner and the two hooks that shell out to uvx.
+prek==0.4.12
+mypy==2.3.0
+interrogate==1.7.0
+
+# Test suite: `make test`, `make e2e`.
+pytest==9.1.1
+pytest-cov==7.1.0
+PyYAML==6.0.3
+
+# Security audit: `make audit`.
+bandit==1.9.4
+zizmor==1.29.0
+
+# Docs and release: `make book`, `make changelog`.
+mkdocs==1.6.1
+git-cliff==2.13.1
