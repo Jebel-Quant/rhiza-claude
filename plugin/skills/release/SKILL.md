@@ -29,8 +29,8 @@ one *tag*, onto a commit the user already reviewed and merged.
 
 **The human decision is the merge, and there is exactly one of it.** Phase A stops at an
 open PR precisely so that a person chooses the version, watches the checks, and consents
-by merging. Everything after that is mechanical, and making the user re-type a `git push`
-for it adds a step without adding a decision. What keeps this safe is not a second pair
+by merging. Everything after that is mechanical, and making the user re-type a push
+command for it adds a step without adding a decision. What keeps this safe is not a second pair
 of hands, it is step 10's guard: a version that does not strictly increase, or a tag that
 already exists, stops phase B before anything is created. If anything is ambiguous, stop
 and report.
