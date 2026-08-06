@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.8.1] - 2026-08-06
+
+### Bug Fixes
+- *(release)* Guard phase B against the highest tag, not the declared version (#160)
+
 ## [0.8.0] - 2026-08-06
 
 ### New Features
