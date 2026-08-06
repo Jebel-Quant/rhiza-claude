@@ -80,14 +80,14 @@ append that version's git tag as a `#<ref>` suffix when you add the marketplace
 for available tags):
 
 ```
-/plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.1
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.2
 /plugin install rhiza@rhiza-claude
 ```
 
 The same `#<ref>` suffix works from a shell:
 
 ```bash
-claude plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.1
+claude plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.2
 claude plugin install rhiza@rhiza-claude
 ```
 
