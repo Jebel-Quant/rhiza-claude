@@ -51,7 +51,7 @@ jobs:
       # without a commit saying so. Note that Dependabot updates the *action* pin above
       # but not this input — bumping it is manual, via `uv self version` locally.
       - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.1'
 
@@ -60,7 +60,7 @@ jobs:
       # finish would fix the contents and the others would restore a cache missing
       # exactly the tools they need.
       - name: Cache uv downloads
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-lint-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -104,14 +104,14 @@ jobs:
 
       # Pinned for the reason the lint job spells out; Dependabot does not bump it.
       - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.1'
 
       # Keyed on the Makefile because that is where the tool set is declared — the
       # `uvx --with pytest-cov --with pyyaml pytest` line the `PYTEST` variable holds.
       - name: Cache uv downloads
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-tests-${{ hashFiles('Makefile') }}
