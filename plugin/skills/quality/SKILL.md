@@ -39,10 +39,14 @@ An unavailable gate is never a FAIL, in any mode.
 
 So in degraded mode:
 
-- **Skip** every gate in the numbered list, and every `.rhiza/`-dependent step:
+- **Skip** the template-delivered gates, and every `.rhiza/`-dependent step:
   `make rhiza-test` (there is no `.rhiza/tests/`), template fidelity, and the
   `known-issues.md` lookup (it is keyed by the template ref in `.rhiza/template.lock`,
   which does not exist).
+- **Except `fmt`, `typecheck`, `docs-coverage` and `deptry`, which resolve in any repo.**
+  Each falls back to the repo's **own** tool config — see step 1 for the ladder and its
+  one hard limit: no config means out-of-scope, never the template's flags. These four are
+  gated in most mature repos, so skipping them reported gaps that usually are not there.
 - **Run** the targets `check_make_targets.py` reports as `undeclared` — the repo's own
   documented ones. An unmanaged repo with a working `make test` and `make lint` is the
   Go/Rust case generalised: the named list describes a template this repo isn't using,
@@ -100,7 +104,7 @@ Follow the command-execution policy: always prefer `make <target>`; never invoke
 `.venv/bin/...` directly. Run them in order — cheapest checks first so fast failures
 surface before the slow test suite — and collect results:
 
-1. `make fmt` — pre-commit hooks + linting (ruff format/check, markdownlint, bandit, actionlint, …)
+1. `make fmt` — pre-commit hooks + linting (ruff format/check, markdownlint, bandit, actionlint, …). **This one resolves in any repo — see below.**
 2. `make typecheck` — static type checking (`ty`, and `mypy --strict` if configured) over `src/`
 3. `make docs-coverage` — docstring coverage (interrogate) over `src/`
 4. `make deptry` — unused/missing/misplaced dependency analysis
@@ -133,6 +137,80 @@ measures something else. For a command whose entire output is a score and a find
 list, that means inventing failures — and then filing issues for them. The `make`
 target is the same entry point CI uses, which is exactly why its verdict is the one
 worth scoring.
+
+### Four gates resolve in any repo
+
+**Read the rule above precisely: what is forbidden is running a tool with *thresholds
+you supplied*.** It is not "only ever `make <target>`". Formatting, type checking,
+docstring coverage and dependency hygiene are gated in most mature repos, so reporting
+them all as unavailable usually understates coverage rather than describing a gap.
+
+Each resolves the same way — **stop at the first hit** — and they keep the template's
+order, so a fast failure still surfaces before the slow ones:
+
+| Gate | Rung 1 | Rung 2: the repo's **own** config | Needs |
+| --- | --- | --- | --- |
+| `fmt` | `make fmt` | `.pre-commit-config.yaml` via `uvx prek run --all-files` (or `pre-commit`, if that is what CI names) | — |
+| `typecheck` | `make typecheck` | `[tool.mypy]` in `pyproject.toml`, or `mypy.ini` / `setup.cfg` → `uvx mypy <source_root>` | a source root |
+| `docs-coverage` | `make docs-coverage` | `[tool.interrogate]` in `pyproject.toml` → `uvx interrogate <source_root>` | a source root |
+| `deptry` | `make deptry` | `[tool.deptry]`, or a dependency manifest to read → `uvx deptry <source_root>` | a source root **and a manifest** |
+
+**Rung 2 is not the forbidden case**: every argument, threshold and exclusion still comes
+from the repo's committed config, which is the whole thing the rule protects. The runner
+is an entry point, not a judgement. Pass **no flags** — never `--strict`, never
+`--fail-under`, never anything the repo did not ask for.
+
+**And pass no path either, when the config already declares one.** A config may name its
+own scope — `files = plugin/scripts` in `mypy.ini`, `files`/`packages` under
+`[tool.mypy]`, `paths` under `[tool.interrogate]`. Appending the source root there does
+not narrow the run, it **overrides** the repo's own scoping and measures a different
+tree. This repo is the case: `mypy.ini` says `files = plugin/scripts`, so bare `uvx mypy`
+checks the 45 modules CI checks, while `uvx mypy .` would sweep in `tests/` and report on
+code the repo deliberately does not type-check. So: **read the config first.** Scope
+declared → run the tool bare. No scope declared → pass `<source_root>` and say which one
+you used.
+
+**No config means rung 3: out-of-scope.** Do **not** fall back to the template's flags.
+Copying `mypy --strict` or interrogate's threshold onto a repo that never chose them is
+exactly how `interrogate` comes to report FAILED at 99.5% where a configured hook passes
+— it measures a standard the repo never adopted, and then files issues for it. A repo
+with no type-checking config has not failed type checking; it has declined to gate it,
+which is a finding about *process*, reportable under step 3, not a FAIL here.
+
+**`<source_root>` comes from `language_profile.py`, never from assuming `src/`.** On a
+manifest-less repo the census reports `.`, which sweeps in `tests/` and anything else at
+the root — so say which root was used, because `mypy .` and `mypy src` are different
+measurements and only one of them is what CI would run.
+
+**`deptry` additionally needs a manifest, not just a source root.** It works by comparing
+*declared* dependencies against *imported* ones, so with nothing declaring them it has no
+left-hand side. `language_profile.py` reports `manifest_present` for exactly this kind of
+question: false means rung 3, and the honest finding is "dependencies are not declared
+anywhere", which is worth more than a tool error.
+
+**`security` and `rhiza-test` stay template-only.** `rhiza-test` runs the template's own
+bundled suite, which by definition is not there. `security` is pip-audit plus bandit, and
+bandit is commonly a pre-commit hook already — so in most repos it is *already covered* by
+`fmt` at rung 2, and running it again as its own gate would double-count one result.
+Check whether the hook run included it before reporting a security gap.
+
+**A discovered target is deliberately not a rung.** It is tempting to let a `lint`,
+`format` or `check` target stand in, but the name does not tell you the scope: this
+repo's `make lint` runs mypy, interrogate, test-layout parity and the contract checkers
+alongside ruff, so scoring it as `fmt` would credit formatting with most of the
+toolchain. Matching on a target name is inference about what a target does, and that is
+the same class of mistake as supplying your own thresholds — just wearing a `make`
+prefix. Go to the config, which says exactly what runs.
+
+**Say which rung answered**, as the narrower-base rule requires: "fmt via prek over
+`.pre-commit-config.yaml`" is not the same evidence as `make fmt`.
+
+**And score the underlying run once.** If a discovered target already ran those hooks,
+`fmt` and that target rest on the same evidence — say so rather than reporting two
+independent passes.
+
+**None of this licenses rung 2 with a config you wrote**, or bare `uvx ruff check` when
+a config exists. If there is no target and no config, the answer is rung 3.
 
 Guidelines:
 
@@ -197,18 +275,62 @@ costs three lines and is the difference between a narrower score and a misleadin
 This matters most in degraded mode, where the number is *least* comparable and the
 temptation to read it as "the Rhiza score" is strongest.
 
-## 3. Gather the design evidence
+## 3. Degraded mode only — assess the infrastructure the template would have owned
+
+**Skip this section entirely in full mode.** In a managed repo every file below is
+Rhiza-owned, and scoring it would be the exact mistake the scoping rule exists to
+prevent. In degraded mode there is no template, so all of it is the repo's own work —
+and *nothing else is checking it*. This is where degraded mode stops being a reduced
+assessment and starts being a different one.
+
+The gates in step 1 answer "is the code clean?". These answer **"does this repo's
+quality survive contact with a second contributor?"** — which is what a template buys
+you, and what its absence puts at risk.
+
+- **Are the gates wired into CI, or only runnable locally?** Read `.github/workflows/`
+  (or `.gitlab-ci.yml`) and check that the targets you just ran are actually invoked
+  there. A `make test` that only ever runs on the author's machine is a gate in name
+  only: it constrains one person's habits, not the repo. **This is the single
+  highest-value check in degraded mode** — a managed repo gets CI wiring from the
+  template and cannot get this wrong, so an unmanaged one is where it silently goes
+  missing.
+- **Is the toolchain reproducible?** A lockfile committed, a pinned language version,
+  and third-party CI actions pinned to a tag or SHA rather than a moving branch. Name
+  what is missing; an unpinned `@main` in someone else's action is a supply-chain
+  decision the repo made without recording it.
+- **Is there a documented way in?** `make help`, or a README section that names the
+  commands. If the only way to learn how to run the gates is to read the `Makefile`,
+  say so.
+- **Does a present config actually run?** A `.pre-commit-config.yaml` that no CI job
+  invokes is a file, not a gate — the same trap as the CI point above, one level down.
+
+**Gather, don't assume.** Every claim names the file you read and the line that
+supports it, exactly as `design-analysis.md` requires. "No CI" and "CI that doesn't run
+the gates" are different findings with different fixes, and only reading the workflow
+tells them apart.
+
+**Score these as their own subcategories** — CI wiring, toolchain reproducibility,
+contributor onboarding — and say plainly that they are in scope *because* the repo is
+unmanaged. A reader comparing this run to a managed repo's needs to know these marks
+have no counterpart there, rather than assuming the managed repo scored 10 on them.
+
+**And if the answer is "adopt the template", say it once.** `/rhiza:init` exists and
+wiring CI by hand is work; noting that is useful. Repeating it per finding turns an
+assessment into a sales pitch, and step 0 already said it once.
+
+## 4. Gather the design evidence
 
 `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/design-analysis.md`** and follow it (in a
 source checkout, `plugin/prompts/design-analysis.md`). Complexity and architecture are the two
 subcategories `/quality` must *always* score, and **no `make` gate measures either** —
 so that evidence is gathered by hand, or the marks are guesses.
 
-## 4. Score, and offer to file findings
+## 5. Score, and offer to file findings
 
 `Read` **`${CLAUDE_PLUGIN_ROOT}/prompts/scorecard.md`** and follow it. It owns the
 scoping rule, the subcategory list, the coverage bar, the findings format, and the
-issue-filing menu. Feed it the step-2 gate results and the step-3 evidence; it turns
+issue-filing menu. Feed it the step-2 gate results, the step-3 infrastructure findings
+(degraded mode only) and the step-4 design evidence; it turns
 them into marks, then findings, then — only with an explicit selection — issues.
 
 Both files are **internal procedures, not slash commands** — deliberately kept out of
