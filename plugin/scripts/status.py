@@ -33,7 +33,7 @@ import argparse
 import json
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any
@@ -134,7 +134,7 @@ def _remote_tags(host: str, repo: str) -> list[str]:
     if git is None:  # pragma: no cover - git is present everywhere this runs
         return []
     try:
-        proc = subprocess.run(  # noqa: S603 - a fixed argv, never a shell
+        proc = subprocess.run(  # nosec B603  # noqa: S603 - a fixed argv, never a shell
             [git, "ls-remote", "--tags", _remote_url(host, repo)],
             capture_output=True,
             text=True,

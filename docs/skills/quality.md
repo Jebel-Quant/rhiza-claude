@@ -35,6 +35,22 @@ The optional argument scopes the assessment; it defaults to the whole repo.
    on the profile in `template.yml` (`typecheck`, `security` and `docs-coverage` come
    from the *tests* bundle), it probes each with `make -n` first; a target that isn't
    in the profile is scored **out-of-scope**, not FAIL.
+
+    **Four gates are the exception — `fmt`, `typecheck`, `docs-coverage` and `deptry`
+    resolve in any repo**, because they are gated in most mature repos and reporting them
+    unavailable understates coverage. Each tries its `make` target, then falls back to
+    *your own* tool config: `.pre-commit-config.yaml` through its own runner,
+    `[tool.mypy]`, `[tool.interrogate]`, `[tool.deptry]`. Every threshold still comes from
+    your committed config — which is the thing that matters — and only the path is passed.
+
+    **No config means out-of-scope, never the template's flags.** Copying `mypy --strict`
+    onto a repo that never chose it measures a standard the repo didn't adopt and then
+    files issues for it. Declining to gate something is a process finding, not a failure.
+
+    A target merely *named* `lint` or `format` is deliberately not accepted as a stand-in
+    either: the name doesn't tell you the scope. This repo's `make lint` also runs mypy,
+    interrogate and the contract checkers, so scoring it as `fmt` would credit formatting
+    with most of the toolchain.
 2. **Gathers design evidence itself** — complexity via `radon cc`/`radon mi`, plus an
    import-graph read for layering direction, cycles (including ones hidden behind
    function-local imports), god-modules and coupling hotspots. No `make` target

@@ -73,6 +73,12 @@ jobs:
       - name: Run prek
         uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
 
+      # Not a prek hook: bandit and zizmor cover the two surfaces the hooks do not —
+      # the Python that shells out to git, and the workflows themselves. It lives in
+      # the lint job because it is seconds of work and reuses the uv cache above.
+      - name: Run make audit
+        run: make audit
+
   tests:
     name: tests
     # CI budget: ≤20 min. `make test` measured 96s locally with all three toolchains
