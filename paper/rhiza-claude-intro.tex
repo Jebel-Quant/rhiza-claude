@@ -15,7 +15,7 @@
 % Every transcript in those figures was captured from the plugin's own scripts;
 % see the header of render_figures.py for the command behind each one.
 %
-% Every claim here is true of release v0.7.0. When the plugin changes, this file is
+% Every claim here is true of release v0.8.0. When the plugin changes, this file is
 % part of the change — a stale introduction is worse than none.
 %
 % One figure is a screenshot rather than generated output (images/plugin-cropped.png),
@@ -78,7 +78,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{slate}An introduction to rhiza-claude}
-\fancyhead[R]{\small\color{slate}v0.7.0}
+\fancyhead[R]{\small\color{slate}v0.8.0}
 \fancyfoot[C]{\small\color{slate}\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \renewcommand{\headrule}{\hbox to\headwidth{\color{slate!30}\leaders\hrule height \headrulewidth\hfill}}
@@ -86,7 +86,7 @@
 \title{\vspace{-1.4cm}\textbf{An introduction to rhiza-claude}\\[0.3em]
 \large\color{slate} What the plugin is for, before what it contains}
 \author{\normalsize Jebel Quant}
-\date{\normalsize Release v0.7.0}
+\date{\normalsize Release v0.8.0}
 
 \begin{document}
 \maketitle
@@ -213,13 +213,22 @@ pointer somebody has since broken by hand. Reporting either one alone is mislead
   only the second would call it broken. It is neither: it is \emph{managed but not yet
   synced}.}{fig:unsynced}
 
-The same distinction is load-bearing for \cmd{quality}, which refuses to run unless it
-finds \emph{both} \file{.rhiza/template.yml} and \file{.rhiza/rhiza.mk}. Every gate it
-scores is a \texttt{make} target that the sync delivers; scoring a managed-but-unsynced
-repository would report it as \emph{broken} when it is merely \emph{unsynced}, and that
-is a wrong answer rather than a missing one. By contrast \cmd{release} requires neither
-file: it reads the repository's own \texttt{[tool.bumpversion]} configuration, so it
-works on any git repository, including this plugin.
+The same distinction is load-bearing for \cmd{quality}. Before anything else it looks
+for \emph{both} of those files. Every gate in its list is a \texttt{make} target that
+the sync delivers, so running them against a managed-but-unsynced repository would
+report it as \emph{broken} when it is merely \emph{unsynced} --- a wrong answer rather
+than a missing one.
+
+What it \emph{does} with that distinction is the part that has changed. It used to
+refuse outright. Now either file being absent puts it into a \emph{degraded mode}: the
+template-delivered gates are skipped, whatever targets the repository's own makefile
+provides are run instead, and the design work is scored in full. The wrong answer is
+still avoided, because a skipped gate is marked unavailable rather than failed --- but
+the half of the assessment that never needed the template is no longer discarded along
+with it. A degraded run says as much in its own output, since its number rests on a
+narrower base and is not comparable to a managed repository's. By contrast
+\cmd{release} needs neither file: it reads \texttt{[tool.bumpversion]} from the
+repository itself, so it works on any git repository at all --- this plugin included.
 
 \section{Installing the plugin}
 
@@ -266,7 +275,7 @@ rather than per plugin --- append the version's git tag as a \texttt{\#<ref>} su
 adding the marketplace:
 
 \begin{lstlisting}
-/plugin marketplace add Jebel-Quant/rhiza-claude#v0.7.0
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.0
 /plugin install rhiza@rhiza-claude
 \end{lstlisting}
 
@@ -530,10 +539,13 @@ deterministic work, so it belongs in tested code.
         command that writes it, and it preserves hand-written prose --- it replaces the
         generated badge block and corrects stale facts, but never deletes what a human
         wrote.
-  \item[``\cmd{quality} refuses to run.'']
-        It found the pointer but no \file{.rhiza/rhiza.mk} --- managed, never synced.
-        Run \cmd{update} first. The refusal is deliberate --- scoring at that
-        point would report every missing gate as a failure of your code.
+  \item[``\cmd{quality} scored me on almost nothing.'']
+        It found no \file{.rhiza/rhiza.mk} --- managed but never synced, or not managed
+        at all --- so it ran in degraded mode. The template's gates are skipped rather
+        than failed, because scoring a missing gate would report it as a failure of your
+        code. Run \cmd{update} first for the full assessment; the degraded score is real,
+        but it rests on your own \texttt{make} targets and the design analysis alone, and
+        it says so.
 \end{description}
 
 \section{Why the commands are prose}
@@ -646,7 +658,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 \texttt{rhiza} CLI to install}, which is the most common point of confusion about what
 this actually requires.
 
-Honest scope, at v0.7.0: eight user-facing commands, eight internal procedures. It is
+Honest scope, at v0.8.0: eight user-facing commands, eight internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command

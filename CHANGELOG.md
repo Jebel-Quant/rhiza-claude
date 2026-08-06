@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.8.0] - 2026-08-06
+
+### New Features
+- *(release)* Land the version bump through a PR, and tag the merged commit (#147)
+- *(quality)* Degrade instead of refusing, and fix the detection gap that exposed (#153)
+- *(quality)* Resolve four gates anywhere, pin the interpreter, add an audit gate (#156)
+
+### Bug Fixes
+- *(toolchain)* Pin the dev tools uvx resolves at call time (#157)
+
+### Documentation
+- *(readme)* Refresh the pinned-install examples, and track them in the bump (#148)
+- Record that tests are exempt from the size and complexity bars (#154)
+
 ## [0.7.0] - 2026-08-05
 
 ### New Features
