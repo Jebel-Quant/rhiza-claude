@@ -1,0 +1,116 @@
+name: Auto-tag
+
+# Tag a merged release automatically, so cutting a release is two steps instead of four.
+#
+# `/rhiza:release` phase A opens a PR that bumps every declared version location. Merging
+# that PR is the human decision — a person picked the version, watched the checks and
+# consented. Everything after it is mechanical, so this does it: if the version the repo
+# declares is ahead of the highest tag, the merged commit gets that tag and the release is
+# published.
+#
+# The condition is the same one `/rhiza:release` uses to tell its two phases apart, and it
+# is self-limiting: after tagging, declared == highest, so every ordinary merge that
+# follows is a no-op. Nothing here fires unless a release PR just landed.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag the merged release
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create and push the tag
+    outputs:
+      tag: ${{ steps.decide.outputs.tag }}
+      created: ${{ steps.decide.outputs.created }}
+    steps:
+      - name: Harden the runner (audit outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      # persist-credentials: false even though this job creates a tag. The tag is made
+      # through the API below rather than `git push`, so no git credential is needed and
+      # none is left on disk — `make audit`'s zizmor pass flags a persisted one, and it
+      # flagged this very job before the API approach replaced the push.
+      # `fetch-depth: 0` brings the tags the comparison below reads.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v7.1.1
+        with:
+          python-version: '3.12'
+
+      # The decision, and the guard, in one place. Reuses the bundled checker rather than
+      # re-deriving semver comparison in shell: it is the same script `/rhiza:release`
+      # runs, it is tested, and it refuses an existing tag as well as a non-increasing one.
+      - name: Decide whether a tag is due
+        id: decide
+        run: |
+          DECLARED="$(grep -m1 '^current_version' .bumpversion.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          HIGHEST="$(git tag --list 'v*' | sort -V | tail -1)"
+          TARGET="v${DECLARED}"
+          echo "declared=${DECLARED}  highest=${HIGHEST:-none}  target=${TARGET}"
+
+          if [ "$TARGET" = "$HIGHEST" ]; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "No release to tag: the declared version is already tagged."
+            exit 0
+          fi
+
+          # Any other disagreement is not ours to resolve. A declared version *below* the
+          # highest tag means history was rewritten, and guessing is exactly what the
+          # release flow refuses to do.
+          if ! uv run --python 3.12 --no-project python \
+                 plugin/scripts/check_version_bump.py "$TARGET" --current "${HIGHEST:-0.0.0}"; then
+            echo "::error::$TARGET does not strictly increase past ${HIGHEST:-none}, or already exists. Not tagging."
+            exit 1
+          fi
+
+          echo "tag=${TARGET}" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      # Two calls because the tag is annotated, like the ones `/rhiza:release` creates: the
+      # first makes the tag object, the second points a ref at it. A single `git/refs` call
+      # would produce a lightweight tag instead, which carries no message or tagger.
+      - name: Create the tag
+        if: steps.decide.outputs.created == 'true'
+        env:
+          TAG: ${{ steps.decide.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          OBJ="$(gh api "repos/$REPO/git/tags" \
+                   -f tag="$TAG" -f message="release $TAG" \
+                   -f object="$SHA" -f type=commit --jq .sha)"
+          gh api "repos/$REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$OBJ" --jq .ref
+          echo "Tagged ${SHA:0:7} as $TAG"
+
+  # Invoked explicitly rather than left to release.yml's tag-push trigger: a ref pushed
+  # with GITHUB_TOKEN does not start further workflow runs, so the tag above would publish
+  # nothing on its own. That silent half-release is the failure mode this call avoids.
+  publish:
+    name: Publish the release
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    permissions:
+      contents: write

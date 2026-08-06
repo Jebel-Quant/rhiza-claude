@@ -52,9 +52,27 @@ not a target.
    [pr-base](../internals/pr-base.md), pushed. **No tag yet.**
 9. **Opens the release PR** and stops, because merging is your call and the checks have to
    run.
-10. **Tags the merged commit** — on a second run, after the PR lands. It then hands you a
-    single `git push origin <TAG>`; pushing the **tag** is what triggers the repo's
-    `Release` workflow.
+10. **Tags the merged commit and pushes the tag** — on a second run, after the PR lands.
+    That push triggers the repo's `Release` workflow.
+
+    The merge is the human decision, and there is only one of it: you picked the version,
+    watched the checks and consented by merging. Everything after that is mechanical, so
+    it is not handed back. What keeps it safe is step 10's guard — a version that doesn't
+    strictly increase, or a tag that already exists, stops the run before anything is
+    created.
+
+!!! tip "A repo can skip the second run entirely"
+    If the repo owns its CI, a workflow on push-to-default can do phase B itself: when the
+    declared version is ahead of the highest tag, tag the merged commit and publish. The
+    condition is the same one `/release` uses to tell its phases apart, and it is
+    self-limiting — after tagging, declared equals highest, so every ordinary merge that
+    follows is a no-op. This repo does exactly that in `.github/workflows/auto-tag.yml`,
+    which reduces a release to **run `/release`, merge**.
+
+    One trap if you copy it: a ref pushed with `GITHUB_TOKEN` does **not** trigger further
+    workflow runs, so the auto-created tag will publish nothing unless the publishing
+    workflow is invoked explicitly (`workflow_call`) rather than left to its tag-push
+    trigger.
 
 ## Why it takes two runs
 
