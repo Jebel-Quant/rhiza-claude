@@ -162,10 +162,12 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   manifests, self-referencing CI stub pins — regenerate `CHANGELOG.md`, and open a release
   PR. Because the locations are declared rather than inferred, a dependency that happens
   to share the version number is never rewritten. **Run it again after the PR merges** and
-  it tags the merged commit: a tag must name a commit on the default branch, and a
-  squash-merge rewrites the SHA, so the commit worth tagging doesn't exist until you merge.
-  It works out which of the two phases it's in from the repo's own state. Pushing the tag
-  stays yours; that's what triggers the release CI.
+  it tags the merged commit and pushes the tag: a tag must name a commit on the default
+  branch, and a squash-merge rewrites the SHA, so the commit worth tagging doesn't exist
+  until you merge. It works out which of the two phases it's in from the repo's own state.
+  The merge is the decision; everything after it is mechanical, and what keeps it safe is
+  the guard refusing a non-increasing or already-existing tag. **In this repo a
+  push-to-`main` workflow does that second phase for you**, so a release is: run it, merge.
 
 ### Internals
 

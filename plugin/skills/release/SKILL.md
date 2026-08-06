@@ -18,16 +18,22 @@ tag does not exist until the human merges. So:
 | Phase | You run | It ends with |
 | --- | --- | --- |
 | **A — the release PR** | `/rhiza:release` on a clean default branch | a pushed branch and an open PR. **No tag.** |
-| **B — the tag** | `/rhiza:release` again, after that PR merges | the merged commit tagged locally, push handed back |
+| **B — the tag** | `/rhiza:release` again, after that PR merges | the merged commit tagged and the tag pushed — release CI running |
 
 Step 1 works out which phase it's in from the repo's own state; the user does not
 declare it.
 
-**Never push to the default branch, and never move an existing tag.** Phase A pushes
-one *release branch* — the same thing `/rhiza:init` and `/rhiza:update` do, and the only
-push either phase makes on its own. Pushing the **tag** stays a deliberate human action,
-because that is what triggers the release workflow. If anything is ambiguous, stop and
-report.
+**Never push to the default branch, and never move an existing tag.** Phase A pushes one
+*release branch* — the same thing `/rhiza:init` and `/rhiza:update` do. Phase B pushes
+one *tag*, onto a commit the user already reviewed and merged.
+
+**The human decision is the merge, and there is exactly one of it.** Phase A stops at an
+open PR precisely so that a person chooses the version, watches the checks, and consents
+by merging. Everything after that is mechanical, and making the user re-type a `git push`
+for it adds a step without adding a decision. What keeps this safe is not a second pair
+of hands, it is step 10's guard: a version that does not strictly increase, or a tag that
+already exists, stops phase B before anything is created. If anything is ambiguous, stop
+and report.
 
 **The repo declares where its version lives; you don't guess.** `bump-my-version` reads
 `[tool.bumpversion]` (in `.bumpversion.toml` or `pyproject.toml`) and rewrites only the
@@ -422,12 +428,28 @@ backwards against what is published.** The highest tag is what expresses that on
 declared version has already moved, and the script's refusal of an existing tag still
 fires, so a re-tag or a moved tag is still blocked.
 
-Then hand the push over — this is the deliberate human action that triggers release CI:
+Then push it:
 
 ```bash
 git push origin "$TARGET"
 ```
 Only the tag: the commit is already on the default branch, put there by the merge.
+Pushing it triggers release CI.
+
+> **Phase B pushes; it does not hand the push back.** This used to stop here and ask the
+> user to run that line themselves, on the reasoning that publishing should be a
+> deliberate human action. That reasoning belonged to the old single-phase flow, where the
+> command committed straight to the default branch and the tag push was the *only* gate on
+> the whole release.
+>
+> The PR is that gate now. A human chose the version, reviewed a PR titled
+> `chore: release <TARGET>`, waited for its checks, and merged it. Demanding a second
+> deliberate act afterwards adds a step without adding a decision — and the safety here
+> was never the human's hand on the button, it is the guard above refusing an existing
+> tag and refusing a version that does not increase.
+>
+> **If the guard did not pass, none of this runs.** That is the invariant worth protecting,
+> and it is unchanged.
 
 ## 11. Report
 
@@ -439,10 +461,11 @@ public — merging the PR does not publish it — and that the next step is to r
 `/rhiza:release` after the merge, which will tag the merged commit.
 
 **In phase B**: the tag, the commit SHA it points at, confirmation that the merged tree
-declares `TARGET`, and the single `git push origin <TARGET>`. State that **nothing has
-been pushed** and the release isn't public until the tag is. To undo: `git tag -d
-<TARGET>` — and note that unlike the old single-phase flow there is no commit to reset,
-because the bump landed by merge.
+declares `TARGET`, and that the tag has been **pushed** — so release CI is running. Link
+the workflow run and the published release once it appears. To undo a tag that should not
+have gone out: `git push origin :refs/tags/<TARGET>` and `git tag -d <TARGET>`, and say
+plainly that deleting a published tag is disruptive to anyone who already fetched it.
+There is no commit to reset either way, because the bump landed by merge.
 
 If the repo has no release workflow, publish manually with the bundled mapper, which
 picks `gh` or `glab` from `origin`:
