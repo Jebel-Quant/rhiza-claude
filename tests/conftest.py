@@ -79,6 +79,33 @@ _HERMETIC_ENV = {
 }
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _drop_inherited_uv_constraint() -> Iterator[None]:
+    """Keep this repo's dev-toolchain pins out of the repos the e2e tests build.
+
+    The Makefile exports ``UV_CONSTRAINT`` so every ``uvx`` call it makes runs the pinned
+    tools. That export reaches every subprocess — including the synced fixture repos,
+    which run *their own* ``make fmt`` against *their own* ``.pre-commit-config.yaml``.
+    prek then resolves their hooks under our constraints and fails outright::
+
+        No solution found when resolving dependencies:
+        Because there is no version of bandit==1.9.4 and you require bandit==1.9.4
+
+    Scrubbing it here rather than narrowing the export is the honest fix: an end-to-end
+    test exists to behave like a fresh user's repo, and a user's repo does not inherit
+    this one's pins. A test that passed only because it did would be testing the wrong
+    thing.
+
+    ``UV_PYTHON`` is deliberately *kept*. The interpreter is a property of the machine
+    running the suite, and letting a fixture resolve a different one would make these
+    runs less reproducible, not more.
+    """
+    saved = os.environ.pop("UV_CONSTRAINT", None)
+    yield
+    if saved is not None:  # pragma: no cover - restores a var pytest is about to discard
+        os.environ["UV_CONSTRAINT"] = saved
+
+
 @pytest.fixture
 def hermetic_git(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set a hermetic git environment (no user/global config, fixed identity)."""

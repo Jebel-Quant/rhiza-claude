@@ -9,6 +9,12 @@
 # is how `make test` came to run on 3.14 locally while CI ran 3.12.
 export UV_PYTHON := $(shell cat .python-version)
 
+# ...and the versions of the tools it runs. Without this, `uvx` resolves the newest
+# release of prek, mypy, pytest and the rest at call time, so a tool release can turn CI
+# red with no commit here. `requirements-dev.txt` explains why it is a requirements file
+# and not a pyproject.toml.
+export UV_CONSTRAINT := $(CURDIR)/requirements-dev.txt
+
 PAPER := rhiza-claude-intro
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
