@@ -2,6 +2,13 @@
 
 .PHONY: help install lint test e2e mutate book book-serve paper paper-figures clean changelog
 
+# The interpreter every `uvx` call runs under, read from `.python-version` so the pin
+# has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
+# honoured by `uv run` inside a *project*, and this repo deliberately has no
+# `pyproject.toml`, so `uvx` would otherwise pick whatever interpreter is newest — which
+# is how `make test` came to run on 3.14 locally while CI ran 3.12.
+export UV_PYTHON := $(shell cat .python-version)
+
 PAPER := rhiza-claude-intro
 
 MARKETPLACE := Jebel-Quant/rhiza-claude
@@ -22,6 +29,21 @@ install:  ## Install the rhiza plugin via the Claude Code CLI
 
 lint:  ## Run all prek hooks against every file
 	uvx prek run --all-files
+
+# Audits this repo's *own* code and CI config, because that is what there is to audit.
+# The absence of a dependency scan is deliberate, not an omission: `plugin/scripts/` is
+# stdlib-only by gate, so the shipped plugin declares no dependencies and `pip-audit`
+# would have an empty left-hand side. The real surface is the Python that shells out to
+# git (bandit) and the nine workflows holding write permissions (zizmor).
+#
+# zizmor fails the build at medium and above, not on everything it prints. The two it
+# reports here are advisory and both are deliberate: `npm install -g` in plugin.yml is
+# the job installing the very CLI it exists to test, and `ncipollo/release-action` is a
+# pinned third-party action zizmor would rather see as a `gh release` script step. Low
+# findings still print, so a new one is visible without turning an unrelated PR red.
+audit:  ## Security-audit the bundled scripts (bandit) and the workflows (zizmor)
+	uvx bandit -q -r plugin/scripts
+	uvx zizmor --persona=regular --min-severity=medium .github/workflows/
 
 # PyYAML is a *test* dependency only — the bundled scripts stay stdlib-only at runtime.
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
