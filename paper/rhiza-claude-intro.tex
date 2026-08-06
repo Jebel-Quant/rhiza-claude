@@ -15,7 +15,7 @@
 % Every transcript in those figures was captured from the plugin's own scripts;
 % see the header of render_figures.py for the command behind each one.
 %
-% Every claim here is true of release v0.8.1. When the plugin changes, this file is
+% Every claim here is true of release v0.8.2. When the plugin changes, this file is
 % part of the change — a stale introduction is worse than none.
 %
 % One figure is a screenshot rather than generated output (images/plugin-cropped.png),
@@ -78,7 +78,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{slate}An introduction to rhiza-claude}
-\fancyhead[R]{\small\color{slate}v0.8.1}
+\fancyhead[R]{\small\color{slate}v0.8.2}
 \fancyfoot[C]{\small\color{slate}\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \renewcommand{\headrule}{\hbox to\headwidth{\color{slate!30}\leaders\hrule height \headrulewidth\hfill}}
@@ -86,7 +86,7 @@
 \title{\vspace{-1.4cm}\textbf{An introduction to rhiza-claude}\\[0.3em]
 \large\color{slate} What the plugin is for, before what it contains}
 \author{\normalsize Jebel Quant}
-\date{\normalsize Release v0.8.1}
+\date{\normalsize Release v0.8.2}
 
 \begin{document}
 \maketitle
@@ -275,7 +275,7 @@ rather than per plugin --- append the version's git tag as a \texttt{\#<ref>} su
 adding the marketplace:
 
 \begin{lstlisting}
-/plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.1
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.8.2
 /plugin install rhiza@rhiza-claude
 \end{lstlisting}
 
@@ -491,7 +491,7 @@ nothing --- proposes fixes, applies none \\[0.35em]
 \cmd{docs} & create or refresh \file{README.md}, \file{CLAUDE.md}, \file{mkdocs.yml} &
 those files; no commit, no pull request \\[0.35em]
 \cmd{release} & pick a next version from a table, bump, changelog &
-one local commit and one tag; never pushes \\[0.35em]
+a release pull request, then a tag on the merged commit \\[0.35em]
 \cmd{status} & report the pointer \emph{and} the lock &
 nothing --- read-only \\[0.35em]
 \cmd{maffay} & print one bonmot from a random Peter Maffay song &
@@ -504,8 +504,11 @@ removes files; confirms first \\
 
 \noindent
 Two patterns are worth reading off that table. The commands that change a \emph{shared}
-repository do it through a pull request you review --- neither \cmd{init} nor
-\cmd{update} pushes to your default branch. And the ones that assess rather than act
+repository do it through a pull request you review --- none of \cmd{init}, \cmd{update}
+or \cmd{release} pushes to your default branch. \cmd{release} was the last to join them:
+it used to commit the version bump directly and hand back a tag to push, which meant the
+one commit deciding what ships was the one commit no required check had gated. And the
+ones that assess rather than act
 (\cmd{quality}, \cmd{status}) write nothing at all, which is what makes them safe to run
 on a repository you have just inherited and do not yet understand.
 
@@ -658,7 +661,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 \texttt{rhiza} CLI to install}, which is the most common point of confusion about what
 this actually requires.
 
-Honest scope, at v0.8.1: eight user-facing commands, eight internal procedures. It is
+Honest scope, at v0.8.2: eight user-facing commands, eight internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command
