@@ -9,7 +9,7 @@
 # here rather than discovered by scanning.
 
 [tool.bumpversion]
-current_version = "0.7.0"
+current_version = "0.8.0"
 tag = false                # /rhiza:release tags explicitly, after the changelog lands
 commit = false             # ... and commits explicitly, so the diff is reviewable first
 allow_dirty = false        # a release is cut from a clean tree
@@ -42,6 +42,23 @@ replace = '"version": "{new_version}"'
 # it has to differ from the one above, since its whole point is that pinning moves in both
 # directions — which meant no release could keep it current and it drifted three minor
 # versions before anyone noticed.
+# The paper stamps the release it describes — running head, title page, its "true of
+# release vX" header, the pinned-install example and the honest-scope line. Its own header
+# says a stale introduction is worse than none, so it is tracked here rather than
+# hand-refreshed: it had drifted before, and nothing failed when it did.
+#
+# One pattern covers all five because they share the literal `v{current_version}`. The two
+# `v0.6.0` references are safe by construction — they date the one screenshot that cannot
+# be re-rendered, so they name an older release and this pattern cannot match them.
+#
+# The constraint that follows: **the paper must never name a version historically.** A
+# sentence like "this changed in v0.8.0" would be rewritten into a falsehood on the next
+# release. Say "this changed" and let the stamp date the document.
+[[tool.bumpversion.files]]
+filename = "paper/rhiza-claude-intro.tex"
+search = "v{current_version}"
+replace = "v{new_version}"
+
 [[tool.bumpversion.files]]
 filename = "README.md"
 search = "Jebel-Quant/rhiza-claude#v{current_version}"
