@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _doc_examples_readme import readme_report  # noqa: E402
 from _doc_examples_readme import print_report as print_readme  # noqa: E402
+from _doc_examples_readme import readme_report  # noqa: E402
 from _doc_examples_source import docstring_report  # noqa: E402
 from _doc_examples_source import print_report as print_docstrings  # noqa: E402
 

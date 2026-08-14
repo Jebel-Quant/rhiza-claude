@@ -210,8 +210,7 @@ def print_report(docs: dict[str, Any]) -> None:
     )
     for item in docs["locations"]:
         print(
-            f"{'example':<12} {item['file']}:{item['line']} {item['object']} "
-            f"({item['examples']})"
+            f"{'example':<12} {item['file']}:{item['line']} {item['object']} ({item['examples']})"
         )
     execution = docs.get("execution")
     if execution is not None:
