@@ -47,6 +47,13 @@ So in degraded mode:
   Each falls back to the repo's **own** tool config — see step 1 for the ladder and its
   one hard limit: no config means out-of-scope, never the template's flags. These four are
   gated in most mature repos, so skipping them reported gaps that usually are not there.
+- **Run the bundled checkers, which need no template at all** — test-layout parity
+  (gate 8, where `test_layout_applies`) and the example checker (gate 9). Both are
+  stdlib-only Python this plugin ships, so neither depends on a sync. Gate 9's README half
+  is language-neutral and runs on a Rust or Go repo too; only its docstring half is
+  Python's. It matters most here: the docstring and README checks a managed repo gets from
+  `make rhiza-test` have **no counterpart** in an unmanaged one, so without it nothing at
+  all asks whether this repo's documented examples still work.
 - **Run** the targets `check_make_targets.py` reports as `undeclared` — the repo's own
   documented ones. An unmanaged repo with a working `make test` and `make lint` is the
   Go/Rust case generalised: the named list describes a template this repo isn't using,
@@ -125,6 +132,22 @@ surface before the slow test suite — and collect results:
    documented `[tool.check_test_layout]` table in `pyproject.toml`
    (`enforce = false` + a required `reason`); score this subcategory 10 when the
    checker exits 0, whether by mirroring or a documented opt-out.
+9. **Docstring examples and README fences** — run the bundled checker
+   (**keep the quotes**; in a source checkout use `plugin/scripts/check_doc_examples.py`):
+
+   ```bash
+   uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_doc_examples.py" --source-root <SOURCE_ROOT> --json
+   ```
+
+   `<SOURCE_ROOT>` is the one `language_profile.py` reported — never an assumed `src/`.
+   It answers two questions no other gate asks: where the **doctest examples** in the
+   docstrings are, and whether every **README fence** parses as the language it claims
+   (`bash -n` for shell, `compile()` for Python). Add **`--run`** to *execute* them —
+   `doctest` per module, and the `python` fences diffed against the ```result``` block
+   that follows them — which is the half that catches an example gone stale. Exit **1**
+   means an example is broken; exit **2** means there was nothing to check (no source
+   root, no README), which is out-of-scope in the usual way, never FAIL. Read the next
+   section before passing `--run`.
 
 **Why `make` and not the tools directly.** It's tempting to replace these with
 `uvx ruff check`, `uvx interrogate`, `uvx bandit` and so on, which would let
@@ -137,6 +160,46 @@ measures something else. For a command whose entire output is a score and a find
 list, that means inventing failures — and then filing issues for them. The `make`
 target is the same entry point CI uses, which is exactly why its verdict is the one
 worth scoring.
+
+### Why the examples are a gate of their own
+
+`make docs-coverage` asks *"is there a docstring?"* and `markdownlint` asks *"is this
+well-formed markdown?"*. Neither asks whether what the documentation **claims** is still
+true, and that is the failure with the longest half-life in a repo: a docstring whose
+`>>>` example returns something else now, or a README quickstart whose first command no
+longer parses. Both keep rendering perfectly. The person who finds out is a newcomer, at
+the worst possible moment, and a 10 on docstring coverage is exactly what makes it
+invisible.
+
+Three habits keep this gate honest:
+
+- **`--run` is opt-in, and its cost is real.** Without it the examples are *parsed*:
+  malformed doctests and unparseable fences are caught with no import and no
+  dependencies. With it they are *executed* — which imports the repo's modules and runs
+  its README's Python, i.e. whatever module-level code they carry. That is the same trust
+  boundary `make test` crosses, so pass it once you have already decided to run the suite;
+  it is not a step to take on a repo you were asked only to read. Shell fences are
+  **never** executed either way — a README's shell is routinely `make clean`, `git push`,
+  `rm -rf`, and a fence that cannot parse is a documentation bug without running it.
+- **Execute in the repo's own environment, or don't score that half.** Under
+  `--no-project` the interpreter has none of the project's dependencies, so most modules
+  fail to import. The checker reports those as **unimportable — unmeasured, not failing**,
+  and so must you: a missing dependency is a fact about how you invoked it, not a defect
+  in the docstring. When the repo has an environment (`uv run` inside a `uv` project,
+  `make test`'s own runner), run the `--run` pass there and say which one you used.
+- **"0 examples" is a finding, not a pass.** A repo whose docstrings carry no examples
+  scores full marks on every gate above while documenting nothing executable. Report it
+  under user-facing documentation as the gap it is — and say plainly that the gate ran and
+  found nothing to check, rather than letting silence read as green.
+
+**In full mode this is a second look, not a second score.** `make rhiza-test` already
+runs the template's own `test_docstrings.py`, `test_readme.py` and
+`test_readme_validation.py` — the three checks this checker reimplements, on the same
+`+RHIZA_SKIP` convention. So in full mode take the verdict from `make rhiza-test`, run the
+checker **without `--run`** for the inventory it adds (where the examples are, how many,
+which fences carry no language at all), and don't count one result twice. In degraded mode
+there is no `.rhiza/tests/`, nothing else checks any of this, and the checker *is* the
+gate.
 
 ### Four gates resolve in any repo
 

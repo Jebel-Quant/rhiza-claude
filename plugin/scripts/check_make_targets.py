@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Probe the `make` targets a command names — behind `/rhiza:quality`'s step 0.
 
-`/quality` runs seven gates, all of them `make` targets that the template sync
-delivers. It used to run them without checking they existed, and the result was the
-worst kind of failure: in an unsynced repo all seven returned "No rule to make
-target", were scored FAIL, and the repo was reported as broken when the truth was
+Seven of `/quality`'s gates are `make` targets that the template sync delivers, and those
+seven are what this probes. It used to run them without checking they existed, and the
+result was the worst kind of failure: in an unsynced repo all seven returned "No rule to
+make target", were scored FAIL, and the repo was reported as broken when the truth was
 that it was unsynced. Six of the seven are absent in this plugin's own repo.
 
 Two things make that hard to catch by hand, and this script addresses both:
 
 * **The target list is derived from the command's prose**, not duplicated here. It is
   parsed out of the numbered gate list in `skills/quality/SKILL.md`, so the probe and the
-  command cannot drift — add a gate to the prose and it gets probed automatically.
+  command cannot drift — add a `make` gate to the prose and it gets probed automatically.
+  The gate list is longer than the target list: the entries backed by a bundled checker
+  rather than a `make` target (test-layout parity, the example checker) are shipped with
+  the plugin and resolve without a sync, so there is nothing to probe and the regex passes
+  over them.
 * **Availability varies by profile.** `typecheck`, `security` and `docs-coverage` come
   from the template's *tests* bundle and `fmt`/`deptry` from *core*, so a repo on a
   reduced profile legitimately lacks some. An absent target is reported as
