@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.9.0] - 2026-08-14
+
+### New Features
+- *(quality)* Test the examples, not just the docstring count (#167)
+
 ## [0.8.2] - 2026-08-06
 
 ### New Features
