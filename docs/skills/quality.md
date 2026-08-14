@@ -31,7 +31,8 @@ The optional argument scopes the assessment; it defaults to the whole repo.
 ## What it does
 
 1. **Runs the quality gates** (cheapest first) — lint, types, docs, deps, security,
-   template drift, tests, and test-layout parity. Because the available targets depend
+   template drift, tests, test-layout parity, and the executable-documentation check.
+   Because the available targets depend
    on the profile in `template.yml` (`typecheck`, `security` and `docs-coverage` come
    from the *tests* bundle), it probes each with `make -n` first; a target that isn't
    in the profile is scored **out-of-scope**, not FAIL.
@@ -51,6 +52,20 @@ The optional argument scopes the assessment; it defaults to the whole repo.
     either: the name doesn't tell you the scope. This repo's `make lint` also runs mypy,
     interrogate and the contract checkers, so scoring it as `fmt` would credit formatting
     with most of the toolchain.
+    **Documentation is checked for truth, not just presence.** `plugin/scripts/check_doc_examples.py`
+    runs alongside the gates in any repo: it finds the `>>>` examples in your docstrings
+    and checks every fenced block in `README.md` — shell parses under `bash -n`, Python
+    under `compile()`, and a `python` fence is diffed against the ```result``` block that
+    follows it. `--run` additionally *executes* the examples, which imports your modules,
+    so it is opt-in; shell fences are never executed at all.
+
+    These are the same three checks a rhiza-managed repo already gets from
+    `make rhiza-test` (`.rhiza/tests/test_docstrings.py`, `test_readme.py`,
+    `test_readme_validation.py`), on the same `+RHIZA_SKIP` fence flag — so in full mode
+    it adds an inventory rather than a second score, and in degraded mode it is the only
+    thing asking whether your documented examples still work. A module it cannot import
+    is reported **unmeasured**, never failed, and *no examples at all* is reported as a
+    gap rather than a pass.
 2. **Gathers design evidence itself** — complexity via `radon cc`/`radon mi`, plus an
    import-graph read for layering direction, cycles (including ones hidden behind
    function-local imports), god-modules and coupling hotspots. No `make` target

@@ -61,7 +61,7 @@ evidence. Add the others that fit what you actually observed.
 
 - **Gate-derived:** linting/style, type safety, docstring/API-doc coverage, test pass
   rate, test coverage & depth, dependency & security hygiene, template fidelity
-  (`make validate` drift).
+  (`make validate` drift), **executable documentation** (`/quality`'s gate 9).
 - **Design (always both):** *code complexity* — average CC, the worst C-or-worse
   blocks, maintainability index, size of the largest functions/modules; *overall
   architecture* — layering & dependency direction, coupling/cohesion, module
@@ -77,6 +77,22 @@ evidence. Add the others that fit what you actually observed.
   - *cross-platform robustness* — Windows path and symlink behaviour.
   - *idempotency & failure recovery* — repeat-run safety, partial-failure cleanup.
   - *user-facing documentation* — README and usage, not just docstrings.
+
+**Executable documentation is scored apart from docstring coverage, and the two must not
+be merged.** `interrogate` measures whether a docstring *exists*; gate 9 measures whether
+what it *claims* is still true — a distinction a repo can fail in only one direction, and
+usually does. Three results, three different marks:
+
+- **A failing example** — a doctest that no longer evaluates to its documented output, or
+  a README fence that doesn't parse — is a defect in shipped documentation. Score it as
+  one, with the file and line, and file the finding.
+- **No examples at all** is a gap in this subcategory, not a 10 by default. A repo can
+  hold 100% docstring coverage while documenting nothing anyone can run; say so, and keep
+  the mark honest rather than letting the silence pass as green.
+- **Unmeasured is neither.** Modules the checker could not import, and the whole gate when
+  it exits 2, are out-of-scope by the rule above — never a FAIL, and never an assumed
+  pass. Say which half was measured and in what environment, since a `--run` pass without
+  the project's dependencies measures very little.
 
 **Coverage.** `make test` enforces `COVERAGE_FAIL_UNDER` (default 90%; many projects
 raise it to 100%). **The configured threshold is the bar for a 10** — not a number you

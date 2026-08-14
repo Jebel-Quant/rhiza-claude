@@ -168,13 +168,14 @@ random song — those are scripts. Reading a repo and scoring it is prose.
 
 **An underscore prefix means "not an entry point".** A command invokes
 `scripts/<name>.py`; everything a script leans on lives in a `_`-prefixed sibling that no
-command ever names. Three families, plus the sync core:
+command ever names. Four families, plus the sync core:
 
 | Prefix | Owns |
 | --- | --- |
 | `_rhiza_*` | the sync core, and anything shared across unrelated commands — `_rhiza_toml` (add a TOML key, reformat nothing) serves the skeleton, `set_license` **and** `set_python_version`; `_rhiza_yaml` is the read/write façade over `_rhiza_yaml_parse` |
 | `_skeleton_*` | one module per language behind `init_skeleton.py`, which is only the dispatcher and the CLI — each language's gap differs in kind, not degree |
 | `_validate_*` | `validate.py`'s three halves: the `Log` sink, the language structure checks, the `template.yml` field checks |
+| `_doc_examples_*` | `check_doc_examples.py`'s two halves: the doctests under a source root, and the README's fenced blocks. They share only a verdict, so the dispatcher runs each independently — a repo with no source root still gets its README checked |
 
 Two consequences worth knowing before you move code. **The size and complexity bars are
 enforced by measurement, not taste** — no module over 500 lines, no block above

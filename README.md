@@ -148,7 +148,13 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   fork works too. Runs no gates and files no issues: use
   `/rhiza:quality` for a scorecard.
 - **`/rhiza:quality`** — run the rhiza code-quality gate (lint, types, docs,
-  deps, security, tests, complexity, architecture) and score the repo.
+  deps, security, tests, complexity, architecture) and score the repo. It also checks
+  the documentation for **truth rather than presence**: the `>>>` examples in your
+  docstrings, and every fenced block in `README.md` — shell parsed with `bash -n`,
+  Python with `compile()`, and a `python` fence diffed against the ```result``` block
+  that follows it. `interrogate` can only tell you a docstring exists; this is what
+  tells you it is still right. Shell fences are never executed, and executing anything
+  at all is opt-in — a module it cannot import is reported *unmeasured*, never failed.
 - **`/rhiza:docs`** — create or refresh the repo's three top-of-repo documentation
   files: `README.md` (with the standard badge set), `CLAUDE.md`, and `mkdocs.yml`.
   Detects platform, owner/repo and project metadata at runtime, preserves hand-written
@@ -250,6 +256,7 @@ signing up for before the four-step bootstrap rather than after.
 | Hosted CI workflows | ✅ | ❌ none yet | ❌ none yet |
 | `/quality` gate list | ✅ known and named | ⚠️ discovered at runtime | ⚠️ discovered at runtime |
 | Test-layout parity subcategory | ✅ | n/a | n/a |
+| Executable-documentation gate | ✅ docstrings + README | ⚠️ README fences only | ⚠️ README fences only |
 
 **Python is the fully-supported axis.** `/rhiza:quality`'s gate list *is* the Python
 profile — the one the plugin has actually run against. On a Rust or Go repo it probes
