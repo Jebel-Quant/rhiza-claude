@@ -22,6 +22,10 @@ jobs:
     # mkdocs. It is the longest job here, and the budget is the tests' 20 plus the build.
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    # Job-scoped so the install step and the bundle-cache key below cannot drift apart:
+    # a cache warmed by one tectonic release is not the cache the next one wants.
+    env:
+      TECTONIC_VERSION: 0.17.0
     steps:
       - name: Harden the runner (audit outbound calls)
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -55,13 +59,31 @@ jobs:
       # A pinned release binary rather than a TeX Live install: tectonic fetches
       # only the packages the document actually uses, so this is seconds, not minutes.
       - name: Install tectonic
-        env:
-          TECTONIC_VERSION: 0.17.0
         run: |
           curl -fsSL \
             "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
             | sudo tar -xz -C /usr/local/bin tectonic
           tectonic --version
+
+      # Those per-package fetches come from a CDN that rate-limits (HTTP 429), which is
+      # how an unrelated PR ends up red. Cached, a warm run makes no requests at all.
+      # It is ~50 MB — the bundle files the paper uses, plus the generated format.
+      #
+      # Restore and save are separate steps on purpose. The combined action only saves
+      # on success, so a 429-killed run would discard the files it *did* fetch and the
+      # next attempt would start from zero; `if: always()` is what makes progress
+      # accumulate across re-runs, which is the behaviour the Makefile's retry loop
+      # assumes. Keyed on the .tex alone: figures do not pull LaTeX packages, and the
+      # prefix fallback means editing the paper reuses the old cache and fetches only
+      # what the edit newly needs.
+      - name: Restore the tectonic bundle cache
+        id: tectonic-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/Tectonic
+          key: ${{ runner.os }}-tectonic-${{ env.TECTONIC_VERSION }}-${{ hashFiles('paper/**/*.tex') }}
+          restore-keys: |
+            ${{ runner.os }}-tectonic-${{ env.TECTONIC_VERSION }}-
 
       # `make book` builds the paper first and stages it under docs/, so the PDF is
       # published with the site and every commit proves the .tex still compiles.
@@ -73,6 +95,15 @@ jobs:
           START=$(date +%s)
           make book
           echo "make book: $(($(date +%s) - START))s (budget: 30 min)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Runs even when the build failed — see the restore step. Skipped on an exact key
+      # hit, where there is by definition nothing new to store.
+      - name: Save the tectonic bundle cache
+        if: always() && steps.tectonic-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/Tectonic
+          key: ${{ steps.tectonic-cache.outputs.cache-primary-key }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
