@@ -67,6 +67,14 @@ It reaches exactly three decisions:
 every one returns no decision, so the normal permission flow applies. A guard that
 blocks when it is confused cannot be argued with, and would brick a session.
 
+**Data spans are blanked before anything is analysed** — quoted strings *and* heredoc
+bodies. A commit message is prose that routinely discusses `make` targets and force
+pushes, and without that step `git commit -F - <<EOF … make deps replaces make deptry …
+EOF` is denied as a chained `make`, with no way for the user to override it. Blanking
+heredocs is also what makes `re.MULTILINE` safe on the `make` command-word pattern: only
+once a body cannot match can `^` be widened to see the second line of a multi-line
+command, which is a real invocation and previously slipped through.
+
 The hook hardens the prose; it does not replace it. Every command stays correct with
 hooks unavailable, so the rules are still stated where they apply.
 

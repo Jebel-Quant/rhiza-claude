@@ -44,6 +44,35 @@ def test_strip_quoted_keeps_tokens_apart():
     assert guard.strip_quoted("a'x'b").split() == ["a b"] or guard.strip_quoted("a'x'b") == "a b"
 
 
+# -------------------------------------------------------------------------- heredocs
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -F - <<EOF\nfixed at v1.2.1; make deptry is deprecated\nEOF",
+        "git commit -F - <<'EOF'\nrun it (make test) first\nEOF",
+        "git commit -F - <<-EOF\n\tsee; make lint\n\tEOF",
+        "cat <<MSG\nmake test | tail -5\nMSG",
+    ],
+)
+def test_strip_heredocs_blanks_the_body(command):
+    stripped = guard.strip_heredocs(command)
+    assert "make" not in stripped
+    assert "<<" in stripped
+
+
+def test_strip_heredocs_leaves_a_command_without_one_alone():
+    assert guard.strip_heredocs("make test | tail") == "make test | tail"
+
+
+def test_strip_data_blanks_a_quoted_delimiters_body():
+    """`strip_quoted` alone would blank `'EOF'` and leave the prose it delimits."""
+    command = "git commit -F - <<'EOF'\nnow; make deps replaces make deptry\nEOF"
+    assert "make" in guard.strip_quoted(command)
+    assert "make" not in guard.strip_data(command)
+
+
 # ------------------------------------------------------------------------ make guard
 
 
@@ -96,6 +125,41 @@ def test_make_inside_quotes_or_words_is_not_a_make_call(command):
     assert guard.compound_make(command) is None
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        # The reproducer from #169: prose in a commit message, not a chained `make`.
+        "git commit -F - <<EOF\nfixed at v1.2.1; make deptry is deprecated\nEOF",
+        "git commit -F - <<EOF\nrun it (make test) first\nEOF",
+        "git commit -F - <<'EOF'\nfixed at v1.2.1; make deptry is deprecated\nEOF",
+        "git commit -F - <<-EOF\n\tfixed; make deptry is deprecated\n\tEOF",
+        # A body line that *begins* with `make` — the false positive `re.MULTILINE`
+        # would introduce were heredocs not blanked first.
+        "cat <<EOF > note.txt\nmake test is the gate\nEOF",
+    ],
+)
+def test_make_inside_a_heredoc_is_not_a_make_call(command):
+    assert guard.compound_make(command) is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # `make` on a later line: `^` only sees it with `re.MULTILINE`.
+        "echo hi\nmake test | tail",
+        "git commit -F - <<EOF\nnotes about make\nEOF\nmake test | tail",
+    ],
+)
+def test_compound_make_on_a_later_line_is_denied(command):
+    decision = guard.compound_make(command)
+    assert decision is not None
+    assert decision.permission == "deny"
+
+
+def test_bare_make_on_a_later_line_is_still_allowed():
+    assert guard.compound_make("echo hi\nmake test") is None
+
+
 # ---------------------------------------------------------------------- tokenisation
 
 
@@ -105,6 +169,18 @@ def test_segments_splits_on_operators_and_drops_blanks():
 
 def test_segments_of_blank_command():
     assert guard.segments("   ") == []
+
+
+def test_segments_splits_on_newlines():
+    assert guard.segments("echo hi\ngit push origin main") == [
+        ["echo", "hi"],
+        ["git", "push", "origin", "main"],
+    ]
+
+
+def test_segments_does_not_see_inside_a_heredoc():
+    command = "git commit -F - <<EOF\ngit push --force is banned here\nEOF"
+    assert guard.segments(command) == [["git", "commit", "-F", "-", "<<"]]
 
 
 @pytest.mark.parametrize(
@@ -317,6 +393,19 @@ def test_ordinary_git_is_untouched(on_feature, command):
 
 def test_guard_skips_non_git_segments(on_feature):
     assert guard.git_guard("ls && echo hi && cat file", ".") is None
+
+
+def test_a_force_push_described_in_a_heredoc_is_not_a_force_push(on_feature):
+    command = "git commit -F - <<EOF\nreverted the git push --force from yesterday\nEOF"
+    assert guard.git_guard(command, ".") is None
+
+
+def test_push_on_a_later_line_is_still_seen(monkeypatch):
+    monkeypatch.setattr(guard, "default_branch", lambda _: "main")
+    monkeypatch.setattr(guard, "current_branch", lambda _: "main")
+    decision = guard.git_guard("git add -A\ngit push origin main", ".")
+    assert decision is not None
+    assert decision.permission == "ask"
 
 
 # ------------------------------------------------------------------------------ main

@@ -56,9 +56,20 @@ from typing import NamedTuple
 # tokens either side stay separate.
 _QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
 
-# `make` as a *command word*: at the start, or straight after an operator that begins a
-# new command. Prevents `git commit -m make-it-better` from matching.
-_MAKE_WORD = re.compile(r"(?:^|[|&;(])\s*(?:sudo\s+)?make\b")
+# A heredoc body is *data*, not shell, and unlike a quoted span nothing about it is
+# quoted — so `git commit -F - <<EOF` carrying a message that happens to say
+# "…; make deptry is deprecated" would otherwise be read as a chained `make`. Blanked
+# for the same reason quoted spans are. The delimiter may itself be quoted (`<<'EOF'`)
+# and `<<-` allows an indented terminator; both are matched here rather than left to
+# `strip_quoted`, which would blank only the delimiter and leave the body behind.
+_HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1.*?^\s*\2\s*$", re.DOTALL | re.MULTILINE)
+
+# `make` as a *command word*: at the start of any line, or straight after an operator
+# that begins a new command. Prevents `git commit -m make-it-better` from matching.
+# `re.MULTILINE` is what lets `^` see the second line of a multi-line command; it is only
+# safe *because* heredoc bodies are blanked first, or a body line beginning with the word
+# `make` would start matching.
+_MAKE_WORD = re.compile(r"(?:^|[|&;(])\s*(?:sudo\s+)?make\b", re.MULTILINE)
 
 # Any shell metacharacter that turns one command into a compound one. `<` and `>` cover
 # redirects including `2>&1`; `|` covers both pipe and `||`; `&` covers `&&` and
@@ -67,7 +78,9 @@ _MAKE_WORD = re.compile(r"(?:^|[|&;(])\s*(?:sudo\s+)?make\b")
 _COMPOUND = re.compile(r"[|;<>&]")
 
 # Operators that separate one command from the next, for splitting a line into segments.
-_SEPARATOR = re.compile(r"\|\||&&|[|;&]")
+# A newline is one of them: a `git push` on the second line of a multi-line command is a
+# command like any other.
+_SEPARATOR = re.compile(r"\|\||&&|[|;&\n]")
 
 # `git` global options that consume the following token, so a subcommand scan can skip
 # past `git -C /path push` without mistaking `/path` for the subcommand.
@@ -114,9 +127,23 @@ def strip_quoted(command: str) -> str:
     return _QUOTED.sub(" ", command)
 
 
+def strip_heredocs(command: str) -> str:
+    """Blank out heredoc bodies so prose inside them can't be read as shell syntax."""
+    # `<< ` is left behind so a genuinely compound command *around* the heredoc — a
+    # redirect into `make`, say — is still seen as compound.
+    return _HEREDOC.sub("<< ", command)
+
+
+def strip_data(command: str) -> str:
+    """Blank every span that is data rather than shell: heredoc bodies, then quotes."""
+    # Heredocs first: `strip_quoted` would otherwise blank a quoted `<<'EOF'` delimiter
+    # and leave the body, which is exactly the text that must not be analysed.
+    return strip_quoted(strip_heredocs(command))
+
+
 def compound_make(command: str) -> Decision | None:
     """Deny a ``make`` invocation that is piped, redirected, chained, or backgrounded."""
-    bare = strip_quoted(command)
+    bare = strip_data(command)
     if not _MAKE_WORD.search(bare):
         return None
     if not _COMPOUND.search(bare):
@@ -126,7 +153,7 @@ def compound_make(command: str) -> Decision | None:
 
 def segments(command: str) -> list[list[str]]:
     """Split a command line into operator-delimited lists of tokens."""
-    parts = _SEPARATOR.split(strip_quoted(command))
+    parts = _SEPARATOR.split(strip_data(command))
     return [tokens for tokens in (part.split() for part in parts) if tokens]
 
 
