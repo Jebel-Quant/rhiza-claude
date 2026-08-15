@@ -87,7 +87,7 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`skills/<name>/SKILL.md` → slash commands** you invoke: eight of them, each with a
+- **`skills/<name>/SKILL.md` → slash commands** you invoke: nine of them, each with a
   page here. The *directory* carries the command name, so `skills/init/SKILL.md` is the
   file that answers `/rhiza:init`.
 - **`prompts/*.md` → internal procedures**: eight shared steps a command reaches with
@@ -258,6 +258,8 @@ and an optional menu to file them as issues. It proposes fixes but applies none.
   compares your pin against the latest).
 - `/rhiza:docs` to create or refresh `README.md`, `CLAUDE.md` and `mkdocs.yml` — it
   preserves hand-written prose.
+- `/rhiza:remote` once a fix is open as a request — it reads what CI on the origin said
+  and fixes the red ones. Needs no `.rhiza/` either.
 - `/rhiza:release` when you want to cut a version. It needs no `.rhiza/` at all.
 
 ## Commands
@@ -271,6 +273,7 @@ These are the AI-driven workflow commands. Each has its own page.
 | [`/rhiza:quality`](skills/quality.md) | Run the code-quality gate and score the repo 1–10 across eight categories. |
 | [`/rhiza:docs`](skills/docs.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
 | [`/rhiza:release`](skills/release.md) | Release by PR: pick the next version from a table, bump, changelog, open the PR — then tag the merged commit on a second run. |
+| [`/rhiza:remote`](skills/remote.md) | Read what CI on the origin said about the open requests, then diagnose and fix the red ones on their own branches. |
 
 ## Repo utilities
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Map an operation onto `gh` or `glab` — the one home for "the two CLIs disagree".
+"""Map a **write** operation onto `gh` or `glab` — one home for "the two CLIs disagree".
 
 Every rhiza command that touches the forge has to pick between GitHub's `gh` and
 GitLab's `glab`, and the two differ in **subcommand, flag names, and output shape**:
@@ -31,6 +31,12 @@ Actions:
   issue-create     file an issue
   release-create   publish a release from an existing tag
 
+Reading a request's CI state is the same problem one door down, and it lives in
+``pr_status.py`` rather than here: its two CLIs disagree about *shape* far more than
+about flags, and folding it in would push this module past the size and complexity bars
+it is held to. What the two share — deciding which forge `origin` is on at all — is in
+``_rhiza_forge.py``, so there is still exactly one answer to that question.
+
 Two divergences are surfaced rather than papered over:
 
 * **glab has no `--body-file`/`--description-file` anywhere.** The body is passed
@@ -55,15 +61,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import re
 import shutil
 import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any
 
-_KNOWN_HOSTS = {"github.com": "github", "gitlab.com": "gitlab"}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_forge import PlatformError, detect_platform  # noqa: E402
 
 EXIT_OK = 0
 EXIT_CLI_FAILED = 1
@@ -82,59 +87,8 @@ ACTIONS = (
 _BODY_ACTIONS = ("pr-create", "pr-update", "issue-create")
 
 
-class PlatformError(Exception):
-    """The hosting platform could not be determined."""
-
-
 class UnsupportedAction(Exception):
     """The requested action has no equivalent on this platform."""
-
-
-def _git(target_dir: Path, args: list[str]) -> str:
-    """Run a read-only git command, returning stdout ('' on failure)."""
-    env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    result = subprocess.run(  # nosec B603
-        [shutil.which("git") or "git", *args],
-        cwd=str(target_dir),
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else ""
-
-
-def classify_host(host: str) -> str | None:
-    """Return ``github``/``gitlab`` for *host*, or None when it is neither.
-
-    Label-boundary matching, so ``github.com.evil.example`` — which embeds a known
-    domain without being a subdomain of it — is not taken for GitHub. Self-hosted
-    GitLab conventionally lives at ``gitlab.<company>.<tld>``.
-    """
-    h = host.lower().rstrip(".")
-    for domain, platform in _KNOWN_HOSTS.items():
-        if h == domain or h.endswith(f".{domain}"):
-            return platform
-        if domain in h:
-            return None
-    return "gitlab" if h.split(".", 1)[0] == "gitlab" else None
-
-
-def detect_platform(target_dir: Path) -> str:
-    """Return the hosting platform for *target_dir*'s `origin` remote."""
-    url = _git(target_dir, ["remote", "get-url", "origin"])
-    if not url:
-        raise PlatformError("no `origin` remote — cannot tell which platform to use")
-    match = re.match(r"git@([^:]+):", url) or re.match(r"[a-zA-Z]+://(?:[^@]+@)?([^/]+)/", url)
-    if match is None:
-        raise PlatformError(f"could not parse a host from origin: {url}")
-    platform = classify_host(match.group(1))
-    if platform is None:
-        raise PlatformError(
-            f"unsupported host {match.group(1)!r} — only GitHub and GitLab are handled"
-        )
-    return platform
 
 
 def _github_command(action: str, opts: dict[str, Any]) -> list[str]:

@@ -16,6 +16,7 @@ nav:
       - quality: skills/quality.md
       - docs: skills/docs.md
       - release: skills/release.md
+      - remote: skills/remote.md
   - Repo utilities:
       - status: skills/status.md
       - maffay: skills/maffay.md

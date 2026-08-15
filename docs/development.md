@@ -13,7 +13,7 @@ points inward with `"source": "./plugin"`.
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Marketplace manifest. Root, because that's where `marketplace add` looks. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/skills/` | The plugin's eight slash commands (`<name>/SKILL.md`). |
+| `plugin/skills/` | The plugin's nine slash commands (`<name>/SKILL.md`). |
 | `plugin/prompts/` | Internal procedures the commands `Read`. |
 | `plugin/hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
 | `plugin/scripts/` | Bundled stdlib-only Python scripts backing the commands. |

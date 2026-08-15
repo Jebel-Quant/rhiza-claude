@@ -73,15 +73,6 @@ def stub_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return install
 
 
-class TestPlatformError:
-    """The error raised when the hosting platform cannot be determined."""
-
-    def test_is_exception_with_message(self):
-        err = platform_cli.PlatformError("boom")
-        assert isinstance(err, Exception)
-        assert str(err) == "boom"
-
-
 class TestUnsupportedAction:
     """The error raised when an action has no equivalent on the detected platform."""
 
@@ -91,49 +82,9 @@ class TestUnsupportedAction:
         assert str(err) == "boom"
 
 
-# --- platform detection -------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("url", "expected"),
-    [
-        ("git@github.com:acme/widget.git", "github"),
-        ("https://github.com/acme/widget", "github"),
-        ("https://github.com/acme/widget.git", "github"),
-        ("git@gitlab.com:grp/proj.git", "gitlab"),
-        ("https://gitlab.com/grp/proj", "gitlab"),
-        ("https://gitlab.corp.example/grp/proj", "gitlab"),  # self-hosted
-        ("https://x@gitlab.com/grp/proj", "gitlab"),  # credentials in the URL
-    ],
-)
-def test_detects_the_platform_from_the_remote(repo, url, expected):
-    _remote(repo, url)
-    assert platform_cli.detect_platform(repo) == expected
-
-
-def test_a_lookalike_host_is_not_taken_for_the_real_one(repo):
-    """Acting against the wrong host is worse than refusing to."""
-    _remote(repo, "https://github.com.evil.example/acme/widget")
-    with pytest.raises(platform_cli.PlatformError, match="unsupported host"):
-        platform_cli.detect_platform(repo)
-
-
-def test_no_remote_is_an_error_not_a_guess(repo):
-    with pytest.raises(platform_cli.PlatformError, match="no `origin` remote"):
-        platform_cli.detect_platform(repo)
-
-
-def test_an_unsupported_host_is_named(repo):
-    _remote(repo, "https://bitbucket.org/acme/widget")
-    with pytest.raises(platform_cli.PlatformError, match="bitbucket.org"):
-        platform_cli.detect_platform(repo)
-
-
-def test_an_unparseable_remote_is_reported(repo):
-    _remote(repo, "some-local-path")
-    with pytest.raises(platform_cli.PlatformError, match="could not parse a host"):
-        platform_cli.detect_platform(repo)
-
+# Detecting *which* forge is shared with `pr_status.py` and lives in `_rhiza_forge.py`;
+# its tests moved to `test__rhiza_forge.py` with it. What stays here is the half this
+# module owns: what each CLI is then asked to do.
 
 # --- the mapping, action by action --------------------------------------------
 

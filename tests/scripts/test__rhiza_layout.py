@@ -122,6 +122,7 @@ def test_command_files_finds_every_shipped_command(repo_root: Path):
         "maffay",
         "quality",
         "release",
+        "remote",
         "status",
         "update",
     }
