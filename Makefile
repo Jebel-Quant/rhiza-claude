@@ -214,10 +214,28 @@ book-serve: paper  ## Serve the docs locally with live reload
 
 # Two passes: the first resolves the ToC and page references the second typesets.
 # tectonic reruns on its own; pdflatex does not, hence the explicit repeat.
+#
+# tectonic pulls every LaTeX file the document needs from its bundle CDN as a separate
+# request, and that CDN answers 429 often enough to redden a PR that never touched
+# paper/. Retrying is worth it *because the fetches are cached*: each attempt resumes
+# from the per-user cache rather than starting over, so a run that got halfway gets
+# further next time. Four attempts with a growing backoff turn a flaky fetch into a slow
+# one. The pdflatex fallback is guarded by `command -v` so a TeX Live machine with no
+# tectonic reaches it immediately instead of sleeping through the backoff first.
 paper:  ## Build the paper and stage it for the docs site (needs tectonic or pdflatex)
-	cd paper && (tectonic $(PAPER).tex \
-		|| (pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex \
-		    && pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex))
+	cd paper && ( \
+		if command -v tectonic >/dev/null 2>&1; then \
+			for attempt in 1 2 3 4; do \
+				tectonic $(PAPER).tex && exit 0; \
+				if [ $$attempt -lt 4 ]; then \
+					delay=$$((attempt * 20)); \
+					echo "tectonic failed (attempt $$attempt/4); retrying in $${delay}s" >&2; \
+					sleep $$delay; \
+				fi; \
+			done; \
+		fi; \
+		pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex \
+			&& pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex)
 	mkdir -p docs/paper
 	cp paper/$(PAPER).pdf docs/paper/$(PAPER).pdf
 
