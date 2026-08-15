@@ -106,7 +106,7 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 
 | Path | What it is |
 | --- | --- |
-| `plugin/skills/<name>/SKILL.md` | The eight slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
+| `plugin/skills/<name>/SKILL.md` | The nine slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
@@ -172,7 +172,7 @@ command ever names. Four families, plus the sync core:
 
 | Prefix | Owns |
 | --- | --- |
-| `_rhiza_*` | the sync core, and anything shared across unrelated commands — `_rhiza_toml` (add a TOML key, reformat nothing) serves the skeleton, `set_license` **and** `set_python_version`; `_rhiza_yaml` is the read/write façade over `_rhiza_yaml_parse` |
+| `_rhiza_*` | the sync core, and anything shared across unrelated commands — `_rhiza_toml` (add a TOML key, reformat nothing) serves the skeleton, `set_license` **and** `set_python_version`; `_rhiza_yaml` is the read/write façade over `_rhiza_yaml_parse`; `_rhiza_forge` answers *which forge is this* for both `platform_cli` and `pr_status` |
 | `_skeleton_*` | one module per language behind `init_skeleton.py`, which is only the dispatcher and the CLI — each language's gap differs in kind, not degree |
 | `_validate_*` | `validate.py`'s three halves: the `Log` sink, the language structure checks, the `template.yml` field checks |
 | `_doc_examples_*` | `check_doc_examples.py`'s two halves: the doctests under a source root, and the README's fenced blocks. They share only a verdict, so the dispatcher runs each independently — a repo with no source root still gets its README checked |

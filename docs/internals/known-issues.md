@@ -52,6 +52,6 @@ real, in-scope finding — adopt the hook — rather than a manifest to edit.
 | --- | --- |
 | **Source** | `plugin/prompts/known-issues.md` |
 | **Invocation** | **not a slash command** — reached with `Read`, never invoked |
-| **Read by** | [`/rhiza:quality`](../skills/quality.md) |
+| **Read by** | [`/rhiza:quality`](../skills/quality.md), [`/rhiza:remote`](../skills/remote.md) |
 
 <!-- generated:end -->

@@ -39,7 +39,7 @@ performs the first sync; `/quality` needs that content for its *full* assessment
 run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
-the eight slash commands you invoke; `prompts/` holds eight **internal procedures** they
+the nine slash commands you invoke; `prompts/` holds eight **internal procedures** they
 `Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.
@@ -174,6 +174,17 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   The merge is the decision; everything after it is mechanical, and what keeps it safe is
   the guard refusing a non-increasing or already-existing tag. **In this repo a
   push-to-`main` workflow does that second phase for you**, so a release is: run it, merge.
+- **`/rhiza:remote`** — ask the forge what CI actually said about the repo's open
+  requests, then diagnose and fix the red ones. `/rhiza:quality` files findings as
+  issues, those issues become branches, and those branches become requests that were
+  green when they left — **local green and origin green are different claims, and only
+  the second one merges**. It normalises GitHub's and GitLab's very different answers
+  into one vocabulary, prints the exact drill-down command under each failing check, and
+  sorts every failure into one of four kinds — real defect, environment difference,
+  infrastructure flake, known upstream — because only one of them is a code fix. Fixes
+  land on the request's own branch; never the default branch, never a force-push. **It
+  will not make a check green by weakening it**: if the honest fix is out of reach it
+  leaves the build red and says why.
 
 ### Internals
 
@@ -284,7 +295,7 @@ components by those names at the plugin root, so they cannot be renamed. `prompt
 *because* it is not a discovery location, so a procedure kept there cannot be invoked as a
 slash command.
 
-All eight commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
+All nine commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
 names the command, so `skills/init/SKILL.md` is what answers `/rhiza:init`. Check the
 [plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before
 assuming what the spec requires.
@@ -294,7 +305,7 @@ assuming what the spec requires.
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
 | `plugin/` | **The plugin as shipped.** Everything below is inside it. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/skills/` | The plugin's eight slash commands (`<name>/SKILL.md`, the directory naming the command). |
+| `plugin/skills/` | The plugin's nine slash commands (`<name>/SKILL.md`, the directory naming the command). |
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
