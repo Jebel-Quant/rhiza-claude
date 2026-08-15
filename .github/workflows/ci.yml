@@ -51,7 +51,7 @@ jobs:
       # without a commit saying so. Note that Dependabot updates the *action* pin above
       # but not this input — bumping it is manual, via `uv self version` locally.
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
         with:
           version: '0.12.1'
 
@@ -104,7 +104,7 @@ jobs:
 
       # Pinned for the reason the lint job spells out; Dependabot does not bump it.
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
         with:
           version: '0.12.1'
 
