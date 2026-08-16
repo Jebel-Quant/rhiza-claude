@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.10.0] - 2026-08-16
+
+### New Features
+- *(remote)* Add /rhiza:remote, which reads CI on the origin and fixes it (#172)
+
+### Bug Fixes
+- *(hook)* Read heredoc bodies as data, not shell (#170)
+
+### Maintenance
+- *(book)* Cache tectonic's bundle and retry the fetch (#171)
+
 ## [0.9.0] - 2026-08-14
 
 ### New Features
