@@ -23,11 +23,28 @@ from _rhiza_yaml import as_list  # noqa: E402
 
 
 def _ensure_safe_bundle_path(value: str) -> None:
-    """Reject a bundle path that could escape the project directory.
+    r"""Reject a bundle path that could escape the project directory.
 
     ``template-bundles.yml`` is untrusted (fetched from the template repo) and a
     remapped ``dest`` is joined onto the target directory, so an absolute path, a
     Windows drive letter, or a ``..`` component could write outside the project.
+
+    The three rejected shapes, against the ordinary relative paths that must keep
+    working — and note the fourth line, where a Windows separator is normalised *before*
+    the check, so a backslash cannot smuggle a traversal past it:
+
+    >>> for value in ("Makefile", ".github/workflows/ci.yml", "/etc/passwd",
+    ...               "..\\secrets.env", "C:/Windows/system32"):
+    ...     try:
+    ...         _ensure_safe_bundle_path(value)
+    ...         print(f"accepted  {value}")
+    ...     except SyncError:
+    ...         print(f"rejected  {value}")
+    accepted  Makefile
+    accepted  .github/workflows/ci.yml
+    rejected  /etc/passwd
+    rejected  ..\secrets.env
+    rejected  C:/Windows/system32
 
     Raises:
         SyncError: If *value* is absolute, uses a drive letter, or traverses up.
