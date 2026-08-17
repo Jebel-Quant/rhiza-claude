@@ -15,7 +15,6 @@ against the CLI rather than against us.
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -47,28 +46,28 @@ def _remote(repo: Path, url: str) -> None:
 
 
 @pytest.fixture
-def stub_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def stub_cli(tmp_path: Path, stub_cli_installer):
     """Put fake `gh`/`glab` on PATH that record their argv and print a URL.
 
     This is what the prose version could never have: a way to observe the invocation.
+    The stub is Python rather than bash so it runs on Windows too — see
+    `stub_cli_installer` in `tests/conftest.py` for why the delivery differs by platform.
     """
-    bin_dir = tmp_path / "stub-bin"
-    bin_dir.mkdir()
+    installer = stub_cli_installer
     log = tmp_path / "invocations.txt"
 
     def install(
         name: str, *, exit_code: int = 0, url: str = "https://example.test/1", stdout: str = ""
     ) -> None:
-        script = bin_dir / name
-        script.write_text(
-            "#!/usr/bin/env bash\n"
-            f'printf "%s\\n" "{name} $*" >> "{log}"\n'
-            f"{stdout or f'echo {url!r}'}\n"
-            f"exit {exit_code}\n"
+        installer(
+            name,
+            "import sys\n"
+            f"with open({str(log)!r}, 'a', encoding='utf-8') as fh:\n"
+            f"    fh.write({name!r} + ' ' + ' '.join(sys.argv[1:]) + '\\n')\n"
+            f"print({(stdout or url)!r})\n"
+            f"sys.exit({exit_code})\n",
         )
-        script.chmod(0o755)
 
-    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     install.log = log  # type: ignore[attr-defined]
     return install
 
@@ -345,7 +344,7 @@ def test_auth_status_fails_when_logged_out(repo, stub_cli):
 
 def test_repo_view_parses_and_normalises_real_output(repo, stub_cli):
     _remote(repo, "https://gitlab.com/grp/proj.git")
-    stub_cli("glab", stdout='echo \'{"default_branch":"trunk","visibility":"private"}\'')
+    stub_cli("glab", stdout='{"default_branch":"trunk","visibility":"private"}')
 
     result = platform_cli.run(repo, "repo-view")
 
@@ -355,7 +354,7 @@ def test_repo_view_parses_and_normalises_real_output(repo, stub_cli):
 def test_repo_view_reports_non_json_output(repo, stub_cli):
     """A CLI that printed a warning instead of JSON must not read as "no default branch"."""
     _remote(repo, "https://github.com/acme/widget.git")
-    stub_cli("gh", stdout="echo 'not json at all'")
+    stub_cli("gh", stdout="not json at all")
 
     result = platform_cli.run(repo, "repo-view")
 
@@ -498,7 +497,7 @@ def test_main_reports_an_unsupported_action(repo, capsys):
 
 def test_main_prints_repo_view_data(repo, stub_cli, capsys):
     _remote(repo, "https://github.com/acme/widget.git")
-    stub_cli("gh", stdout='echo \'{"defaultBranchRef":{"name":"trunk"},"visibility":"PRIVATE"}\'')
+    stub_cli("gh", stdout='{"defaultBranchRef":{"name":"trunk"},"visibility":"PRIVATE"}')
 
     rc = platform_cli.main(["repo-view", "--target-dir", str(repo)])
 

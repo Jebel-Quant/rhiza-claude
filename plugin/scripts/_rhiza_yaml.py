@@ -143,7 +143,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
     ``ValueError`` when the document's top level is not a mapping, mirroring
     how the CLI treats a malformed config.
     """
-    text = path.read_text(errors="ignore")
+    text = path.read_text(encoding="utf-8", errors="ignore")
     if _pyyaml is not None:
         try:
             data = _pyyaml.load(text, Loader=_build_loader())  # nosec B506 - SafeLoader subclass
@@ -169,7 +169,7 @@ def dump_yaml(data: dict[str, Any], path: Path) -> None:
     emitted (the lock has none). The output re-reads identically via this
     parser, PyYAML, and the rhiza CLI.
     """
-    path.write_text(dumps_yaml(data))
+    path.write_text(dumps_yaml(data), encoding="utf-8")
 
 
 def dumps_yaml(data: dict[str, Any]) -> str:

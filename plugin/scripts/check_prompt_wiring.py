@@ -100,7 +100,7 @@ def check_declares_internal(prompts_dir: Path) -> list[str]:
     return [
         f"prompts/{name}.md does not say {_NOT_A_COMMAND!r}"
         for name in _names(prompts_dir)
-        if _NOT_A_COMMAND not in (prompts_dir / f"{name}.md").read_text()
+        if _NOT_A_COMMAND not in (prompts_dir / f"{name}.md").read_text(encoding="utf-8")
     ]
 
 
@@ -108,7 +108,7 @@ def check_no_command_frontmatter(prompts_dir: Path) -> list[str]:
     """Rule 2: procedures carry no command frontmatter."""
     violations = []
     for name in _names(prompts_dir):
-        text = (prompts_dir / f"{name}.md").read_text()
+        text = (prompts_dir / f"{name}.md").read_text(encoding="utf-8")
         if text.startswith("---"):
             violations.append(f"prompts/{name}.md opens with command frontmatter")
         violations += [
@@ -134,9 +134,9 @@ def check_references_resolve(root: Path) -> list[str]:
     """Rule 4: every ``prompts/<name>.md`` mentioned in prose exists."""
     violations = []
     for path in _prose_files(root):
-        for name in sorted(set(_PROMPT_REF.findall(path.read_text()))):
+        for name in sorted(set(_PROMPT_REF.findall(path.read_text(encoding="utf-8")))):
             if not (root / PROMPTS_DIR / f"{name}.md").is_file():
-                rel = path.relative_to(root)
+                rel = path.relative_to(root).as_posix()
                 violations.append(f"{rel} references missing prompts/{name}.md")
     return violations
 
@@ -144,7 +144,7 @@ def check_references_resolve(root: Path) -> list[str]:
 def _skill_call_violations(root: Path, path: Path, text: str, prompts: set[str]) -> list[str]:
     """Return the 'invoked as a command' violations in one prose file."""
     return [
-        f"{path.relative_to(root)} invokes {name!r} via the Skill tool, but it is a "
+        f"{path.relative_to(root).as_posix()} invokes {name!r} via the Skill tool, but it is a "
         "procedure, not a command — reach it with Read"
         for name in _SKILL_INVOCATION.findall(text)
         if name in prompts
@@ -158,7 +158,7 @@ def check_no_orphans_and_no_skill_calls(root: Path) -> list[str]:
     violations = []
 
     for path in _prose_files(root):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         # A file referencing itself doesn't make it reachable.
         own = path.stem if path.parent.name == "prompts" else None
         referenced |= {name for name in _PROMPT_REF.findall(text) if name != own}
@@ -176,7 +176,7 @@ def _dead_layout_paths(root: Path, path: Path, text: str) -> list[str]:
     exempt = {name for name, _ in _LAYOUT_EXEMPT.findall(text)}
     found = {name for prefix, name in _LAYOUT_PATH.findall(text) if prefix in _PLUGIN_PREFIXES}
     return [
-        f"{path.relative_to(root)} refers to {name}/, which this plugin does not have"
+        f"{path.relative_to(root).as_posix()} refers to {name}/, which this plugin does not have"
         for name in sorted(found - exempt)
         if not (root / PLUGIN_DIR / name).is_dir()
     ]
@@ -196,7 +196,7 @@ def check_no_dead_layout_paths(root: Path) -> list[str]:
     """
     violations = []
     for path in _shipped_prose(root):
-        violations += _dead_layout_paths(root, path, path.read_text())
+        violations += _dead_layout_paths(root, path, path.read_text(encoding="utf-8"))
     return violations
 
 

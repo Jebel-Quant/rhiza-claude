@@ -133,7 +133,7 @@ def sync_readme_help(target: Path, readme_name: str = "README.md") -> dict[str, 
     if not has_help_target(makefile):
         return _result("skipped", "make cannot resolve a `help` target")
 
-    original = readme.read_text()
+    original = readme.read_text(encoding="utf-8")
     span = find_block(original.splitlines())
     if span is None:
         return _result("skipped", f"no `{MARKER}` marker with a following fenced block")
@@ -160,7 +160,7 @@ def sync_readme_help(target: Path, readme_name: str = "README.md") -> dict[str, 
     updated = "\n".join(lines)
     if original.endswith("\n"):
         updated += "\n"
-    readme.write_text(updated)
+    readme.write_text(updated, encoding="utf-8")
     return _result("refreshed", f"{len(body.splitlines())} line(s) from `make help`")
 
 

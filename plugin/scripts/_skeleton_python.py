@@ -74,9 +74,9 @@ def normalize_package_init(target: Path) -> list[str]:
     if not src.is_dir():
         return modified
     for init in sorted(src.glob("*/__init__.py")):
-        if is_uv_placeholder_init(init.read_text()):
-            init.write_text(f'"""{init.parent.name} package."""\n')
-            modified.append(str(init.relative_to(target)))
+        if is_uv_placeholder_init(init.read_text(encoding="utf-8")):
+            init.write_text(f'"""{init.parent.name} package."""\n', encoding="utf-8")
+            modified.append(init.relative_to(target).as_posix())
     return modified
 
 
@@ -205,7 +205,7 @@ def finish_python(
         return {"modified": modified, "changes": [], "notes": notes, "ok": False}
 
     changes: list[str] = []
-    original = manifest.read_text()
+    original = manifest.read_text(encoding="utf-8")
     identity_name, identity_email = common.git_identity(target)
     try:
         text = apply_pyproject(
@@ -223,7 +223,7 @@ def finish_python(
         return {"modified": modified, "changes": changes, "notes": notes, "ok": False}
 
     if text != original:
-        manifest.write_text(text)
+        manifest.write_text(text, encoding="utf-8")
         modified.append(_PYPROJECT)
         notes.append("pyproject.toml: " + ", ".join(changes))
     else:

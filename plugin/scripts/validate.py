@@ -64,10 +64,12 @@ def _check_template_file_exists(
     """Locate template.yml and confirm it exists."""
     if template_file is None:
         template_file = target / ".rhiza" / "template.yml"
+    # `.as_posix()` on both arms: this string is only ever shown to the user, and the rest
+    # of the tool quotes repo paths with forward slashes on every platform.
     try:
-        display = template_file.relative_to(target)
+        display = template_file.relative_to(target).as_posix()
     except ValueError:
-        display = template_file
+        display = template_file.as_posix()
     if not template_file.exists():
         log.error(f"No template file found at: {display}")
         log.error("The template configuration must be in the .rhiza folder.")

@@ -193,7 +193,7 @@ def scan_conflict_artifacts(target: Path) -> tuple[list[str], list[str]]:
     for path in sorted(target.rglob("*")):
         if not path.is_file():
             continue
-        rel = str(path.relative_to(target))
+        rel = path.relative_to(target).as_posix()
         if path.suffix == ".rej":
             rej_files.append(rel)
         else:

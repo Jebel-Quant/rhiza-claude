@@ -199,7 +199,7 @@ def _template_owned(lock: Path) -> set[Path]:
 
 def _top_level_classes(path: Path) -> set[str]:
     """Return the names of top-level classes defined in *path*."""
-    tree = ast.parse(path.read_text(), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     return {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
 
 

@@ -717,3 +717,80 @@ def make_repo(tmp_path: Path, hermetic_git: None) -> Iterator[Callable[[str], Re
         return repo
 
     yield _make
+
+
+# --------------------------------------------------------------------------- #
+# Fake forge CLIs, cross-platform
+# --------------------------------------------------------------------------- #
+#
+# `test_platform_cli.py` and `test_pr_status.py` both need a fake `gh`/`glab` that
+# records its argv, so the assertion is "the CLI really was invoked, with these
+# arguments" rather than "our own code agrees with itself". Both used to write a
+# bash-shebang script named `gh` and put it on PATH — which works on POSIX and cannot
+# work on Windows, for two independent reasons:
+#
+#   * `CreateProcess` given a bare name only appends `.exe`, so an extensionless
+#     script is unreachable however PATH is set; and
+#   * a `.cmd` shim, the usual answer, re-expands its arguments through `cmd.exe`,
+#     which cannot carry an argument containing a newline — and the GitLab `pr-create`
+#     path passes exactly that, an inline multi-line `--description`.
+#
+# So the delivery mechanism differs by platform while the stub itself does not. POSIX
+# gets a real shebang script and a real `execve`. Windows routes the module's own
+# `shutil.which`/`subprocess.run` to the same stub through the interpreter: argv, exit
+# code and stdout are observed identically, one layer in rather than one process out.
+# What Windows does *not* prove is that PATH lookup works there — which is the shipped
+# code's `shutil.which` call, and is not what these tests are about.
+
+
+@pytest.fixture
+def stub_cli_installer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Callable[[str, str], Path]:
+    """Return ``install(name, body)`` putting a fake CLI named *name* on PATH.
+
+    *body* is the Python source of the stub, minus the shebang. It runs with the real
+    argv the code under test passed, so it can log `sys.argv[1:]`, print canned stdout
+    and choose an exit code.
+
+    A fixture rather than a plain helper so `tests/scripts/` can reach it: pytest injects
+    conftest fixtures by name, while importing a function from `conftest` would need
+    `tests/` on `sys.path`.
+    """
+    bin_dir = tmp_path / "stub-bin"
+    bin_dir.mkdir(exist_ok=True)
+    stubs: dict[str, Path] = {}
+
+    def install(name: str, body: str) -> Path:
+        impl = bin_dir / f"{name}_stub.py"
+        impl.write_text(f"#!{sys.executable}\n{body}", encoding="utf-8")
+        stubs[name] = impl
+        if os.name != "nt":
+            launcher = bin_dir / name
+            launcher.write_text(f"#!{sys.executable}\n{body}", encoding="utf-8")
+            launcher.chmod(0o755)
+        return impl
+
+    if os.name == "nt":
+        real_which, real_run = shutil.which, subprocess.run
+
+        def fake_which(cmd: str, *args: object, **kwargs: object) -> str | None:
+            """Resolve a stubbed name to its implementation; defer to the real one."""
+            if cmd in stubs:
+                return str(stubs[cmd])
+            return real_which(cmd, *args, **kwargs)  # type: ignore[arg-type]
+
+        def fake_run(command: object, *args: object, **kwargs: object) -> object:
+            """Run a stub through the interpreter; pass everything else straight on."""
+            if isinstance(command, list) and command:
+                first = str(command[0])
+                if first.endswith("_stub.py"):
+                    command = [sys.executable, *[str(c) for c in command]]
+            return real_run(command, *args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(shutil, "which", fake_which)
+        monkeypatch.setattr(subprocess, "run", fake_run)
+    else:
+        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    return install

@@ -65,7 +65,7 @@ def seed_readme(target: Path, *, repo: str, description: str | None, create: boo
     """
     readme = target / "README.md"
     if readme.is_file():
-        if readme.read_text().strip():
+        if readme.read_text(encoding="utf-8").strip():
             return False
     elif not create:
         return False
@@ -74,7 +74,7 @@ def seed_readme(target: Path, *, repo: str, description: str | None, create: boo
         body += f"\n{description}\n"
     # No fenced code blocks: the same template test executes any it finds.
     body += "\nRun `/rhiza:docs` to write this properly.\n"
-    readme.write_text(body)
+    readme.write_text(body, encoding="utf-8")
     return True
 
 

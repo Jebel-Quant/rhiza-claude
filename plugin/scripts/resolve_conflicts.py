@@ -153,7 +153,7 @@ def find_conflicts(target: Path) -> tuple[list[Path], list[Path]]:
             rejects.append(path)
             continue
         try:
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue  # binary or unreadable: never a text conflict
         if any(line.startswith(OURS) for line in text.splitlines()):
@@ -191,21 +191,21 @@ def resolve(target: Path, *, dry_run: bool = False) -> dict[str, Any]:
     resolved: list[dict[str, Any]] = []
 
     for path in marked:
-        original = path.read_text()
+        original = path.read_text(encoding="utf-8")
         try:
             new_text, blocks = take_theirs(original)
         except MalformedConflict as exc:
             return {
                 "resolved": [],
-                "rejects": [str(p.relative_to(target)) for p in rejects],
-                "notes": [f"{path.relative_to(target)}: {exc} — nothing was written"],
+                "rejects": [p.relative_to(target).as_posix() for p in rejects],
+                "notes": [f"{path.relative_to(target).as_posix()}: {exc} — nothing was written"],
                 "exit_code": EXIT_MALFORMED,
             }
         if not dry_run:
-            path.write_text(new_text)
-        resolved.append({"path": str(path.relative_to(target)), "blocks": blocks})
+            path.write_text(new_text, encoding="utf-8")
+        resolved.append({"path": path.relative_to(target).as_posix(), "blocks": blocks})
 
-    outstanding = [str(path.relative_to(target)) for path in rejects]
+    outstanding = [path.relative_to(target).as_posix() for path in rejects]
 
     return {
         "resolved": resolved,

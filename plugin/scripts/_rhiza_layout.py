@@ -76,7 +76,7 @@ def command_files(root: Path) -> list[tuple[str, Path]]:
     >>> with tempfile.TemporaryDirectory() as tmp:
     ...     skill = Path(tmp) / SKILLS_DIR / "init"
     ...     skill.mkdir(parents=True)
-    ...     _ = (skill / SKILL_FILE).write_text("stub")
+    ...     _ = (skill / SKILL_FILE).write_text("stub", encoding="utf-8")
     ...     command_files(Path(tmp))[0][0]
     'init'
     """

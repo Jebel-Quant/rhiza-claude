@@ -50,7 +50,7 @@ def render_license(license_id: str, holder: str, year: str) -> str | None:
     path = _LICENSES_DIR / f"{license_id}.txt"
     if not path.is_file():
         return None
-    return path.read_text().replace("{year}", year).replace("{holder}", holder)
+    return path.read_text(encoding="utf-8").replace("{year}", year).replace("{holder}", holder)
 
 
 def _strip_keys(lines: list[str], header: int, end: int, key: re.Pattern[str]) -> list[str]:
@@ -106,7 +106,12 @@ def set_cargo_license_metadata(text: str, license_id: str) -> tuple[str, bool]:
 
 def _overwrite_needs_force(lic_path: Path, body: str | None, *, force: bool) -> bool:
     """Would writing *body* replace a different existing LICENSE without permission?"""
-    return body is not None and lic_path.exists() and lic_path.read_text() != body and not force
+    return (
+        body is not None
+        and lic_path.exists()
+        and lic_path.read_text(encoding="utf-8") != body
+        and not force
+    )
 
 
 def _apply_manifest_metadata(
@@ -126,12 +131,12 @@ def _apply_manifest_metadata(
         if not manifest.exists():
             continue
         try:
-            new_text, changed = setter(manifest.read_text(), license_id)
+            new_text, changed = setter(manifest.read_text(encoding="utf-8"), license_id)
         except ValueError as exc:
             notes.append(f"{name}: {exc}")
         else:
             if changed:
-                manifest.write_text(new_text)
+                manifest.write_text(new_text, encoding="utf-8")
                 modified.append(name)
 
 
@@ -151,10 +156,10 @@ def _write_license_file(
             f"license {license_id}: no bundled text; add a LICENSE file manually "
             f"(bundled: {', '.join(bundled_licenses())})"
         )
-    if lic_path.exists() and lic_path.read_text() == body:
+    if lic_path.exists() and lic_path.read_text(encoding="utf-8") == body:
         return "skipped", None
     existed = lic_path.exists()
-    lic_path.write_text(body)
+    lic_path.write_text(body, encoding="utf-8")
     return ("modified" if existed else "created"), None
 
 

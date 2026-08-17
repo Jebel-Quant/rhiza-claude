@@ -14,8 +14,8 @@ from _rhiza_layout import MARKETPLACE_MANIFEST, PLUGIN_MANIFEST
 
 def main() -> None:
     """Entry point: assert both manifests share a version; exit 1 on mismatch."""
-    plugin = json.loads(Path(PLUGIN_MANIFEST).read_text())["version"]
-    entries = json.loads(Path(MARKETPLACE_MANIFEST).read_text())["plugins"]
+    plugin = json.loads(Path(PLUGIN_MANIFEST).read_text(encoding="utf-8"))["version"]
+    entries = json.loads(Path(MARKETPLACE_MANIFEST).read_text(encoding="utf-8"))["plugins"]
     mismatches = [e["name"] for e in entries if e.get("version") != plugin]
     if mismatches:
         market = {e["name"]: e.get("version") for e in entries}
