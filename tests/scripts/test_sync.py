@@ -32,7 +32,12 @@ def _template(make_repo: Any, files: dict[str, str]) -> Repo:
 def _project(make_repo: Any, template: Repo, body_lines: list[str]) -> Repo:
     """Create a downstream repo whose template.yml points at *template*."""
     proj = make_repo("proj")
-    body = f'repository: "{template.path}"\nref: main\n' + "\n".join(body_lines) + "\n"
+    # `.as_posix()`, not `str()`: a double-quoted YAML scalar processes escapes, so a
+    # Windows path lands as `repository: "C:\Users\..."` and `\U` is read as the start of
+    # an 8-hex-digit escape. The repo under test never sees a backslash path in the wild —
+    # `repository` is `owner/repo` or a URL — so this is the fixture's problem to solve,
+    # and forward slashes are what a local template path would look like anyway.
+    body = f'repository: "{template.path.as_posix()}"\nref: main\n' + "\n".join(body_lines) + "\n"
     proj.write(".rhiza/template.yml", body)
     proj.commit("init")
     return proj
@@ -148,7 +153,12 @@ def test_upstream_deleted_file_removed(make_repo: Any) -> None:
 
 def _retarget(proj: Repo, template: Repo, body_lines: list[str]) -> None:
     """Rewrite the project's template.yml and commit it."""
-    body = f'repository: "{template.path}"\nref: main\n' + "\n".join(body_lines) + "\n"
+    # `.as_posix()`, not `str()`: a double-quoted YAML scalar processes escapes, so a
+    # Windows path lands as `repository: "C:\Users\..."` and `\U` is read as the start of
+    # an 8-hex-digit escape. The repo under test never sees a backslash path in the wild —
+    # `repository` is `owner/repo` or a URL — so this is the fixture's problem to solve,
+    # and forward slashes are what a local template path would look like anyway.
+    body = f'repository: "{template.path.as_posix()}"\nref: main\n' + "\n".join(body_lines) + "\n"
     proj.write(".rhiza/template.yml", body)
     proj.commit("retarget")
 
@@ -280,7 +290,7 @@ def test_an_excluded_directory_is_not_orphan_cleaned(make_repo: Any) -> None:
     proj.commit("first sync")
     assert proj.exists("docs/guide.md")
 
-    body = (proj.path / ".rhiza" / "template.yml").read_text()
+    body = (proj.path / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     proj.write(".rhiza/template.yml", body + "exclude:\n  - docs\n")
     proj.commit("exclude docs")
 
@@ -391,7 +401,14 @@ def test_merge_file_fallback_clean(make_repo: Any) -> None:
 
     proj = _project(make_repo, tmpl, _include("f.txt"))
     proj.write("f.txt", "l1\nl2\nLOCAL\n")  # diverged on line 3; pristine base never committed
-    lock = f'sha: {base_sha}\nrepo: "{tmpl.path}"\nhost: github\nref: main\nfiles:\n- f.txt\n'
+    # `.as_posix()` for the same reason as `_project` above — and the lock is the worse
+    # place to get it wrong: an unparseable lock is not an error here, it reads as *no
+    # previous sync*, so the file is overwritten wholesale and the local edit this test
+    # exists to preserve disappears silently.
+    lock = (
+        f'sha: {base_sha}\nrepo: "{tmpl.path.as_posix()}"\n'
+        "host: github\nref: main\nfiles:\n- f.txt\n"
+    )
     proj.write(".rhiza/template.lock", lock)
     proj.commit("diverged")
 

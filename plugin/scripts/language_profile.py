@@ -153,7 +153,7 @@ def declared_language(target: Path) -> str | None:
     pointer = target / ".rhiza" / "template.yml"
     if not pointer.is_file():
         return None
-    for line in pointer.read_text(errors="ignore").splitlines():
+    for line in pointer.read_text(encoding="utf-8", errors="ignore").splitlines():
         key, sep, value = line.partition(":")
         if sep and key.strip() == "language":
             return value.strip().strip("\"'") or None

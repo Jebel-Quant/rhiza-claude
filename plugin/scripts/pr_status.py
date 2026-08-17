@@ -252,10 +252,13 @@ def rollup(checks: list[dict[str, Any]]) -> str:
 
 def _cli_json(target_dir: Path, command: list[str]) -> Any:
     """Run *command* and parse its stdout as JSON, or raise ``ForgeQueryError``."""
-    if shutil.which(command[0]) is None:
+    # The resolved path, not the bare name — see the same call in `platform_cli.run` for
+    # why the two differ on Windows.
+    executable = shutil.which(command[0])
+    if executable is None:
         raise ForgeQueryError(f"{command[0]} is not installed — cannot read CI state")
     result = subprocess.run(  # nosec B603
-        command, cwd=str(target_dir), capture_output=True, text=True, check=False
+        [executable, *command[1:]], cwd=str(target_dir), capture_output=True, text=True, check=False
     )
     if result.returncode != 0:
         raise ForgeQueryError(f"{' '.join(command)} failed: {result.stderr.strip()[:300]}")

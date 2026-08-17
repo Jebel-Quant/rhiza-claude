@@ -11,7 +11,7 @@ def _write_lock(repo, body: str):
     """Write .rhiza/template.lock under repo with the given body."""
     rhiza = repo / ".rhiza"
     rhiza.mkdir(parents=True, exist_ok=True)
-    (rhiza / "template.lock").write_text(body)
+    (rhiza / "template.lock").write_text(body, encoding="utf-8")
 
 
 def _make_repo(repo, files: list[str], *, extra: list[str] | None = None):
@@ -19,11 +19,11 @@ def _make_repo(repo, files: list[str], *, extra: list[str] | None = None):
     rhiza = repo / ".rhiza"
     rhiza.mkdir(parents=True, exist_ok=True)
     body = "sha: abc\nfiles:\n" + "".join(f"- {f}\n" for f in files)
-    (rhiza / "template.lock").write_text(body)
+    (rhiza / "template.lock").write_text(body, encoding="utf-8")
     for rel in [*files, *(extra or [])]:
         p = repo / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text("x")
+        p.write_text("x", encoding="utf-8")
     return repo
 
 
@@ -54,7 +54,7 @@ def test_no_lock_is_clean_noop(tmp_path, capsys):
 
 def test_empty_file_list_is_noop(tmp_path, capsys):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza/template.lock").write_text("sha: abc\nfiles: []\n")
+    (tmp_path / ".rhiza/template.lock").write_text("sha: abc\nfiles: []\n", encoding="utf-8")
     rc = detach.detach(tmp_path, force=True)
     assert rc == 0
     assert "Nothing to do" in capsys.readouterr().err
@@ -101,7 +101,7 @@ def test_skips_already_deleted_files(tmp_path, capsys):
 
 def test_unreadable_lock_returns_error(tmp_path, monkeypatch, capsys):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza/template.lock").write_text("sha: abc\nfiles:\n- x\n")
+    (tmp_path / ".rhiza/template.lock").write_text("sha: abc\nfiles:\n- x\n", encoding="utf-8")
 
     def _boom(_path):
         raise ValueError("corrupt")
@@ -119,7 +119,7 @@ def test_main_force_flag(tmp_path):
 
 
 def test_remove_files_permission_then_success(tmp_path, monkeypatch):
-    (tmp_path / "a.txt").write_text("x")
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
     real_unlink = Path.unlink
     state = {"raised": False}
 
@@ -135,7 +135,7 @@ def test_remove_files_permission_then_success(tmp_path, monkeypatch):
 
 
 def test_remove_files_permission_then_oserror(tmp_path, monkeypatch):
-    (tmp_path / "b.txt").write_text("x")
+    (tmp_path / "b.txt").write_text("x", encoding="utf-8")
     seq = iter([PermissionError("ro"), OSError("io")])
 
     def fake_unlink(self, *a, **k):
@@ -154,7 +154,7 @@ def test_remove_files_hard_oserror(tmp_path):
 
 
 def test_remove_files_direct_oserror(tmp_path, monkeypatch):
-    (tmp_path / "c.txt").write_text("x")
+    (tmp_path / "c.txt").write_text("x", encoding="utf-8")
 
     def fake_unlink(self, *a, **k):
         if self.name == "c.txt":
@@ -172,7 +172,7 @@ def test_remove_files_skips_absent(tmp_path):
 
 def test_cleanup_stops_at_nonempty_dir(tmp_path):
     (tmp_path / "pkg").mkdir()
-    (tmp_path / "pkg" / "keep.txt").write_text("x")
+    (tmp_path / "pkg" / "keep.txt").write_text("x", encoding="utf-8")
     assert detach._cleanup_empty_directories([Path("pkg/gone.txt")], tmp_path) == 0
 
 
@@ -196,7 +196,7 @@ def test_detach_reports_delete_errors(tmp_path):
 
 def test_detach_lock_unlink_oserror(tmp_path, monkeypatch):
     _write_lock(tmp_path, "files:\n  - a.txt\n")
-    (tmp_path / "a.txt").write_text("x")
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
     real_unlink = Path.unlink
 
     def fake_unlink(self, *a, **k):
@@ -265,9 +265,9 @@ def test_a_lock_listing_itself_is_not_deleted_twice(tmp_path):
     # Built by hand, not via _make_repo: that helper writes every listed file, which
     # would clobber the lock with placeholder text and leave nothing to parse.
     (tmp_path / ".rhiza").mkdir(parents=True)
-    (tmp_path / "kept.txt").write_text("x")
+    (tmp_path / "kept.txt").write_text("x", encoding="utf-8")
     (tmp_path / ".rhiza" / "template.lock").write_text(
-        "sha: abc\nfiles:\n- .rhiza/template.lock\n- kept.txt\n"
+        "sha: abc\nfiles:\n- .rhiza/template.lock\n- kept.txt\n", encoding="utf-8"
     )
     assert detach.detach(tmp_path, force=True) == 0
     assert not (tmp_path / ".rhiza" / "template.lock").exists()

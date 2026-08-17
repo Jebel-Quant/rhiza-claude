@@ -44,19 +44,19 @@ def _repo(tmp_path, commands=None, prompts=None, pages=None, internals=None, ski
     """Build a miniature repo with the directory shape the renderer expects."""
     for name, text in (commands or {}).items():
         (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True, exist_ok=True)
-        (tmp_path / layout.COMMANDS_DIR / f"{name}.md").write_text(text)
+        (tmp_path / layout.COMMANDS_DIR / f"{name}.md").write_text(text, encoding="utf-8")
     for name, text in (skills or {}).items():
         (tmp_path / layout.SKILLS_DIR / name).mkdir(parents=True, exist_ok=True)
-        (tmp_path / layout.SKILLS_DIR / name / layout.SKILL_FILE).write_text(text)
+        (tmp_path / layout.SKILLS_DIR / name / layout.SKILL_FILE).write_text(text, encoding="utf-8")
     for name, text in (prompts or {}).items():
         (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True, exist_ok=True)
-        (tmp_path / layout.PROMPTS_DIR / f"{name}.md").write_text(text)
+        (tmp_path / layout.PROMPTS_DIR / f"{name}.md").write_text(text, encoding="utf-8")
     for name, text in (pages or {}).items():
         (tmp_path / "docs" / "skills").mkdir(parents=True, exist_ok=True)
-        (tmp_path / "docs" / "skills" / f"{name}.md").write_text(text)
+        (tmp_path / "docs" / "skills" / f"{name}.md").write_text(text, encoding="utf-8")
     for name, text in (internals or {}).items():
         (tmp_path / "docs" / "internals").mkdir(parents=True, exist_ok=True)
-        (tmp_path / "docs" / "internals" / f"{name}.md").write_text(text)
+        (tmp_path / "docs" / "internals" / f"{name}.md").write_text(text, encoding="utf-8")
     for directory in (layout.COMMANDS_DIR, layout.PROMPTS_DIR):
         (tmp_path / directory).mkdir(parents=True, exist_ok=True)
     return tmp_path
@@ -242,7 +242,7 @@ def test_main_check_writes_nothing(tmp_path):
     root = _repo(tmp_path, commands={"thing": COMMAND}, pages={"thing": PAGE})
     page = root / "docs" / "skills" / "thing.md"
     rcd.main(["--root", str(root), "--check"])
-    assert page.read_text() == PAGE
+    assert page.read_text(encoding="utf-8") == PAGE
 
 
 def test_main_check_passes_once_rendered(tmp_path, capsys):
@@ -256,6 +256,6 @@ def test_main_preserves_every_hand_written_line(tmp_path):
     """The whole point: generation is additive."""
     root = _repo(tmp_path, commands={"thing": COMMAND}, pages={"thing": PAGE})
     rcd.main(["--root", str(root)])
-    after = (root / "docs" / "skills" / "thing.md").read_text()
+    after = (root / "docs" / "skills" / "thing.md").read_text(encoding="utf-8")
     for line in PAGE.splitlines():
         assert line in after

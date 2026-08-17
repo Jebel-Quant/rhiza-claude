@@ -70,7 +70,7 @@ def cargo_package_name(target: Path) -> str | None:
     manifest = target / _CARGO
     if not manifest.is_file():
         return None
-    lines = manifest.read_text(errors="ignore").splitlines()
+    lines = manifest.read_text(encoding="utf-8", errors="ignore").splitlines()
     span = table_span(lines, "package")
     for line in lines[span[0] + 1 : span[1]] if span else []:
         match = re.match(r"""^\s*name\s*=\s*["']([^"']+)["']""", line)
@@ -105,7 +105,7 @@ def seed_crate_docs(target: Path) -> list[str]:
         root = target / "src" / name
         if not root.is_file():
             continue
-        text = root.read_text()
+        text = root.read_text(encoding="utf-8")
         new_text = text
         if is_cargo_placeholder_lib(new_text):
             new_text = new_text.replace(_PLACEHOLDER_FN, _PLACEHOLDER_FN_DOC + _PLACEHOLDER_FN, 1)
@@ -115,8 +115,8 @@ def seed_crate_docs(target: Path) -> list[str]:
             )
         if new_text == text:
             continue
-        root.write_text(new_text)
-        modified.append(str(root.relative_to(target)))
+        root.write_text(new_text, encoding="utf-8")
+        modified.append(root.relative_to(target).as_posix())
     return modified
 
 
@@ -158,7 +158,7 @@ def fill_cargo_manifest(
     if description:
         wanted["description"] = json.dumps(description)
 
-    original = manifest.read_text()
+    original = manifest.read_text(encoding="utf-8")
     try:
         text, added = set_cargo_keys(original, wanted)
     except ValueError as exc:
@@ -166,7 +166,7 @@ def fill_cargo_manifest(
         return {"modified": modified, "changes": [], "notes": notes, "ok": False}
 
     if text != original:
-        manifest.write_text(text)
+        manifest.write_text(text, encoding="utf-8")
         modified.append(_CARGO)
         notes.append("Cargo.toml: " + ", ".join(added))
     else:

@@ -178,14 +178,14 @@ def test_readme_report_reports_a_mismatch_against_the_result_block(tmp_path: Pat
 def test_run_python_fences_reports_a_non_zero_exit(tmp_path: Path):
     """A fence that raises is a broken example, whatever the result block says."""
     readme = readme_with(tmp_path, "```python\nraise ValueError('nope')\n```\n")
-    execution = rdm.run_python_fences(readme, rdm.fences(readme.read_text()))
+    execution = rdm.run_python_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
     assert "exited 1" in execution["violations"][0]
 
 
 def test_run_python_fences_only_asserts_the_exit_status_without_a_result_block(tmp_path: Path):
     """Undocumented output is a note: most READMEs never adopted the result-block convention."""
     readme = readme_with(tmp_path, "```python\nprint('undocumented')\n```\n")
-    execution = rdm.run_python_fences(readme, rdm.fences(readme.read_text()))
+    execution = rdm.run_python_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
     assert execution["violations"] == []
     assert "no ```result``` block" in execution["notes"][0]
 
@@ -193,7 +193,7 @@ def test_run_python_fences_only_asserts_the_exit_status_without_a_result_block(t
 def test_run_python_fences_skips_a_readme_with_nothing_to_run(tmp_path: Path):
     """A skipped fence is not executed, so no program is left to run."""
     readme = readme_with(tmp_path, "```python +RHIZA_SKIP\nraise SystemExit(1)\n```\n")
-    execution = rdm.run_python_fences(readme, rdm.fences(readme.read_text()))
+    execution = rdm.run_python_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
     assert execution == {"ran": False, "violations": [], "notes": ["no executable python fence"]}
 
 

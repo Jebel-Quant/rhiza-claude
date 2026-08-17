@@ -44,7 +44,7 @@ def fake_template(monkeypatch: pytest.MonkeyPatch) -> None:
     def _clone(ctx, url, dest, include_paths, *, branch=None, sha=None):  # noqa: ANN001, ANN202
         path = dest / include_paths[0]
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(BUNDLES)
+        path.write_text(BUNDLES, encoding="utf-8")
 
     monkeypatch.setattr(ctp, "clone", _clone)
     monkeypatch.setattr(ctp.GitContext, "default", classmethod(lambda cls: cls(executable="git")))
@@ -85,7 +85,7 @@ def test_a_custom_bundles_path_is_honoured(monkeypatch: pytest.MonkeyPatch):
         seen.append(include_paths)
         path = dest / include_paths[0]
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(BUNDLES)
+        path.write_text(BUNDLES, encoding="utf-8")
 
     monkeypatch.setattr(ctp, "clone", _clone)
     monkeypatch.setattr(ctp.GitContext, "default", classmethod(lambda cls: cls(executable="git")))
@@ -195,7 +195,7 @@ def test_main_passes_the_bundles_path_through(monkeypatch: pytest.MonkeyPatch, c
         seen.append(include_paths)
         path = dest / include_paths[0]
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(BUNDLES)
+        path.write_text(BUNDLES, encoding="utf-8")
 
     monkeypatch.setattr(ctp, "clone", _clone)
     monkeypatch.setattr(ctp.GitContext, "default", classmethod(lambda cls: cls(executable="git")))
@@ -212,7 +212,7 @@ def test_an_empty_profile_list_in_a_template_is_reported_as_none(
     def _clone(ctx, url, dest, include_paths, *, branch=None, sha=None):  # noqa: ANN001, ANN202
         path = dest / include_paths[0]
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("bundles:\n  core:\n    required: true\n")
+        path.write_text("bundles:\n  core:\n    required: true\n", encoding="utf-8")
 
     monkeypatch.setattr(ctp, "clone", _clone)
     monkeypatch.setattr(ctp.GitContext, "default", classmethod(lambda cls: cls(executable="git")))

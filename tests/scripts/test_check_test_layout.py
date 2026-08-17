@@ -7,12 +7,12 @@ import check_test_layout as ctl
 
 def _write(path, text=""):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
 
 
 def test_top_level_classes(tmp_path):
     f = tmp_path / "m.py"
-    f.write_text("class A:\n    pass\n\n\ndef g():\n    pass\n")
+    f.write_text("class A:\n    pass\n\n\ndef g():\n    pass\n", encoding="utf-8")
     assert ctl._top_level_classes(f) == {"A"}
 
 
@@ -134,26 +134,27 @@ def test_read_config_absent(tmp_path):
 def test_read_config_via_tomllib(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n'
+        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n',
+        encoding="utf-8",
     )
     assert ctl._read_config(pyproject) == {"enforce": False, "reason": "behaviour-grouped"}
 
 
 def test_read_config_no_section(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text('[project]\nname = "x"\n')
+    pyproject.write_text('[project]\nname = "x"\n', encoding="utf-8")
     assert ctl._read_config(pyproject) == {}
 
 
 def test_read_config_section_not_a_table(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text('[tool]\ncheck_test_layout = "oops"\n')
+    pyproject.write_text('[tool]\ncheck_test_layout = "oops"\n', encoding="utf-8")
     assert ctl._read_config(pyproject) == {}
 
 
 def test_read_config_malformed_toml(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("this is = = not toml [\n")
+    pyproject.write_text("this is = = not toml [\n", encoding="utf-8")
     assert ctl._read_config(pyproject) == {}
 
 
@@ -161,7 +162,8 @@ def test_read_config_fallback_without_tomllib(tmp_path, monkeypatch):
     monkeypatch.setattr(ctl, "tomllib", None)
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n'
+        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n',
+        encoding="utf-8",
     )
     assert ctl._read_config(pyproject) == {"enforce": False, "reason": "behaviour-grouped"}
 
@@ -296,7 +298,8 @@ def test_unquote():
 def test_main_enforce_false_ok(tmp_path, capsys):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped suite"\n'
+        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped suite"\n',
+        encoding="utf-8",
     )
     assert ctl.main(["--src", str(tmp_path / "src"), "--config", str(pyproject)]) == 0
     out = capsys.readouterr().out
@@ -306,6 +309,6 @@ def test_main_enforce_false_ok(tmp_path, capsys):
 
 def test_main_enforce_false_requires_reason(tmp_path, capsys):
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("[tool.check_test_layout]\nenforce = false\n")
+    pyproject.write_text("[tool.check_test_layout]\nenforce = false\n", encoding="utf-8")
     assert ctl.main(["--config", str(pyproject)]) == 1
     assert "requires a non-empty 'reason'" in capsys.readouterr().err

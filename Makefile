@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint audit complexity test e2e mutate book book-serve paper paper-figures clean changelog
+.PHONY: help install lint audit complexity test e2e portable mutate book book-serve paper paper-figures clean changelog
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -92,6 +92,23 @@ test:  ## Run the script test suite with a 100% coverage gate
 # green `make e2e` says nothing about the gate every other caller has to clear.
 e2e:  ## Run only the end-to-end tests, without the coverage gate
 	$(PYTEST) -k e2e --no-cov $(ARGS)
+
+# The complement of `e2e`, and the mirror of its argument. This is the subset the
+# `cross-platform` CI job runs on macOS and Windows.
+#
+# **Why not `make test` there.** Two reasons, and neither is about speed alone. The e2e
+# fixtures clone the real template and drive `cargo`, `go` and `glab` against it — the
+# slowest half of the suite and the half least likely to say anything about *path
+# handling*, which is the whole reason a non-Linux runner is worth paying for. And the
+# coverage gate cannot be met by a filtered run, so `make test` would fail there for a
+# reason that has nothing to do with the platform.
+#
+# Not a substitute for `make test`: it reports no coverage and skips the e2e tests, so a
+# green `make portable` says nothing about the gate every PR still clears on Linux. That
+# is the same caveat `e2e` carries, for the same reason — both are narrowings that exist
+# for exactly one caller.
+portable:  ## Run the unit tests without e2e or the coverage gate (the cross-platform CI subset)
+	$(PYTEST) -k "not e2e" --no-cov $(ARGS)
 
 # --------------------------------------------------------------------------- #
 # Mutation testing — deliberately NOT part of `make test`

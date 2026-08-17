@@ -179,7 +179,7 @@ def check_module(path: Path, root: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
     tree = ast.parse(text, filename=str(path))
-    rel = path.relative_to(root) if path.is_relative_to(root) else path
+    rel = path.relative_to(root).as_posix() if path.is_relative_to(root) else path
 
     violations: list[str] = []
     for node in ast.walk(tree):

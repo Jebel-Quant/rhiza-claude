@@ -98,7 +98,7 @@ def prepare_snapshot(
     """
     template_files: list[Path] = []
     for f in _expand_paths(clone_dir, include_paths):
-        rel_source = str(f.relative_to(clone_dir))
+        rel_source = f.relative_to(clone_dir).as_posix()
         rel_dest = _remap_path(rel_source, path_map)
         if is_excluded(rel_dest, excludes):
             continue

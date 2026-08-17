@@ -25,7 +25,7 @@ def repo(tmp_path):
 def write(repo, body: str, name: str = "mod.py"):
     """Write *body* as a module under the repo's `plugin/scripts/`."""
     path = repo / "plugin" / "scripts" / name
-    path.write_text(body)
+    path.write_text(body, encoding="utf-8")
     return path
 
 
@@ -217,6 +217,8 @@ def test_main_defaults_to_the_current_directory(repo, monkeypatch):
 def test_a_path_outside_the_root_is_reported_absolutely(repo, tmp_path):
     """`relative_to` would raise; the checker falls back to the full path."""
     outside = tmp_path.parent / "outside.py"
-    outside.write_text("import subprocess\n\n\ndef go():\n    subprocess.run(['git'])\n")
+    outside.write_text(
+        "import subprocess\n\n\ndef go():\n    subprocess.run(['git'])\n", encoding="utf-8"
+    )
     (violation,) = csd.check_module(outside, repo)
     assert str(outside) in violation

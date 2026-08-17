@@ -107,7 +107,7 @@ def test_go_language_requires_go_mod(tmp_path):
 
 def test_path_to_template_override(git_repo):
     # place template.yml in the repo root instead of .rhiza/
-    (git_repo / "template.yml").write_text(VALID_TEMPLATE)
+    (git_repo / "template.yml").write_text(VALID_TEMPLATE, encoding="utf-8")
     ok, log = _run(git_repo, template_file=git_repo / "template.yml")
     assert ok is True
 
@@ -142,14 +142,14 @@ def test_template_file_exists(tmp_path):
     assert ok2 is False
     # present
     tf = tmp_path / "t.yml"
-    tf.write_text("x: 1\n")
+    tf.write_text("x: 1\n", encoding="utf-8")
     ok3, _ = v._check_template_file_exists(log(), tmp_path, tf)
     assert ok3 is True
 
 
 def test_parse_template_file(tmp_path, monkeypatch):
     tf = tmp_path / "t.yml"
-    tf.write_text('repository: "a/b"\n')
+    tf.write_text('repository: "a/b"\n', encoding="utf-8")
     ok, cfg = v._parse_template_file(log(), tf)
     assert ok and cfg["repository"] == "a/b"
 
@@ -176,11 +176,11 @@ def test_config_fields_templates_include_invalid():
 def _repo(tmp_path, body, language_files=None):
     (tmp_path / ".git").mkdir()
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text(body)
+    (tmp_path / ".rhiza" / "template.yml").write_text(body, encoding="utf-8")
     for rel in language_files or []:
         p = tmp_path / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text("x")
+        p.write_text("x", encoding="utf-8")
 
 
 def test_validate_go_end_to_end(tmp_path):
@@ -208,8 +208,10 @@ def test_validate_fails_on_bad_config(tmp_path):
 
 def test_main_json_and_path_to_template(tmp_path, capsys):
     (tmp_path / ".git").mkdir()
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
-    (tmp_path / "template.yml").write_text('repository: "a/b"\nprofiles: [github-project]\n')
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+    (tmp_path / "template.yml").write_text(
+        'repository: "a/b"\nprofiles: [github-project]\n', encoding="utf-8"
+    )
     rc = v.main([str(tmp_path), "--path-to-template", str(tmp_path), "--json", "--verbose"])
     assert rc == 0
     import json
@@ -247,7 +249,9 @@ def test_e2e_a_virtual_workspace_validates_too(rust_crate, tmp_path):
     workspace = tmp_path / "widget"
     shutil.copytree(rust_crate, workspace)
     shutil.rmtree(workspace / "src")
-    (workspace / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\nresolver = "3"\n')
+    (workspace / "Cargo.toml").write_text(
+        '[workspace]\nmembers = ["crates/*"]\nresolver = "3"\n', encoding="utf-8"
+    )
 
     ok, log = _run(workspace)
     assert ok, log.errors

@@ -186,6 +186,33 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   will not make a check green by weakening it**: if the honest fix is out of reach it
   leaves the build red and says why.
 
+### The documentation checks itself
+
+The fence below is not an illustration. `/rhiza:quality`'s example gate executes it and
+diffs its output against the expected-output block underneath, so if the shipped
+`classify_host` ever stops refusing a host that merely *embeds* a known forge domain,
+this README turns the build red rather than quietly going on claiming otherwise.
+
+```python
+import sys
+
+sys.path.insert(0, "plugin/scripts")
+from _rhiza_forge import classify_host
+
+for host in ("github.com", "code.gitlab.com", "gitlab.acme.io", "github.com.evil.example"):
+    print(f"{host} -> {classify_host(host)}")
+```
+
+```result
+github.com -> github
+code.gitlab.com -> gitlab
+gitlab.acme.io -> gitlab
+github.com.evil.example -> None
+```
+
+That last line is the one that matters: `github.com.evil.example` is not a subdomain of
+`github.com`, and a forge detector that guessed would act against the wrong host.
+
 ### Internals
 
 Not slash commands. These are **internal procedures** under `prompts/` —

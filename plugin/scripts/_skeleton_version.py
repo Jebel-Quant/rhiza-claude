@@ -106,7 +106,9 @@ def bumpversion_config(target: Path) -> str | None:
     """Return the discoverable file declaring a bumpversion config, or None."""
     for name in _BUMPVERSION_CONFIGS:
         path = target / name
-        if path.is_file() and _BUMPVERSION_SECTION.search(path.read_text(errors="ignore")):
+        if path.is_file() and _BUMPVERSION_SECTION.search(
+            path.read_text(encoding="utf-8", errors="ignore")
+        ):
             return name
     return None
 
@@ -120,7 +122,7 @@ def _go_declared_version(target: Path) -> str | None:
     version_file = target / _GO_VERSION_FILE
     if not version_file.is_file():
         return None
-    match = _GO_VERSION_CONST.search(version_file.read_text(errors="ignore"))
+    match = _GO_VERSION_CONST.search(version_file.read_text(encoding="utf-8", errors="ignore"))
     return match.group(1) if match else None
 
 
@@ -132,7 +134,7 @@ def declared_version(target: Path, language: str) -> str | None:
     manifest = target / ("Cargo.toml" if language == "rust" else "pyproject.toml")
     if not manifest.is_file():
         return None
-    lines = manifest.read_text(errors="ignore").splitlines()
+    lines = manifest.read_text(encoding="utf-8", errors="ignore").splitlines()
     span = table_span(lines, "package" if language == "rust" else "project")
     for line in lines[span[0] + 1 : span[1]] if span else []:
         match = re.match(r"""^\s*version\s*=\s*["']([^"']+)["']""", line)
@@ -163,14 +165,14 @@ def seed_bumpversion_config(target: Path, language: str) -> str | None:
         # written in the manifest, hyphens and all.
         name = cargo_package_name(target) or target.name
         path = target / ".bumpversion.toml"
-        path.write_text(_RUST_BUMPVERSION.format(version=version, name=name))
+        path.write_text(_RUST_BUMPVERSION.format(version=version, name=name), encoding="utf-8")
         return ".bumpversion.toml"
 
     manifest = target / "pyproject.toml"
-    text = manifest.read_text()
+    text = manifest.read_text(encoding="utf-8")
     if not text.endswith("\n"):
         text += "\n"
-    manifest.write_text(text + _PYTHON_BUMPVERSION.format(version=version))
+    manifest.write_text(text + _PYTHON_BUMPVERSION.format(version=version), encoding="utf-8")
     return "pyproject.toml"
 
 

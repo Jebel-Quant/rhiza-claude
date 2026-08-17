@@ -115,7 +115,7 @@ def script_flags(path: Path) -> set[str]:
     handles both the single-line and multi-line styles used across the scripts without
     importing them (importing would run module-level code).
     """
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     flags: set[str] = set()
     for match in _ADD_ARGUMENT.finditer(source):
         window = source[match.end() : match.end() + 400]
@@ -420,7 +420,7 @@ def check_contracts(root: Path) -> list[str]:
     for group, is_command in ((commands, True), (procedures, False)):
         for name, path in group:
             rel = _rel(root, path)
-            text = path.read_text()
+            text = path.read_text(encoding="utf-8")
             blocks = bash_blocks(text)
             violations += check_frontmatter(rel, text, is_command=is_command)
             violations += check_bash_syntax(rel, blocks)
@@ -433,7 +433,7 @@ def check_contracts(root: Path) -> list[str]:
     tests_dir = root / "tests"
     for path in prose_files(root):
         rel = path.relative_to(root).as_posix()
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         violations += check_script_references(rel, text, scripts_dir)
         violations += check_test_references(rel, text, tests_dir)
     return violations

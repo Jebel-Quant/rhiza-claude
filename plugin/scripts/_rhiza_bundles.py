@@ -17,25 +17,41 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError  # noqa: E402
+from _rhiza_common import SyncError, has_drive_letter  # noqa: E402
 from _rhiza_template import Template  # noqa: E402
 from _rhiza_yaml import as_list  # noqa: E402
 
 
 def _ensure_safe_bundle_path(value: str) -> None:
-    """Reject a bundle path that could escape the project directory.
+    r"""Reject a bundle path that could escape the project directory.
 
     ``template-bundles.yml`` is untrusted (fetched from the template repo) and a
     remapped ``dest`` is joined onto the target directory, so an absolute path, a
     Windows drive letter, or a ``..`` component could write outside the project.
+
+    The three rejected shapes, against the ordinary relative paths that must keep
+    working — and note the fourth line, where a Windows separator is normalised *before*
+    the check, so a backslash cannot smuggle a traversal past it:
+
+    >>> for value in ("Makefile", ".github/workflows/ci.yml", "/etc/passwd",
+    ...               "..\\secrets.env", "C:/Windows/system32"):
+    ...     try:
+    ...         _ensure_safe_bundle_path(value)
+    ...         print(f"accepted  {value}")
+    ...     except SyncError:
+    ...         print(f"rejected  {value}")
+    accepted  Makefile
+    accepted  .github/workflows/ci.yml
+    rejected  /etc/passwd
+    rejected  ..\secrets.env
+    rejected  C:/Windows/system32
 
     Raises:
         SyncError: If *value* is absolute, uses a drive letter, or traverses up.
     """
     normalized = value.replace("\\", "/")
     pure = PurePosixPath(normalized)
-    has_drive = len(normalized) >= 2 and normalized[0].isalpha() and normalized[1] == ":"
-    if pure.is_absolute() or has_drive or ".." in pure.parts:
+    if pure.is_absolute() or has_drive_letter(normalized) or ".." in pure.parts:
         raise SyncError(
             f"Unsafe bundle path {value!r}: paths must be relative to the project root "
             "(no absolute paths, drive letters, or '..' traversal)."

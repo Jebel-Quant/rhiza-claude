@@ -23,9 +23,7 @@ one's was.
 from __future__ import annotations
 
 import json
-import os
 import re
-import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -59,34 +57,37 @@ def gitlab_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def stub_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def stub_cli(tmp_path: Path, stub_cli_installer):
     """Put a fake `gh`/`glab` on PATH that records its argv and prints canned stdout.
 
     Answers are keyed by a substring of the argv, so one stub can serve the two calls
-    the GitLab path makes (list the requests, then get each one's pipeline).
+    the GitLab path makes (list the requests, then get each one's pipeline). The stub is
+    Python rather than bash so it runs on Windows too — see `stub_cli_installer` in
+    `tests/conftest.py` for why the delivery differs by platform.
     """
-    bin_dir = tmp_path / "stub-bin"
-    bin_dir.mkdir()
     log = tmp_path / "invocations.txt"
 
     def install(name: str, answers: dict[str, str], *, exit_code: int = 0) -> None:
-        cases = []
+        payloads: dict[str, str] = {}
         for index, (key, value) in enumerate(answers.items()):
             payload = tmp_path / f"{name}-{index}.out"
-            payload.write_text(value)
-            cases.append(
-                f'if [[ "$*" == *{shlex.quote(key)}* ]]; then cat {shlex.quote(str(payload))}; '
-                f"exit {exit_code}; fi"
-            )
-        script = bin_dir / name
-        script.write_text(
-            f'#!/usr/bin/env bash\nprintf "%s\\n" "{name} $*" >> "{log}"\n'
-            + "\n".join(cases)
-            + f"\nprintf %s null\nexit {exit_code}\n"
+            payload.write_text(value, encoding="utf-8")
+            payloads[key] = str(payload)
+        stub_cli_installer(
+            name,
+            "import sys\n"
+            f"argv = ' '.join(sys.argv[1:])\n"
+            f"with open({str(log)!r}, 'a', encoding='utf-8') as fh:\n"
+            f"    fh.write({name!r} + ' ' + argv + '\\n')\n"
+            f"for key, path in {payloads!r}.items():\n"
+            "    if key in argv:\n"
+            "        with open(path, encoding='utf-8') as fh:\n"
+            "            sys.stdout.write(fh.read())\n"
+            f"        sys.exit({exit_code})\n"
+            "sys.stdout.write('null')\n"
+            f"sys.exit({exit_code})\n",
         )
-        script.chmod(0o755)
 
-    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     install.log = log  # type: ignore[attr-defined]
     return install
 
@@ -400,7 +401,7 @@ def test_gitlab_takes_a_second_call_for_the_pipeline(gitlab_repo, stub_cli):
     assert request["id"] == 4 and request["draft"] is True
     assert request["state"] == pr_status.FAILURE
     assert request["checks"][0]["name"] == "pipeline #88"
-    invoked = stub_cli.log.read_text()
+    invoked = stub_cli.log.read_text(encoding="utf-8")
     assert "glab mr list" in invoked and "glab ci get" in invoked
 
 

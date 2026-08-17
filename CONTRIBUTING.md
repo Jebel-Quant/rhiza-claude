@@ -32,6 +32,7 @@ make install        # install the rhiza plugin via the Claude Code CLI
 make lint           # run all prek hooks against every file
 make test           # run the script test suite with a 100% coverage gate
 make e2e            # run only the end-to-end tests, without the coverage gate
+make portable       # run everything except them, without the coverage gate
 make mutate         # mutation-test the sync core in an isolated worktree (slow)
 make book           # build the documentation site into _book/
 make book-serve     # serve the docs locally with live reload
@@ -50,8 +51,13 @@ The runner is [`prek`](https://prek.j178.dev/) — a drop-in reimplementation of
 need nothing installed beyond `uv`; `uvx` fetches prek on first use. Bump hook
 revisions with `uvx prek update`.
 
-The two you need before opening a PR are `make lint` and `make test` — the CI
-gates mirror them exactly, so a green pair locally means a green PR.
+The two you need before opening a PR are `make lint` and `make test` — a green
+pair locally means a green PR on everything you can reproduce locally.
+
+The one CI gate you *can't* reproduce is `cross-platform`, which runs `make
+portable` on macOS and Windows. Only the platform you're on is reachable from
+your machine, so treat a red Windows leg as information rather than a surprise:
+it is there to catch the path handling the Linux jobs cannot see.
 
 **`make book` needs a LaTeX engine.** It depends on `paper` (and on `test`), so a
 checkout without [`tectonic`](https://tectonic-typesetting.github.io/) or

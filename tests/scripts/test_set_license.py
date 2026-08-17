@@ -107,17 +107,17 @@ def test_set_license_metadata_leaves_existing_classifiers_untouched():
 
 
 def test_set_license_writes_file_and_metadata(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     summary = sl.set_license(tmp_path, license_id="MIT", holder="acme", year="2026", force=False)
     assert "LICENSE" in summary["created"]
     assert "pyproject.toml" in summary["modified"]
     assert not summary["needs_force"]
-    assert "Copyright (c) 2026 acme" in (tmp_path / "LICENSE").read_text()
-    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text()
+    assert "Copyright (c) 2026 acme" in (tmp_path / "LICENSE").read_text(encoding="utf-8")
+    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_set_license_refuses_overwrite_without_force_and_stays_consistent(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     sl.set_license(tmp_path, license_id="MIT", holder="acme", year="2026", force=False)
 
     # Relicensing must abort *before* touching pyproject when --force is absent.
@@ -125,27 +125,31 @@ def test_set_license_refuses_overwrite_without_force_and_stays_consistent(tmp_pa
         tmp_path, license_id="Apache-2.0", holder="acme", year="2026", force=False
     )
     assert summary["needs_force"]
-    assert (tmp_path / "LICENSE").read_text().startswith("MIT License")  # file untouched
-    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text()  # metadata untouched
+    assert (
+        (tmp_path / "LICENSE").read_text(encoding="utf-8").startswith("MIT License")
+    )  # file untouched
+    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )  # metadata untouched
 
 
 def test_set_license_force_overwrites(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     sl.set_license(tmp_path, license_id="MIT", holder="acme", year="2026", force=False)
     summary = sl.set_license(
         tmp_path, license_id="Apache-2.0", holder="acme", year="2026", force=True
     )
     assert "LICENSE" in summary["modified"]
-    assert "Apache License" in (tmp_path / "LICENSE").read_text()
-    assert 'license = "Apache-2.0"' in (tmp_path / "pyproject.toml").read_text()
+    assert "Apache License" in (tmp_path / "LICENSE").read_text(encoding="utf-8")
+    assert 'license = "Apache-2.0"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_set_license_none_leaves_existing_file(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     sl.set_license(tmp_path, license_id="MIT", holder="acme", year="2026", force=False)
     summary = sl.set_license(tmp_path, license_id="none", holder="acme", year="2026", force=False)
     assert "pyproject.toml" in summary["modified"]
-    assert "license = " not in (tmp_path / "pyproject.toml").read_text()
+    assert "license = " not in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     assert (tmp_path / "LICENSE").exists()  # file left in place, not deleted
 
 
@@ -157,7 +161,7 @@ def test_set_license_no_pyproject_still_writes_file(tmp_path):
 
 def test_set_license_notes_a_pyproject_without_a_project_table(tmp_path):
     """A malformed pyproject is reported, not fatal — the LICENSE is still written."""
-    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n")
+    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n", encoding="utf-8")
     summary = sl.set_license(tmp_path, license_id="MIT", holder="acme", year="2026", force=False)
     assert "LICENSE" in summary["created"]
     assert summary["modified"] == []  # metadata untouched
@@ -166,18 +170,18 @@ def test_set_license_notes_a_pyproject_without_a_project_table(tmp_path):
 
 def test_set_license_unbundled_id_sets_metadata_and_says_to_add_the_text(tmp_path):
     """`main()` rejects these, but `set_license()` is callable directly."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     summary = sl.set_license(
         tmp_path, license_id="MPL-2.0", holder="acme", year="2026", force=False
     )
-    assert 'license = "MPL-2.0"' in (tmp_path / "pyproject.toml").read_text()
+    assert 'license = "MPL-2.0"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     assert not (tmp_path / "LICENSE").exists()
     assert any("no bundled text" in n for n in summary["notes"])
 
 
 def test_set_license_skips_an_already_identical_license(tmp_path):
     """Re-applying the same license is a no-op needing no --force."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     kwargs = {"license_id": "MIT", "holder": "acme", "year": "2026", "force": False}
     sl.set_license(tmp_path, **kwargs)
     summary = sl.set_license(tmp_path, **kwargs)
@@ -195,7 +199,7 @@ def test_main_rejects_unbundled_license(tmp_path):
 
 
 def test_main_json_and_exit_codes(tmp_path, capsys):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     rc = sl.main(
         [str(tmp_path), "--license", "MIT", "--owner", "acme", "--license-year", "2026", "--json"]
     )
@@ -210,7 +214,7 @@ def test_main_json_and_exit_codes(tmp_path, capsys):
 
 def test_main_text_output_reports_modified_and_skipped(tmp_path, capsys):
     """Text mode prints each bucket: created, modified, skipped, notes."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     args = [str(tmp_path), "--license", "MIT", "--owner", "acme", "--license-year", "2026"]
     assert sl.main(args) == 0
     first = capsys.readouterr()
@@ -225,7 +229,7 @@ def test_main_text_output_reports_modified_and_skipped(tmp_path, capsys):
 
 def test_main_text_output_reports_notes(tmp_path, capsys):
     """`none` emits a note and no file writes."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     assert sl.main([str(tmp_path), "--license", "none"]) == 0
     assert "note" in capsys.readouterr().err
 
@@ -287,25 +291,25 @@ def test_set_cargo_license_metadata_requires_package_table():
 
 
 def test_set_license_writes_cargo_metadata_and_the_file(tmp_path):
-    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "Cargo.toml").write_text(_CARGO, encoding="utf-8")
     summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
     assert summary["created"] == ["LICENSE"]
     assert summary["modified"] == ["Cargo.toml"]
-    assert 'license = "MIT"' in (tmp_path / "Cargo.toml").read_text()
+    assert 'license = "MIT"' in (tmp_path / "Cargo.toml").read_text(encoding="utf-8")
 
 
 def test_set_license_covers_both_manifests_in_a_mixed_repo(tmp_path):
     """A pyo3/maturin repo has both manifests; the licence must not disagree."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
-    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
+    (tmp_path / "Cargo.toml").write_text(_CARGO, encoding="utf-8")
     summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
     assert summary["modified"] == ["pyproject.toml", "Cargo.toml"]
-    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text()
-    assert 'license = "MIT"' in (tmp_path / "Cargo.toml").read_text()
+    assert 'license = "MIT"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'license = "MIT"' in (tmp_path / "Cargo.toml").read_text(encoding="utf-8")
 
 
 def test_set_license_notes_a_cargo_toml_without_a_package_table(tmp_path):
-    (tmp_path / "Cargo.toml").write_text("[workspace]\nmembers = []\n")
+    (tmp_path / "Cargo.toml").write_text("[workspace]\nmembers = []\n", encoding="utf-8")
     summary = sl.set_license(tmp_path, license_id="MIT", holder="Acme", year="2026", force=False)
     assert any("Cargo.toml" in note for note in summary["notes"])
     assert summary["created"] == ["LICENSE"]
@@ -338,10 +342,10 @@ def test_e2e_a_real_crate_gets_the_spdx_expression_cargo_wants(rust_crate):
     `license` in `[package]` is what `cargo publish` and the template's licence gate
     read, and it is the only place a crate's terms are declared.
     """
-    manifest = (rust_crate / "Cargo.toml").read_text()
+    manifest = (rust_crate / "Cargo.toml").read_text(encoding="utf-8")
     assert 'license = "MIT"' in manifest
     assert "license-file" not in manifest
-    assert (rust_crate / "LICENSE").read_text().startswith("MIT License")
+    assert (rust_crate / "LICENSE").read_text(encoding="utf-8").startswith("MIT License")
 
 
 def test_e2e_both_manifests_are_visited_so_they_cannot_disagree(rust_crate, tmp_path):
@@ -355,18 +359,24 @@ def test_e2e_both_manifests_are_visited_so_they_cannot_disagree(rust_crate, tmp_
     repo = tmp_path / "widget"
     shutil.copytree(rust_crate, repo)
     (repo / "pyproject.toml").write_text(
-        '[project]\nname = "widget"\nversion = "0.1.0"\nlicense = "Apache-2.0"\n'
+        '[project]\nname = "widget"\nversion = "0.1.0"\nlicense = "Apache-2.0"\n', encoding="utf-8"
     )
     # A stale `license-file` is the trap: left behind, `cargo publish` describes terms
     # the repo no longer ships.
     (repo / "Cargo.toml").write_text(
-        (repo / "Cargo.toml").read_text().replace('license = "MIT"', 'license-file = "COPYING"')
+        (repo / "Cargo.toml")
+        .read_text(encoding="utf-8")
+        .replace('license = "MIT"', 'license-file = "COPYING"'),
+        encoding="utf-8",
     )
 
     summary = sl.set_license(repo, license_id="MIT", holder="jebel-quant", year="2026", force=True)
 
     assert set(summary["modified"]) == {"pyproject.toml", "Cargo.toml"}
-    cargo, pyproject = (repo / "Cargo.toml").read_text(), (repo / "pyproject.toml").read_text()
+    cargo, pyproject = (
+        (repo / "Cargo.toml").read_text(encoding="utf-8"),
+        (repo / "pyproject.toml").read_text(encoding="utf-8"),
+    )
     assert 'license = "MIT"' in cargo and "license-file" not in cargo
     assert 'license = "MIT"' in pyproject and "Apache-2.0" not in pyproject
 
@@ -377,6 +387,6 @@ def test_e2e_a_go_module_gets_a_license_file_and_no_manifest_change(go_module):
     Asserted as an absence on purpose: without it, someone reads the Python and Rust
     paths, notices Go writes no manifest key, and "fixes" it by inventing one.
     """
-    assert (go_module / "LICENSE").read_text().startswith("MIT License")
-    body = (go_module / "go.mod").read_text()
+    assert (go_module / "LICENSE").read_text(encoding="utf-8").startswith("MIT License")
+    body = (go_module / "go.mod").read_text(encoding="utf-8")
     assert "license" not in body.lower()

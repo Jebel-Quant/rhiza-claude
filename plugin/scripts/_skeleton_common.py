@@ -21,12 +21,30 @@ HOSTS = {"github": "github.com", "gitlab": "gitlab.com"}
 
 
 def host_domain(host: str) -> str:
-    """Return the domain for *host*, falling back to GitHub's for an unknown name."""
+    """Return the domain for *host*, falling back to GitHub's for an unknown name.
+
+    >>> host_domain("github")
+    'github.com'
+    >>> host_domain("gitlab")
+    'gitlab.com'
+
+    The fallback is deliberate rather than an error: the caller has already written a
+    manifest by this point, and a plausible URL beats a half-initialised repo.
+
+    >>> host_domain("codeberg")
+    'github.com'
+    """
     return HOSTS.get(host, HOSTS["github"])
 
 
 def host_url(domain: str, owner: str, repo: str) -> str:
-    """Return the canonical project URL for *owner*/*repo* on *domain*."""
+    """Return the canonical project URL for *owner*/*repo* on *domain*.
+
+    >>> host_url("github.com", "Jebel-Quant", "rhiza-claude")
+    'https://github.com/Jebel-Quant/rhiza-claude'
+    >>> host_url(host_domain("gitlab"), "acme", "widgets")
+    'https://gitlab.com/acme/widgets'
+    """
     return f"https://{domain}/{owner}/{repo}"
 
 
@@ -47,7 +65,7 @@ def seed_readme(target: Path, *, repo: str, description: str | None, create: boo
     """
     readme = target / "README.md"
     if readme.is_file():
-        if readme.read_text().strip():
+        if readme.read_text(encoding="utf-8").strip():
             return False
     elif not create:
         return False
@@ -56,7 +74,7 @@ def seed_readme(target: Path, *, repo: str, description: str | None, create: boo
         body += f"\n{description}\n"
     # No fenced code blocks: the same template test executes any it finds.
     body += "\nRun `/rhiza:docs` to write this properly.\n"
-    readme.write_text(body)
+    readme.write_text(body, encoding="utf-8")
     return True
 
 
@@ -95,6 +113,19 @@ def author_entry(owner: str, name: str | None, email: str | None) -> str:
 
     Falls back to *owner* when git reports no name: the gate needs a non-empty author,
     and the repo owner is the best fact available on a machine with no git identity.
+
+    >>> author_entry("Jebel-Quant", "Ada Lovelace", "ada@example.com")
+    'Ada Lovelace <ada@example.com>'
+
+    Either half of the git identity can be missing independently, so all three
+    degradations are reachable on a real machine:
+
+    >>> author_entry("Jebel-Quant", None, "team@example.com")
+    'Jebel-Quant <team@example.com>'
+    >>> author_entry("Jebel-Quant", "Ada Lovelace", None)
+    'Ada Lovelace'
+    >>> author_entry("Jebel-Quant", None, None)
+    'Jebel-Quant'
     """
     author = name or owner
     return f"{author} <{email}>" if email else author

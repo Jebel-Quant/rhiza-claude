@@ -34,7 +34,7 @@ def go_module_path(target: Path) -> str | None:
     manifest = target / "go.mod"
     if not manifest.is_file():
         return None
-    for line in manifest.read_text(errors="ignore").splitlines():
+    for line in manifest.read_text(encoding="utf-8", errors="ignore").splitlines():
         match = re.match(r"^\s*module\s+(\S+)", line)
         if match:
             return match.group(1)
@@ -85,7 +85,7 @@ def seed_package_doc(target: Path, *, description: str | None) -> str | None:
         if not summary.endswith("."):
             summary += "."
         body += f"//\n// {summary}\n"
-    (target / "doc.go").write_text(f"{body}package {package}\n")
+    (target / "doc.go").write_text(f"{body}package {package}\n", encoding="utf-8")
     return "doc.go"
 
 

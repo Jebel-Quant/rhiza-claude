@@ -66,7 +66,7 @@ def nav_targets(mkdocs: Path) -> set[str]:
     """
     if not mkdocs.is_file():
         return set()
-    text = mkdocs.read_text()
+    text = mkdocs.read_text(encoding="utf-8")
     start = _NAV_START.search(text)
     if start is None:
         return set()

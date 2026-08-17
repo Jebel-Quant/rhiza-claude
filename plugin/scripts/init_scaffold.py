@@ -115,7 +115,9 @@ def scaffold(
         skipped.append(".rhiza/template.yml")
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(render_template_yml(template_repo, ref, host, language, template_host))
+        path.write_text(
+            render_template_yml(template_repo, ref, host, language, template_host), encoding="utf-8"
+        )
         created.append(".rhiza/template.yml")
 
     return {

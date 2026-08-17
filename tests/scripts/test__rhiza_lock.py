@@ -36,7 +36,7 @@ def test_build_lock_includes_profiles() -> None:
 
 def test_write_lock_skips_unchanged(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     lock_path = tmp_path / "template.lock"
-    (tmp_path / "f.txt").write_text("x")
+    (tmp_path / "f.txt").write_text("x", encoding="utf-8")
     lock = rl.build_lock("sha1", Template("o/r", "v1", include=["f.txt"]), ["f.txt"], "t1")
     rl.write_lock(tmp_path, lock, lock_path)
     lock2 = rl.build_lock(
@@ -50,18 +50,18 @@ def test_write_lock_rewrites_when_existing_malformed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     lock_path = tmp_path / "template.lock"
-    lock_path.write_text("garbage")
-    (tmp_path / "f.txt").write_text("x")
+    lock_path.write_text("garbage", encoding="utf-8")
+    (tmp_path / "f.txt").write_text("x", encoding="utf-8")
     monkeypatch.setattr(rl, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
     lock = rl.build_lock("sha1", Template("o/r", "v1"), ["f.txt"], "t1")
     rl.write_lock(tmp_path, lock, lock_path)
     # dump_yaml is the real one; file should have been (re)written with our sha.
-    assert "sha: sha1" in lock_path.read_text()
+    assert "sha: sha1" in lock_path.read_text(encoding="utf-8")
 
 
 def test_write_lock_filters_missing_files(tmp_path: Path) -> None:
     lock_path = tmp_path / "template.lock"
-    (tmp_path / "present.txt").write_text("x")
+    (tmp_path / "present.txt").write_text("x", encoding="utf-8")
     lock = rl.build_lock("sha1", Template("o/r", "v1"), ["present.txt", "ghost.txt"], "t1")
     rl.write_lock(tmp_path, lock, lock_path)
     written = load_yaml(lock_path)
@@ -71,7 +71,7 @@ def test_write_lock_filters_missing_files(tmp_path: Path) -> None:
 def test_clean_orphaned_unlink_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (tmp_path / "orphan.txt").write_text("x")
+    (tmp_path / "orphan.txt").write_text("x", encoding="utf-8")
     monkeypatch.setattr(
         Path, "unlink", lambda self, *a, **k: (_ for _ in ()).throw(OSError("locked"))
     )
@@ -82,9 +82,9 @@ def test_clean_orphaned_unlink_error(
 def test_read_base_sha_variants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert rl.read_base_sha(tmp_path / "none.lock") is None
     lock = tmp_path / "template.lock"
-    lock.write_text("sha: abc\n")
+    lock.write_text("sha: abc\n", encoding="utf-8")
     assert rl.read_base_sha(lock) == "abc"
-    lock.write_text("ref: main\n")  # no sha
+    lock.write_text("ref: main\n", encoding="utf-8")  # no sha
     assert rl.read_base_sha(lock) is None
     monkeypatch.setattr(rl, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
     assert rl.read_base_sha(lock) is None
@@ -93,7 +93,7 @@ def test_read_base_sha_variants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
 def test_previously_tracked_variants(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert rl.previously_tracked(tmp_path / "none.lock") == set()
     lock = tmp_path / "template.lock"
-    lock.write_text("files:\n- a.txt\n- b.txt\n")
+    lock.write_text("files:\n- a.txt\n- b.txt\n", encoding="utf-8")
     assert rl.previously_tracked(lock) == {Path("a.txt"), Path("b.txt")}
     monkeypatch.setattr(rl, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
     assert rl.previously_tracked(lock) == set()
@@ -114,7 +114,7 @@ def test_the_pointer_is_protected_from_orphan_cleanup(tmp_path: Path) -> None:
     """
     pointer = tmp_path / ".rhiza" / "template.yml"
     pointer.parent.mkdir(parents=True)
-    pointer.write_text('repository: "o/r"\n')
+    pointer.write_text('repository: "o/r"\n', encoding="utf-8")
 
     # The pointer was tracked before and is not in the new template file set: an orphan by
     # every rule except the protection.
@@ -132,7 +132,7 @@ def test_an_excluded_orphan_does_not_stop_the_others_being_cleaned(tmp_path: Pat
     before `z-orphan`, so the bug only shows when the excluded file comes first.
     """
     for name in ("a-kept.txt", "z-orphan.txt"):
-        (tmp_path / name).write_text("x")
+        (tmp_path / name).write_text("x", encoding="utf-8")
 
     rl.clean_orphaned_files(
         tmp_path, [], {"a-kept.txt"}, {Path("a-kept.txt"), Path("z-orphan.txt")}
@@ -186,11 +186,11 @@ def test_a_rewrite_is_skipped_only_when_the_identity_really_matches(tmp_path: Pa
     path = tmp_path / ".rhiza" / "template.lock"
 
     rl.write_lock(tmp_path, rl.build_lock("sha1", template, [], "2026-01-01T00:00:00Z"), path)
-    first = path.read_text()
+    first = path.read_text(encoding="utf-8")
 
     # Same content, later timestamp → skipped, file untouched.
     rl.write_lock(tmp_path, rl.build_lock("sha1", template, [], "2026-06-06T00:00:00Z"), path)
-    assert path.read_text() == first
+    assert path.read_text(encoding="utf-8") == first
 
     # A different ref → rewritten.
     moved = Template("o/r", "v2", templates=["t"])

@@ -195,7 +195,14 @@ def run(target_dir: Path, action: str, *, dry_run: bool = False, **opts: Any) ->
         summary["notes"].append("dry run — nothing was executed")
         return summary
 
-    if shutil.which(command[0]) is None:
+    # Run the path `which` resolved, not the bare name again. On Windows the two are not
+    # the same question: `shutil.which` honours PATHEXT and so finds a `gh.cmd`/`glab.cmd`
+    # shim (how npm- and scoop-installed CLIs commonly arrive), while CreateProcess given
+    # a bare name only ever appends `.exe` — so the check passed and the call then failed
+    # with FileNotFoundError. Handing it the resolved path closes that gap, and matches
+    # what `_rhiza_forge.git_stdout` already does for git.
+    executable = shutil.which(command[0])
+    if executable is None:
         summary.update(
             exit_code=EXIT_CLI_FAILED,
             notes=[f"{command[0]} is not installed — do this step manually"],
@@ -203,7 +210,7 @@ def run(target_dir: Path, action: str, *, dry_run: bool = False, **opts: Any) ->
         return summary
 
     result = subprocess.run(  # nosec B603
-        command, cwd=str(target_dir), capture_output=True, text=True, check=False
+        [executable, *command[1:]], cwd=str(target_dir), capture_output=True, text=True, check=False
     )
     if result.returncode != 0:
         summary.update(
@@ -243,7 +250,7 @@ def resolve_body(target_dir: Path, body_file: str | None) -> str | None:
     candidate = target_dir / body_file
     if not candidate.is_file():
         candidate = Path(body_file)
-    return candidate.read_text() if candidate.is_file() else None
+    return candidate.read_text(encoding="utf-8") if candidate.is_file() else None
 
 
 def main(argv: list[str] | None = None) -> int:

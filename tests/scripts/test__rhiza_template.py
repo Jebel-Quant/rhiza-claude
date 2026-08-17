@@ -17,7 +17,7 @@ from _rhiza_common import SyncError
 class TestTemplate:
     def test_load_reads_fields(self, tmp_path):
         tf = tmp_path / "template.yml"
-        tf.write_text('repository: "o/r"\nref: v1\ninclude:\n  - Makefile\n')
+        tf.write_text('repository: "o/r"\nref: v1\ninclude:\n  - Makefile\n', encoding="utf-8")
         template = tmpl.load_template(tmp_path, tf)
         assert template.repository == "o/r"
         assert template.include == ["Makefile"]
@@ -47,7 +47,7 @@ def test_load_template_missing_file(tmp_path: Path) -> None:
 
 def test_load_template_unreadable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     tf = tmp_path / "template.yml"
-    tf.write_text("x")
+    tf.write_text("x", encoding="utf-8")
     monkeypatch.setattr(tmpl, "load_yaml", lambda _p: (_ for _ in ()).throw(ValueError("bad")))
     with pytest.raises(SyncError, match="Could not read"):
         tmpl.load_template(tmp_path, tf)
@@ -55,14 +55,14 @@ def test_load_template_unreadable(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 def test_load_template_missing_repository(tmp_path: Path) -> None:
     tf = tmp_path / "template.yml"
-    tf.write_text("ref: main\ninclude:\n  - x\n")
+    tf.write_text("ref: main\ninclude:\n  - x\n", encoding="utf-8")
     with pytest.raises(SyncError, match="template-repository is required"):
         tmpl.load_template(tmp_path, tf)
 
 
 def test_load_template_no_sources(tmp_path: Path) -> None:
     tf = tmp_path / "template.yml"
-    tf.write_text('repository: "o/r"\nref: main\n')
+    tf.write_text('repository: "o/r"\nref: main\n', encoding="utf-8")
     with pytest.raises(SyncError, match="at least one of"):
         tmpl.load_template(tmp_path, tf)
 

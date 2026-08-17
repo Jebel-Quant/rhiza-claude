@@ -128,7 +128,7 @@ def test_current_branch_reports_the_checked_out_branch(repo):
 
 def test_a_detached_head_is_no_branch(repo, tmp_path):
     """The caller wants "the request for the branch you are on" — there isn't one."""
-    (repo / "f.txt").write_text("x\n")
+    (repo / "f.txt").write_text("x\n", encoding="utf-8")
     _git(repo, "add", "f.txt")
     _git(repo, "-c", "user.email=t@e.test", "-c", "user.name=T", "commit", "-qm", "init")
     _git(repo, "checkout", "-q", "--detach", "HEAD")

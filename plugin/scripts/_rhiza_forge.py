@@ -59,6 +59,29 @@ def classify_host(host: str) -> str | None:
     Label-boundary matching, so ``github.com.evil.example`` — which embeds a known
     domain without being a subdomain of it — is not taken for GitHub. Self-hosted
     GitLab conventionally lives at ``gitlab.<company>.<tld>``.
+
+    The exact host, and a real subdomain of it:
+
+    >>> classify_host("github.com")
+    'github'
+    >>> classify_host("code.gitlab.com")
+    'gitlab'
+
+    Self-hosted GitLab, matched on the first label:
+
+    >>> classify_host("gitlab.acme.io")
+    'gitlab'
+
+    A host that *embeds* a known domain without being a subdomain of one is refused
+    rather than guessed at — this is the case the function exists for:
+
+    >>> classify_host("github.com.evil.example") is None
+    True
+
+    So is anything simply unrecognised:
+
+    >>> classify_host("bitbucket.org") is None
+    True
     """
     h = host.lower().rstrip(".")
     for domain, platform in _KNOWN_HOSTS.items():

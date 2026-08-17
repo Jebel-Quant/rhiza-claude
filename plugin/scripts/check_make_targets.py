@@ -81,7 +81,7 @@ def gate_targets(command_file: Path) -> list[str]:
     if not command_file.is_file():
         return []
     seen: list[str] = []
-    for target in _GATE.findall(command_file.read_text()):
+    for target in _GATE.findall(command_file.read_text(encoding="utf-8")):
         if target not in seen:
             seen.append(target)
     return seen
@@ -122,7 +122,7 @@ def makefile_chain(target_dir: Path, *, depth: int = _INCLUDE_DEPTH) -> list[Pat
         chain.append(path)
         if remaining <= 0:
             return
-        for operands in _INCLUDE.findall(path.read_text(errors="ignore")):
+        for operands in _INCLUDE.findall(path.read_text(encoding="utf-8", errors="ignore")):
             for operand in operands.split():
                 if "$" in operand:
                     continue
@@ -148,7 +148,9 @@ def documented_targets(target_dir: Path) -> dict[str, str]:
     """
     found: dict[str, str] = {}
     for makefile in makefile_chain(target_dir):
-        for name, description in _DOCUMENTED.findall(makefile.read_text(errors="ignore")):
+        for name, description in _DOCUMENTED.findall(
+            makefile.read_text(encoding="utf-8", errors="ignore")
+        ):
             found.setdefault(name, description.strip())
     return found
 

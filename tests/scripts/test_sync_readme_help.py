@@ -51,8 +51,8 @@ _README = textwrap.dedent(f"""\
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     """A repo with a `help` target and a README containing the marker + fence."""
-    (tmp_path / "Makefile").write_text(_MAKEFILE)
-    (tmp_path / "README.md").write_text(_README)
+    (tmp_path / "Makefile").write_text(_MAKEFILE, encoding="utf-8")
+    (tmp_path / "README.md").write_text(_README, encoding="utf-8")
     return tmp_path
 
 
@@ -61,20 +61,20 @@ def repo(tmp_path: Path) -> Path:
 
 def test_find_makefile_prefers_the_conventional_names(tmp_path):
     assert srh.find_makefile(tmp_path) is None
-    (tmp_path / "GNUmakefile").write_text("help:\n")
+    (tmp_path / "GNUmakefile").write_text("help:\n", encoding="utf-8")
     assert srh.find_makefile(tmp_path).name == "GNUmakefile"
 
 
 def test_has_help_target_asks_make_not_the_file(tmp_path):
     """Resolution is make's job, and a text scan gets it wrong both ways."""
     target = tmp_path / "Makefile"
-    target.write_text("help:\n\t@echo hi\n")
+    target.write_text("help:\n\t@echo hi\n", encoding="utf-8")
     assert srh.has_help_target(target)
-    target.write_text("test:\n\t@echo hi\n")
+    target.write_text("test:\n\t@echo hi\n", encoding="utf-8")
     assert not srh.has_help_target(target)
     # A default goal without a target is not resolvable, though a text scan for
     # `.DEFAULT_GOAL := help` would have claimed it was.
-    target.write_text(".DEFAULT_GOAL := help\n")
+    target.write_text(".DEFAULT_GOAL := help\n", encoding="utf-8")
     assert not srh.has_help_target(target)
 
 
@@ -86,10 +86,12 @@ def test_has_help_target_sees_through_an_include(tmp_path):
     exactly the repos the sync exists to serve.
     """
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "rhiza.mk").write_text("help:\n\t@echo from-the-include\n")
+    (tmp_path / ".rhiza" / "rhiza.mk").write_text(
+        "help:\n\t@echo from-the-include\n", encoding="utf-8"
+    )
     root = tmp_path / "Makefile"
-    root.write_text("include .rhiza/rhiza.mk\n")
-    assert "help:" not in root.read_text()  # not in the root at all
+    root.write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
+    assert "help:" not in root.read_text(encoding="utf-8")  # not in the root at all
     assert srh.has_help_target(root)
 
 
@@ -130,7 +132,7 @@ def test_refreshes_only_the_fenced_block(repo):
     result = srh.sync_readme_help(repo)
     assert result["status"] == "refreshed"
 
-    text = (repo / "README.md").read_text()
+    text = (repo / "README.md").read_text(encoding="utf-8")
     assert "test    run the tests" in text
     assert "fmt     format the code" in text
     assert "stale    old target list" not in text
@@ -143,68 +145,68 @@ def test_refreshes_only_the_fenced_block(repo):
 
 def test_is_idempotent(repo):
     srh.sync_readme_help(repo)
-    once = (repo / "README.md").read_text()
+    once = (repo / "README.md").read_text(encoding="utf-8")
 
     result = srh.sync_readme_help(repo)
 
     assert result["status"] == "unchanged"
-    assert (repo / "README.md").read_text() == once
+    assert (repo / "README.md").read_text(encoding="utf-8") == once
 
 
 def test_fills_an_empty_fence(repo):
     """A freshly scaffolded README has the marker and an empty block."""
-    (repo / "README.md").write_text(f"# widget\n\n{srh.MARKER}\n\n```\n```\n")
+    (repo / "README.md").write_text(f"# widget\n\n{srh.MARKER}\n\n```\n```\n", encoding="utf-8")
     assert srh.sync_readme_help(repo)["status"] == "refreshed"
-    assert "test    run the tests" in (repo / "README.md").read_text()
+    assert "test    run the tests" in (repo / "README.md").read_text(encoding="utf-8")
 
 
 def test_preserves_a_missing_trailing_newline(repo):
-    (repo / "README.md").write_text(_README.rstrip("\n"))
+    (repo / "README.md").write_text(_README.rstrip("\n"), encoding="utf-8")
     srh.sync_readme_help(repo)
-    assert not (repo / "README.md").read_text().endswith("\n")
+    assert not (repo / "README.md").read_text(encoding="utf-8").endswith("\n")
 
 
 # --- the no-op paths ---------------------------------------------------------
 
 
 def test_skips_when_there_is_no_readme(tmp_path):
-    (tmp_path / "Makefile").write_text(_MAKEFILE)
+    (tmp_path / "Makefile").write_text(_MAKEFILE, encoding="utf-8")
     result = srh.sync_readme_help(tmp_path)
     assert result["status"] == "skipped"
     assert "no README.md" in result["note"]
 
 
 def test_skips_when_there_is_no_makefile(tmp_path):
-    (tmp_path / "README.md").write_text(_README)
+    (tmp_path / "README.md").write_text(_README, encoding="utf-8")
     assert "no Makefile" in srh.sync_readme_help(tmp_path)["note"]
 
 
 def test_skips_when_the_makefile_has_no_help_target(tmp_path):
-    (tmp_path / "README.md").write_text(_README)
-    (tmp_path / "Makefile").write_text("test:\n\t@echo hi\n")
+    (tmp_path / "README.md").write_text(_README, encoding="utf-8")
+    (tmp_path / "Makefile").write_text("test:\n\t@echo hi\n", encoding="utf-8")
     assert "cannot resolve a `help` target" in srh.sync_readme_help(tmp_path)["note"]
 
 
 def test_skips_a_hand_written_readme_without_the_marker(repo):
     """The defining restraint: never invent a place to put the target list."""
     original = "# widget\n\nA hand-written README with no marker at all.\n"
-    (repo / "README.md").write_text(original)
+    (repo / "README.md").write_text(original, encoding="utf-8")
 
     result = srh.sync_readme_help(repo)
 
     assert result["status"] == "skipped"
     assert "marker" in result["note"]
-    assert (repo / "README.md").read_text() == original  # byte-for-byte
+    assert (repo / "README.md").read_text(encoding="utf-8") == original  # byte-for-byte
 
 
 def test_honours_a_custom_readme_name(repo):
     (repo / "README.md").unlink()
-    (repo / "docs.md").write_text(_README)
+    (repo / "docs.md").write_text(_README, encoding="utf-8")
     assert srh.sync_readme_help(repo, "docs.md")["status"] == "refreshed"
 
 
 def test_reports_a_failing_make_help(repo):
-    (repo / "Makefile").write_text(".DEFAULT_GOAL := help\nhelp:\n\t@exit 3\n")
+    (repo / "Makefile").write_text(".DEFAULT_GOAL := help\nhelp:\n\t@exit 3\n", encoding="utf-8")
     result = srh.sync_readme_help(repo)
     assert result["status"] == "failed"
     assert result["exit_code"] == srh.EXIT_MAKE_FAILED
@@ -235,7 +237,7 @@ def test_main_text_output_on_skip(tmp_path, capsys):
 
 
 def test_main_returns_2_when_make_help_fails(repo, capsys):
-    (repo / "Makefile").write_text(".DEFAULT_GOAL := help\nhelp:\n\t@exit 3\n")
+    (repo / "Makefile").write_text(".DEFAULT_GOAL := help\nhelp:\n\t@exit 3\n", encoding="utf-8")
     assert srh.main([str(repo)]) == srh.EXIT_MAKE_FAILED
     assert "failed" in capsys.readouterr().err
 
@@ -253,12 +255,13 @@ def test_e2e_docs_syncs_the_make_help_block(synced_repo_copy):
     repo = synced_repo_copy
     readme = repo / "README.md"
     readme.write_text(
-        f"# widget\n\nIntro that must survive.\n\n## Development\n\n{srh.MARKER}\n\n```\n```\n"
+        f"# widget\n\nIntro that must survive.\n\n## Development\n\n{srh.MARKER}\n\n```\n```\n",
+        encoding="utf-8",
     )
 
     first = srh.sync_readme_help(repo)
     assert first["status"] == "refreshed", first
-    body = readme.read_text()
+    body = readme.read_text(encoding="utf-8")
     assert "Intro that must survive." in body
     assert "\x1b[" not in body, "ANSI escapes leaked into the README"
     assert "Entering directory" not in body, "recursive-make chatter leaked in"
@@ -267,19 +270,19 @@ def test_e2e_docs_syncs_the_make_help_block(synced_repo_copy):
 
     second = srh.sync_readme_help(repo)
     assert second["status"] == "unchanged", "a second run must be a no-op"
-    assert readme.read_text() == body
+    assert readme.read_text(encoding="utf-8") == body
 
 
 def test_e2e_docs_leaves_a_marker_less_readme_alone(synced_repo_copy):
     """The README the /init chain produced has no marker — it must stay byte-identical."""
     readme = synced_repo_copy / "README.md"
-    before = readme.read_text()
+    before = readme.read_text(encoding="utf-8")
     assert srh.MARKER not in before, "fixture unexpectedly has the marker"
 
     result = srh.sync_readme_help(synced_repo_copy)
 
     assert result["status"] == "skipped"
-    assert readme.read_text() == before
+    assert readme.read_text(encoding="utf-8") == before
 
 
 # --- branch coverage: the arms line coverage could not see ---------------------

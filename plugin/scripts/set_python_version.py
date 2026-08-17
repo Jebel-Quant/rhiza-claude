@@ -130,12 +130,14 @@ def set_python_version(target: Path, *, python_version: str) -> dict[str, Any]:
         notes.append("pyproject.toml absent — nothing to retarget")
         return {"python_version": python_version, "modified": modified, "notes": notes}
     try:
-        new_text, changes = apply_python_metadata(pyproject.read_text(), python_version)
+        new_text, changes = apply_python_metadata(
+            pyproject.read_text(encoding="utf-8"), python_version
+        )
     except ValueError as exc:
         notes.append(f"pyproject.toml: {exc}")
         return {"python_version": python_version, "modified": modified, "notes": notes}
     if changes:
-        pyproject.write_text(new_text)
+        pyproject.write_text(new_text, encoding="utf-8")
         modified.append("pyproject.toml")
         notes.append("pyproject.toml: " + ", ".join(changes))
     else:

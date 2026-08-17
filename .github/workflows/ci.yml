@@ -189,6 +189,70 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Everything above runs on Linux, and until this job existed that was the whole of the
+  # evidence. The shipped scripts manipulate paths inside *other people's* repositories
+  # during /rhiza:init and /rhiza:update, and they carry deliberate cross-platform
+  # handling — `_rhiza_bundles.py` and `_rhiza_template.py` both normalise `\` to `/`
+  # before a path is checked or joined — that nothing was verifying. A POSIX-only
+  # assumption here escapes to a user's repo rather than failing in ours.
+  #
+  # It runs `make portable`, not `make test`: see that target's comment for why the e2e
+  # fixtures and the coverage gate stay a Linux concern.
+  cross-platform:
+    name: cross-platform (${{ matrix.os }})
+    # CI budget: ≤15 min. `make portable` measured 29s locally; the headroom is
+    # provisioning, which is slower on the macOS and Windows images than on ubuntu.
+    timeout-minutes: 15
+    strategy:
+      # Both legs always report. With fail-fast a Windows failure would cancel the macOS
+      # run, and those two results answer different questions — "broken on Windows" and
+      # "broken anywhere that isn't Linux" have different fixes.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Git Bash on the Windows runner, so one script works on all three platforms and
+        # GNU make finds a POSIX shell for the Makefile's `$(shell cat .python-version)`.
+        shell: bash
+    steps:
+      # No harden-runner here, deliberately: its egress policy is implemented for the
+      # Ubuntu images, so adding it to these two would read as coverage that isn't there.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        with:
+          version: '0.12.1'
+          # setup-uv's own cache rather than the actions/cache blocks the jobs above use:
+          # uv's cache directory differs per platform, and this hands that detail to the
+          # action instead of hardcoding three paths behind a matrix expression.
+          enable-cache: true
+
+      # Installed rather than assumed: GNU make is guaranteed on the Ubuntu and macOS
+      # images and is not something to depend on finding on the Windows one. choco is
+      # preinstalled there, and the install is a no-op if the image already ships it.
+      #
+      # The alternative — calling pytest directly on Windows — is the one thing not to
+      # do. The Makefile is the single definition of how the suite runs, and duplicating
+      # its command line is exactly the drift that cost this repo a silently unmeasured
+      # code path once already (see the `Run tests with coverage gate` step below).
+      - name: Install GNU make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress --yes
+
+      - name: Run the platform-portable test subset
+        run: make portable
+
   # A single required status check standing in front of the whole workflow. Branch
   # protection names this context and nothing else, so `lint` and `tests` can be
   # renamed, split or replaced without re-applying .github/rulesets/main-protection.json
@@ -202,7 +266,7 @@ jobs:
   ci-gate:
     name: ci-gate
     if: always()
-    needs: [lint, tests]
+    needs: [lint, tests, cross-platform]
     # CI budget: ≤5 min (it aggregates results; it runs nothing).
     timeout-minutes: 5
     runs-on: ubuntu-latest
@@ -212,15 +276,19 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Verify lint and tests both succeeded
+      - name: Verify every required job succeeded
         env:
           LINT: ${{ needs.lint.result }}
           TESTS: ${{ needs.tests.result }}
+          # One result for the whole matrix: GitHub collapses the legs into a single
+          # `needs` entry, so a red Windows leg fails this whether or not macOS passed.
+          CROSS: ${{ needs.cross-platform.result }}
         run: |
-          echo "lint:  $LINT"
-          echo "tests: $TESTS"
-          if [ "$LINT" != "success" ] || [ "$TESTS" != "success" ]; then
-            echo "::error::CI gate failed — lint=$LINT tests=$TESTS."
+          echo "lint:           $LINT"
+          echo "tests:          $TESTS"
+          echo "cross-platform: $CROSS"
+          if [ "$LINT" != "success" ] || [ "$TESTS" != "success" ] || [ "$CROSS" != "success" ]; then
+            echo "::error::CI gate failed — lint=$LINT tests=$TESTS cross-platform=$CROSS."
             exit 1
           fi
           echo "All required CI jobs succeeded."

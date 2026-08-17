@@ -47,7 +47,7 @@ def plugin_scripts() -> Path:
 def git_repo(tmp_path: Path) -> Path:
     """A minimal git repo skeleton: a `.git` dir and a `pyproject.toml`."""
     (tmp_path / ".git").mkdir()
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
     return tmp_path
@@ -58,7 +58,7 @@ def write_template(repo: Path, body: str) -> Path:
     rhiza = repo / ".rhiza"
     rhiza.mkdir(exist_ok=True)
     tmpl = rhiza / "template.yml"
-    tmpl.write_text(body)
+    tmpl.write_text(body, encoding="utf-8")
     return tmpl
 
 
@@ -130,12 +130,12 @@ class Repo:
         """Write *content* to *rel* (creating parents) and return the path."""
         target = self.path / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content)
+        target.write_text(content, encoding="utf-8")
         return target
 
     def read(self, rel: str) -> str:
         """Return the text of *rel*."""
-        return (self.path / rel).read_text()
+        return (self.path / rel).read_text(encoding="utf-8")
 
     def exists(self, rel: str) -> bool:
         """Return whether *rel* exists in the working tree."""
@@ -252,7 +252,9 @@ def unmanaged_repo(tmp_path: Path) -> Path:
     """
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.1.0"\n')
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -271,20 +273,20 @@ def managed_unsynced_repo(unmanaged_repo: Path, template_ref: str) -> Path:
 def managed_synced_repo(managed_unsynced_repo: Path) -> Path:
     """Rhiza-managed *and* synced: the makefile and lock the sync delivers are present."""
     rhiza = managed_unsynced_repo / ".rhiza"
-    (rhiza / "rhiza.mk").write_text(SYNCED_MAKEFILE)
+    (rhiza / "rhiza.mk").write_text(SYNCED_MAKEFILE, encoding="utf-8")
     (rhiza / "template.lock").write_text(
-        'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n  - Makefile\n'
+        'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n  - Makefile\n', encoding="utf-8"
     )
-    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
-    (managed_unsynced_repo / "ruff.toml").write_text('target-version = "py311"\n')
+    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
+    (managed_unsynced_repo / "ruff.toml").write_text('target-version = "py311"\n', encoding="utf-8")
     return managed_unsynced_repo
 
 
 @pytest.fixture
 def partial_profile_repo(managed_unsynced_repo: Path) -> Path:
     """A synced repo on a reduced profile, missing the tests-bundle gates."""
-    (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE)
-    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
+    (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE, encoding="utf-8")
+    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
     return managed_unsynced_repo
 
 
@@ -364,13 +366,15 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # real to measure.
     (repo / "src" / "widget" / "main.py").write_text(
         '"""Entry point for widget."""\n\n\ndef greeting() -> str:\n'
-        '    """Return the greeting."""\n    return "hello"\n'
+        '    """Return the greeting."""\n    return "hello"\n',
+        encoding="utf-8",
     )
     (repo / "tests" / "widget").mkdir(parents=True)
     (repo / "tests" / "widget" / "test_main.py").write_text(
         '"""Tests for widget.main."""\n\nfrom widget.main import greeting\n\n\n'
         'def test_greeting() -> None:\n    """The greeting is returned."""\n'
-        '    assert greeting() == "hello"\n'
+        '    assert greeting() == "hello"\n',
+        encoding="utf-8",
     )
 
     assert_ok(
@@ -717,3 +721,80 @@ def make_repo(tmp_path: Path, hermetic_git: None) -> Iterator[Callable[[str], Re
         return repo
 
     yield _make
+
+
+# --------------------------------------------------------------------------- #
+# Fake forge CLIs, cross-platform
+# --------------------------------------------------------------------------- #
+#
+# `test_platform_cli.py` and `test_pr_status.py` both need a fake `gh`/`glab` that
+# records its argv, so the assertion is "the CLI really was invoked, with these
+# arguments" rather than "our own code agrees with itself". Both used to write a
+# bash-shebang script named `gh` and put it on PATH — which works on POSIX and cannot
+# work on Windows, for two independent reasons:
+#
+#   * `CreateProcess` given a bare name only appends `.exe`, so an extensionless
+#     script is unreachable however PATH is set; and
+#   * a `.cmd` shim, the usual answer, re-expands its arguments through `cmd.exe`,
+#     which cannot carry an argument containing a newline — and the GitLab `pr-create`
+#     path passes exactly that, an inline multi-line `--description`.
+#
+# So the delivery mechanism differs by platform while the stub itself does not. POSIX
+# gets a real shebang script and a real `execve`. Windows routes the module's own
+# `shutil.which`/`subprocess.run` to the same stub through the interpreter: argv, exit
+# code and stdout are observed identically, one layer in rather than one process out.
+# What Windows does *not* prove is that PATH lookup works there — which is the shipped
+# code's `shutil.which` call, and is not what these tests are about.
+
+
+@pytest.fixture
+def stub_cli_installer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Callable[[str, str], Path]:
+    """Return ``install(name, body)`` putting a fake CLI named *name* on PATH.
+
+    *body* is the Python source of the stub, minus the shebang. It runs with the real
+    argv the code under test passed, so it can log `sys.argv[1:]`, print canned stdout
+    and choose an exit code.
+
+    A fixture rather than a plain helper so `tests/scripts/` can reach it: pytest injects
+    conftest fixtures by name, while importing a function from `conftest` would need
+    `tests/` on `sys.path`.
+    """
+    bin_dir = tmp_path / "stub-bin"
+    bin_dir.mkdir(exist_ok=True)
+    stubs: dict[str, Path] = {}
+
+    def install(name: str, body: str) -> Path:
+        impl = bin_dir / f"{name}_stub.py"
+        impl.write_text(f"#!{sys.executable}\n{body}", encoding="utf-8")
+        stubs[name] = impl
+        if os.name != "nt":
+            launcher = bin_dir / name
+            launcher.write_text(f"#!{sys.executable}\n{body}", encoding="utf-8")
+            launcher.chmod(0o755)
+        return impl
+
+    if os.name == "nt":
+        real_which, real_run = shutil.which, subprocess.run
+
+        def fake_which(cmd: str, *args: object, **kwargs: object) -> str | None:
+            """Resolve a stubbed name to its implementation; defer to the real one."""
+            if cmd in stubs:
+                return str(stubs[cmd])
+            return real_which(cmd, *args, **kwargs)  # type: ignore[arg-type]
+
+        def fake_run(command: object, *args: object, **kwargs: object) -> object:
+            """Run a stub through the interpreter; pass everything else straight on."""
+            if isinstance(command, list) and command:
+                first = str(command[0])
+                if first.endswith("_stub.py"):
+                    command = [sys.executable, *[str(c) for c in command]]
+            return real_run(command, *args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(shutil, "which", fake_which)
+        monkeypatch.setattr(subprocess, "run", fake_run)
+    else:
+        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    return install

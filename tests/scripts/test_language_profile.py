@@ -71,7 +71,7 @@ def test_resolve_returns_none_for_a_language_we_do_not_know():
 
 
 def test_an_explicit_language_wins(tmp_path):
-    (tmp_path / "go.mod").write_text("module x\n")
+    (tmp_path / "go.mod").write_text("module x\n", encoding="utf-8")
     language, reason = lp.detect(tmp_path, "rust")
     assert language is not None and language.name == "rust"
     assert "--language rust" in reason
@@ -79,9 +79,11 @@ def test_an_explicit_language_wins(tmp_path):
 
 def test_the_pointer_is_preferred_over_what_is_on_disk(tmp_path):
     """A repo mid-migration has both; the declaration is the intent."""
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("repository: o/r\nlanguage: go\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text(
+        "repository: o/r\nlanguage: go\n", encoding="utf-8"
+    )
     language, reason = lp.detect(tmp_path)
     assert language is not None and language.name == "go"
     assert "template.yml" in reason
@@ -92,7 +94,7 @@ def test_the_pointer_is_preferred_over_what_is_on_disk(tmp_path):
     [("pyproject.toml", "python"), ("go.mod", "go"), ("Cargo.toml", "rust")],
 )
 def test_falls_back_to_the_manifest_on_disk(tmp_path, manifest, expected):
-    (tmp_path / manifest).write_text("x\n")
+    (tmp_path / manifest).write_text("x\n", encoding="utf-8")
     language, reason = lp.detect(tmp_path)
     assert language is not None and language.name == expected
     assert manifest in reason
@@ -100,8 +102,8 @@ def test_falls_back_to_the_manifest_on_disk(tmp_path, manifest, expected):
 
 def test_a_crate_with_python_bindings_resolves_to_rust(tmp_path):
     """pyo3/maturin repos carry both manifests; Cargo.toml is what makes it a crate."""
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
-    (tmp_path / "Cargo.toml").write_text("[package]\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+    (tmp_path / "Cargo.toml").write_text("[package]\n", encoding="utf-8")
     language, _ = lp.detect(tmp_path)
     assert language is not None and language.name == "rust"
 
@@ -114,7 +116,7 @@ def test_an_unrecognisable_repo_is_unknown_rather_than_guessed(tmp_path):
 
 
 def test_an_explicit_language_we_do_not_know_is_not_silently_ignored(tmp_path):
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
     language, _ = lp.detect(tmp_path, "cobol")
     assert language is None
 
@@ -128,26 +130,28 @@ def test_declared_language_returns_none_without_a_pointer(tmp_path):
 
 def test_declared_language_returns_none_when_the_key_is_absent(tmp_path):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("repository: o/r\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text("repository: o/r\n", encoding="utf-8")
     assert lp.declared_language(tmp_path) is None
 
 
 def test_declared_language_strips_quotes(tmp_path):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text('language: "rust"\n')
+    (tmp_path / ".rhiza" / "template.yml").write_text('language: "rust"\n', encoding="utf-8")
     assert lp.declared_language(tmp_path) == "rust"
 
 
 def test_an_empty_language_value_reads_as_absent(tmp_path):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("language:\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text("language:\n", encoding="utf-8")
     assert lp.declared_language(tmp_path) is None
 
 
 def test_a_malformed_pointer_still_yields_the_language(tmp_path):
     """A broken `exclude:` block elsewhere must not hide the language."""
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("language: go\nexclude: [unclosed\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text(
+        "language: go\nexclude: [unclosed\n", encoding="utf-8"
+    )
     assert lp.declared_language(tmp_path) == "go"
 
 
@@ -155,7 +159,7 @@ def test_a_malformed_pointer_still_yields_the_language(tmp_path):
 
 
 def test_facts_fill_the_source_root_into_the_commands(tmp_path):
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
     data = lp.facts(lp.resolve("python"), tmp_path)
     assert data["manifest_present"] is True
     assert all("{src}" not in command for command in data["complexity"])
@@ -178,7 +182,7 @@ def test_only_python_claims_the_test_layout_rule():
 
 
 def test_main_reports_a_detected_language(tmp_path, capsys):
-    (tmp_path / "Cargo.toml").write_text("[package]\n")
+    (tmp_path / "Cargo.toml").write_text("[package]\n", encoding="utf-8")
     assert lp.main([str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert "language: rust" in out
@@ -186,7 +190,7 @@ def test_main_reports_a_detected_language(tmp_path, capsys):
 
 
 def test_main_emits_json(tmp_path, capsys):
-    (tmp_path / "go.mod").write_text("module x\n")
+    (tmp_path / "go.mod").write_text("module x\n", encoding="utf-8")
     assert lp.main([str(tmp_path), "--json"]) == 0
     assert '"language": "go"' in capsys.readouterr().out
 
@@ -230,9 +234,9 @@ def test_this_repo_is_detected_as_python_by_census(repo_root: Path):
 
 def test_a_declared_language_still_beats_the_census(tmp_path):
     """The census is last for a reason: it observes, the other three signals declare."""
-    (tmp_path / "main.go").write_text("package main\n")
+    (tmp_path / "main.go").write_text("package main\n", encoding="utf-8")
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("language: rust\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text("language: rust\n", encoding="utf-8")
     language, reason = lp.detect(tmp_path)
     assert language is not None and language.name == "rust"
     assert "census" not in reason
@@ -244,8 +248,8 @@ def test_a_declared_language_still_beats_the_census(tmp_path):
 def test_the_census_finds_a_clear_majority(tmp_path):
     """Three Python files and one Go file is a Python repo with a helper script."""
     for name in ("a.py", "b.py", "c.py"):
-        (tmp_path / name).write_text("")
-    (tmp_path / "tool.go").write_text("")
+        (tmp_path / name).write_text("", encoding="utf-8")
+    (tmp_path / "tool.go").write_text("", encoding="utf-8")
     found = lp.census(tmp_path)
     assert found is not None
     winner, counts = found
@@ -255,8 +259,8 @@ def test_the_census_finds_a_clear_majority(tmp_path):
 
 def test_the_census_refuses_a_plurality(tmp_path):
     """An even split is not a majority — better unknown than confidently wrong."""
-    (tmp_path / "a.py").write_text("")
-    (tmp_path / "b.go").write_text("")
+    (tmp_path / "a.py").write_text("", encoding="utf-8")
+    (tmp_path / "b.go").write_text("", encoding="utf-8")
     assert lp.census(tmp_path) is None
 
 
@@ -267,12 +271,12 @@ def test_the_census_counts_nothing_in_an_empty_repo(tmp_path):
 
 def test_the_census_ignores_vendored_and_generated_trees(tmp_path):
     """A Python virtualenv must not make a Go module look like a Python project."""
-    (tmp_path / "main.go").write_text("package main\n")
+    (tmp_path / "main.go").write_text("package main\n", encoding="utf-8")
     for skipped in ("node_modules", "venv", "__pycache__", ".git"):
         directory = tmp_path / skipped
         directory.mkdir()
         for index in range(5):
-            (directory / f"dep{index}.py").write_text("")
+            (directory / f"dep{index}.py").write_text("", encoding="utf-8")
     found = lp.census(tmp_path)
     assert found is not None
     assert found == ("go", {"go": 1})
@@ -282,15 +286,15 @@ def test_the_census_descends_into_real_subdirectories(tmp_path):
     """Pruning must not become 'only look at the top level'."""
     nested = tmp_path / "plugin" / "scripts"
     nested.mkdir(parents=True)
-    (nested / "deep.py").write_text("")
+    (nested / "deep.py").write_text("", encoding="utf-8")
     found = lp.census(tmp_path)
     assert found == ("python", {"python": 1})
 
 
 def test_a_repo_with_no_majority_is_still_unknown(tmp_path):
     """The census widens detection; it must not turn every repo into a guess."""
-    (tmp_path / "a.py").write_text("")
-    (tmp_path / "b.rs").write_text("")
+    (tmp_path / "a.py").write_text("", encoding="utf-8")
+    (tmp_path / "b.rs").write_text("", encoding="utf-8")
     language, reason = lp.detect(tmp_path)
     assert language is None
     assert "no clear majority" in reason
@@ -332,7 +336,9 @@ def test_e2e_the_pointer_wins_over_a_second_manifest(rust_crate, tmp_path):
     """
     copy = tmp_path / "widget"
     shutil.copytree(rust_crate, copy)
-    (copy / "pyproject.toml").write_text('[project]\nname = "widget"\nversion = "0.1.0"\n')
+    (copy / "pyproject.toml").write_text(
+        '[project]\nname = "widget"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
     language, reason = lp.detect(copy)
     assert language is not None and language.name == "rust", reason
 
@@ -341,7 +347,9 @@ def test_e2e_a_dual_manifest_crate_sniffs_as_rust_without_a_pointer(rust_crate, 
     """Same repo, pointer removed: the Cargo manifest is what makes it a crate."""
     copy = tmp_path / "widget"
     shutil.copytree(rust_crate, copy)
-    (copy / "pyproject.toml").write_text('[project]\nname = "widget"\nversion = "0.1.0"\n')
+    (copy / "pyproject.toml").write_text(
+        '[project]\nname = "widget"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
     (copy / ".rhiza" / "template.yml").unlink()
     language, reason = lp.detect(copy)
     assert language is not None and language.name == "rust"

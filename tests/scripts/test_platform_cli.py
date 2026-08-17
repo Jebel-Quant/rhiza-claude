@@ -15,7 +15,6 @@ against the CLI rather than against us.
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -37,7 +36,7 @@ def _git(repo: Path, *args: str) -> None:
 def repo(tmp_path: Path) -> Path:
     """A git repo with a body file and no remote yet."""
     _git(tmp_path, "init", "-q", "-b", "main")
-    (tmp_path / "BODY.md").write_text("## Summary\n\nbody\n")
+    (tmp_path / "BODY.md").write_text("## Summary\n\nbody\n", encoding="utf-8")
     return tmp_path
 
 
@@ -47,28 +46,28 @@ def _remote(repo: Path, url: str) -> None:
 
 
 @pytest.fixture
-def stub_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def stub_cli(tmp_path: Path, stub_cli_installer):
     """Put fake `gh`/`glab` on PATH that record their argv and print a URL.
 
     This is what the prose version could never have: a way to observe the invocation.
+    The stub is Python rather than bash so it runs on Windows too — see
+    `stub_cli_installer` in `tests/conftest.py` for why the delivery differs by platform.
     """
-    bin_dir = tmp_path / "stub-bin"
-    bin_dir.mkdir()
+    installer = stub_cli_installer
     log = tmp_path / "invocations.txt"
 
     def install(
         name: str, *, exit_code: int = 0, url: str = "https://example.test/1", stdout: str = ""
     ) -> None:
-        script = bin_dir / name
-        script.write_text(
-            "#!/usr/bin/env bash\n"
-            f'printf "%s\\n" "{name} $*" >> "{log}"\n'
-            f"{stdout or f'echo {url!r}'}\n"
-            f"exit {exit_code}\n"
+        installer(
+            name,
+            "import sys\n"
+            f"with open({str(log)!r}, 'a', encoding='utf-8') as fh:\n"
+            f"    fh.write({name!r} + ' ' + ' '.join(sys.argv[1:]) + '\\n')\n"
+            f"print({(stdout or url)!r})\n"
+            f"sys.exit({exit_code})\n",
         )
-        script.chmod(0o755)
 
-    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     install.log = log  # type: ignore[attr-defined]
     return install
 
@@ -294,7 +293,7 @@ def test_gitlab_invocation_is_actually_made(repo, stub_cli):
     assert result["exit_code"] == platform_cli.EXIT_OK
     assert result["platform"] == "gitlab"
     assert result["url"] == "https://gitlab.com/grp/proj/-/merge_requests/7"
-    invoked = stub_cli.log.read_text()
+    invoked = stub_cli.log.read_text(encoding="utf-8")
     assert "glab mr create" in invoked
     assert "--source-branch feat" in invoked
     assert "--description-file" not in invoked
@@ -309,7 +308,7 @@ def test_github_invocation_is_actually_made(repo, stub_cli):
     )
 
     assert result["url"] == "https://github.com/acme/widget/pull/3"
-    assert "gh pr create" in stub_cli.log.read_text()
+    assert "gh pr create" in stub_cli.log.read_text(encoding="utf-8")
 
 
 def test_issue_create_returns_the_issue_url(repo, stub_cli):
@@ -319,7 +318,7 @@ def test_issue_create_returns_the_issue_url(repo, stub_cli):
     result = platform_cli.run(repo, "issue-create", title="T", body_file="BODY.md", body=_BODY)
 
     assert result["url"] == "https://gitlab.com/grp/proj/-/issues/12"
-    assert "glab issue create" in stub_cli.log.read_text()
+    assert "glab issue create" in stub_cli.log.read_text(encoding="utf-8")
 
 
 def test_auth_status_succeeds_when_logged_in(repo, stub_cli):
@@ -329,7 +328,7 @@ def test_auth_status_succeeds_when_logged_in(repo, stub_cli):
     result = platform_cli.run(repo, "auth-status")
 
     assert result["exit_code"] == platform_cli.EXIT_OK
-    assert "gh auth status" in stub_cli.log.read_text()
+    assert "gh auth status" in stub_cli.log.read_text(encoding="utf-8")
 
 
 def test_auth_status_fails_when_logged_out(repo, stub_cli):
@@ -345,7 +344,7 @@ def test_auth_status_fails_when_logged_out(repo, stub_cli):
 
 def test_repo_view_parses_and_normalises_real_output(repo, stub_cli):
     _remote(repo, "https://gitlab.com/grp/proj.git")
-    stub_cli("glab", stdout='echo \'{"default_branch":"trunk","visibility":"private"}\'')
+    stub_cli("glab", stdout='{"default_branch":"trunk","visibility":"private"}')
 
     result = platform_cli.run(repo, "repo-view")
 
@@ -355,7 +354,7 @@ def test_repo_view_parses_and_normalises_real_output(repo, stub_cli):
 def test_repo_view_reports_non_json_output(repo, stub_cli):
     """A CLI that printed a warning instead of JSON must not read as "no default branch"."""
     _remote(repo, "https://github.com/acme/widget.git")
-    stub_cli("gh", stdout="echo 'not json at all'")
+    stub_cli("gh", stdout="not json at all")
 
     result = platform_cli.run(repo, "repo-view")
 
@@ -434,7 +433,7 @@ def test_resolve_body_reads_a_repo_relative_path(repo):
 
 def test_resolve_body_falls_back_to_a_path_outside_the_repo(repo, tmp_path):
     outside = tmp_path / "elsewhere.md"
-    outside.write_text("scratchpad body\n")
+    outside.write_text("scratchpad body\n", encoding="utf-8")
     assert platform_cli.resolve_body(repo, str(outside)) == "scratchpad body\n"
 
 
@@ -498,7 +497,7 @@ def test_main_reports_an_unsupported_action(repo, capsys):
 
 def test_main_prints_repo_view_data(repo, stub_cli, capsys):
     _remote(repo, "https://github.com/acme/widget.git")
-    stub_cli("gh", stdout='echo \'{"defaultBranchRef":{"name":"trunk"},"visibility":"PRIVATE"}\'')
+    stub_cli("gh", stdout='{"defaultBranchRef":{"name":"trunk"},"visibility":"PRIVATE"}')
 
     rc = platform_cli.main(["repo-view", "--target-dir", str(repo)])
 

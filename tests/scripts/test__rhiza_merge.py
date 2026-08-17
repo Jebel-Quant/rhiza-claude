@@ -106,11 +106,11 @@ def _merge(tmp_path: Path, *, base: str, local: str, upstream: str) -> dict[str,
     base_dir, upstream_dir, target = (tmp_path / n for n in ("base", "upstream", "target"))
     for directory in (base_dir, upstream_dir, target):
         directory.mkdir()
-    (base_dir / "f.txt").write_text(base)
-    (upstream_dir / "f.txt").write_text(upstream)
-    (target / "f.txt").write_text(local)
+    (base_dir / "f.txt").write_text(base, encoding="utf-8")
+    (upstream_dir / "f.txt").write_text(upstream, encoding="utf-8")
+    (target / "f.txt").write_text(local, encoding="utf-8")
     # A file the template does not own, to prove the merge stays inside its lane.
-    (target / "mine.txt").write_text("user-owned\n")
+    (target / "mine.txt").write_text("user-owned\n", encoding="utf-8")
 
     for args in (
         ["init", "-q", "-b", "main", "."],
@@ -126,10 +126,10 @@ def _merge(tmp_path: Path, *, base: str, local: str, upstream: str) -> dict[str,
     return {
         "outcome": outcome,
         "clean": outcome.clean,
-        "result": (target / "f.txt").read_text(),
+        "result": (target / "f.txt").read_text(encoding="utf-8"),
         "rejects": rejects,
         "markers": markers,
-        "mine": (target / "mine.txt").read_text(),
+        "mine": (target / "mine.txt").read_text(encoding="utf-8"),
         "untouched": not rejects and not markers,
         "considered": outcome.merged + outcome.conflicted + outcome.unmergeable + outcome.deleted,
     }
@@ -369,7 +369,7 @@ def test_a_deleted_file_is_removed_and_recorded(tmp_path):
     base, upstream = _trees(tmp_path, {"gone.txt": b"bye\n"}, {})
     target = tmp_path / "t"
     target.mkdir()
-    (target / "gone.txt").write_text("bye\n")
+    (target / "gone.txt").write_text("bye\n", encoding="utf-8")
 
     outcome = merge.merge_trees(_ctx(), target, base, upstream)
 
@@ -397,7 +397,7 @@ def test_a_file_missing_from_the_target_is_restored(tmp_path):
 
     outcome = merge.merge_trees(_ctx(), target, base, upstream)
 
-    assert (target / "f.txt").read_text() == "new\n"
+    assert (target / "f.txt").read_text(encoding="utf-8") == "new\n"
     assert outcome.merged == ["f.txt"]
 
 
@@ -433,7 +433,7 @@ def test_a_merge_file_refusal_is_classified_as_unmergeable(tmp_path, monkeypatch
     base, upstream = _trees(tmp_path, {"f.txt": b"old\n"}, {"f.txt": b"new\n"})
     target = tmp_path / "t"
     target.mkdir()
-    (target / "f.txt").write_text("local\n")
+    (target / "f.txt").write_text("local\n", encoding="utf-8")
     monkeypatch.setattr(merge.git, "merge_file", lambda *a: merge._MERGE_REFUSED)
 
     outcome = merge.merge_trees(_ctx(), target, base, upstream)
@@ -463,7 +463,7 @@ def test_the_refusal_code_is_the_literal_git_uses(tmp_path, monkeypatch):
     base, upstream = _trees(tmp_path, {"f.txt": b"old\n"}, {"f.txt": b"new\n"})
     target = tmp_path / "t"
     target.mkdir()
-    (target / "f.txt").write_text("local\n")
+    (target / "f.txt").write_text("local\n", encoding="utf-8")
     monkeypatch.setattr(merge.git, "merge_file", lambda *a: 255)
 
     outcome = merge.merge_trees(_ctx(), target, base, upstream)
@@ -476,7 +476,7 @@ def test_a_conflict_count_is_not_mistaken_for_a_refusal(tmp_path, monkeypatch):
     base, upstream = _trees(tmp_path, {"f.txt": b"old\n"}, {"f.txt": b"new\n"})
     target = tmp_path / "t"
     target.mkdir()
-    (target / "f.txt").write_text("local\n")
+    (target / "f.txt").write_text("local\n", encoding="utf-8")
     monkeypatch.setattr(merge.git, "merge_file", lambda *a: 1)
 
     outcome = merge.merge_trees(_ctx(), target, base, upstream)
@@ -536,7 +536,7 @@ def test_a_new_nested_file_gets_its_parent_directories(tmp_path):
     outcome = merge.merge_trees(_ctx(), target, base, upstream)
 
     assert outcome.merged == [".github/workflows/ci.yml"]
-    assert (target / ".github" / "workflows" / "ci.yml").read_text() == "on: push\n"
+    assert (target / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8") == "on: push\n"
 
 
 @pytest.mark.parametrize("binary_side", ["target", "upstream", "base"])

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError  # noqa: E402
+from _rhiza_common import SyncError, has_drive_letter  # noqa: E402
 from _rhiza_yaml import as_list, load_yaml  # noqa: E402
 
 _DEFAULT_BUNDLES_PATH = ".rhiza/template-bundles.yml"
@@ -58,7 +58,14 @@ class Template:
         if not self.repository:
             raise SyncError("template-repository is not configured in template.yml")
         # A full URL or local/file path (self-hosted or under test) is used verbatim.
-        if "://" in self.repository or self.repository.startswith(("/", "./", "../")):
+        # The Windows spellings are part of that set, not an afterthought: without them
+        # `C:/Users/dev/template` matched none of these prefixes and was pasted onto the
+        # GitHub base, so the sync tried to clone `https://github.com/C:/Users/... .git`.
+        if (
+            "://" in self.repository
+            or self.repository.startswith(("/", "./", "../", "\\", ".\\", "..\\"))
+            or has_drive_letter(self.repository)
+        ):
             return self.repository
         if self.host == "github":
             return f"https://github.com/{self.repository}.git"

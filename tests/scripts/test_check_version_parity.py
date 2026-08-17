@@ -9,11 +9,13 @@ import pytest
 def _write(root, plugin_ver, market_ver):
     plugin_dir = root / "plugin" / ".claude-plugin"
     plugin_dir.mkdir(parents=True)
-    (plugin_dir / "plugin.json").write_text(f'{{"name": "rhiza", "version": "{plugin_ver}"}}')
+    (plugin_dir / "plugin.json").write_text(
+        f'{{"name": "rhiza", "version": "{plugin_ver}"}}', encoding="utf-8"
+    )
     d = root / ".claude-plugin"
     d.mkdir()
     (d / "marketplace.json").write_text(
-        f'{{"plugins": [{{"name": "rhiza", "version": "{market_ver}"}}]}}'
+        f'{{"plugins": [{{"name": "rhiza", "version": "{market_ver}"}}]}}', encoding="utf-8"
     )
 
 
