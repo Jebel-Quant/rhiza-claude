@@ -26,6 +26,8 @@ anywhere. That has two consequences worth internalising before you touch anythin
 ```bash
 make help           # list every target
 make lint           # all prek hooks over every file
+make audit          # bandit over the scripts, zizmor over the workflows
+make complexity     # radon CC/MI over plugin/scripts — reports, never fails
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
 make mutate         # mutation-test the sync core (slow, scheduled — not in `make test`)
@@ -46,8 +48,8 @@ live in the target and in `.pre-commit-config.yaml`, so a direct `uvx ruff`/`uvx
 interrogate` invocation measures something else. CI runs these same targets.
 
 To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
-(`mypy`, `interrogate`, `test-layout`, `command-contracts`, `prompt-wiring`,
-`manifest-version-parity`).
+(`mypy`, `interrogate`, `doc-examples`, `test-layout`, `command-contracts`,
+`prompt-wiring`, `manifest-version-parity`).
 
 **The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
 config file keeps its `.pre-commit-config.yaml` name and schema — prek reads that format
@@ -123,13 +125,13 @@ Only the *source-checkout fallback* carries the prefix now — `plugin/scripts/<
 `plugin/scripts/_rhiza_layout.py` holds the one definition of where things live; the four
 checkers that span both halves import it rather than hardcoding `plugin/` or a layout.
 
-**`scripts/` is one gated tree, not a location.** Seven gates are scoped to
-`plugin/scripts/` — mypy, interrogate, subprocess-discipline, the 100% coverage floor, both
-radon bars, and `check_command_contracts`' script/flag resolution — and five of them fail
-*open*. Bundling a script inside a skill directory to make that skill self-contained would
-therefore drop it out of the bar rather than move it — which is why every script lives in
-`plugin/scripts/`, `maffay.py` included, however self-contained its skill looks. Changing
-that means widening all seven scopes deliberately, in its own PR.
+**`scripts/` is one gated tree, not a location.** Eight gates are scoped to
+`plugin/scripts/` — mypy, interrogate, doc-examples, subprocess-discipline, the 100%
+coverage floor, both radon bars, and `check_command_contracts`' script/flag resolution — and
+six of them fail *open*. Bundling a script inside a skill directory to make that skill
+self-contained would therefore drop it out of the bar rather than move it — which is why
+every script lives in `plugin/scripts/`, `maffay.py` included, however self-contained its
+skill looks. Changing that means widening all eight scopes deliberately, in its own PR.
 
 **Skills vs `prompts/` is the load-bearing distinction.** Procedures live outside every
 discovery location specifically so they cannot be invoked as slash commands — that's the
@@ -178,13 +180,16 @@ command ever names. Four families, plus the sync core:
 | `_doc_examples_*` | `check_doc_examples.py`'s two halves: the doctests under a source root, and the README's fenced blocks. They share only a verdict, so the dispatcher runs each independently — a repo with no source root still gets its README checked |
 
 Two consequences worth knowing before you move code. **The size and complexity bars are
-enforced by measurement, not taste** — no module over 500 lines, no block above
-cyclomatic C(12), every maintainability index ≥ 40 (`uvx radon cc plugin/scripts -s -n C`,
-`uvx radon mi plugin/scripts -s`). And the 1:1 test-layout rule binds these modules too,
-so extracting one is never a one-file change: it needs its own `test__<name>.py`.
+measured, not taste** — no module over 500 lines, no block above cyclomatic C(12), every
+maintainability index at A. `make complexity` reports both; it prints what it finds and
+exits 0, so it tells you where you stand rather than failing the build. Run it bare, as
+with every other target: only inside make does `UV_CONSTRAINT` bind, and a hand-run `uvx
+radon` measures with whatever release is current instead of the pinned one. And the 1:1
+test-layout rule binds these modules too, so extracting one is never a one-file change: it
+needs its own `test__<name>.py`.
 
 **Those bars stop at `plugin/scripts/`, and `tests/` is deliberately exempt.** Note the
-path in both commands: it is the scope, not an example. A `/rhiza:quality` run in
+path the target passes: it is the scope, not an example. A `/rhiza:quality` run in
 degraded mode measures the whole repo — the census reports `.` as the source root — so
 it will report what that exemption covers, and the numbers are not small:
 
@@ -217,6 +222,11 @@ that variable is empty, so prose should offer the repo-relative fallback.
 
 - **stdlib-only** — no third-party imports. The plugin must work with no install step.
 - **`mypy` strict** and **100% `interrogate` docstring coverage**.
+- **Docstring examples are executed** — the `doc-examples` hook runs every `>>>` under
+  `plugin/scripts/` with `doctest`, so an example that stops matching its output fails
+  the build. Coverage says a docstring exists; this says it is still true. Examples are
+  not required per module, but a wrong one is a defect, not a stale comment. Prefer them
+  on the pure helpers, where a reader gets the rule without needing a fixture.
 - **100% test coverage** — `make test` fails under 100%, so a new script is never a
   one-file change.
 - **`tests/` mirrors `scripts/` 1:1** — `check_test_layout.py` requires `test_<name>.py`

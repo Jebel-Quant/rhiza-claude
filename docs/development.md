@@ -90,11 +90,18 @@ make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts
 ```
 
-`make lint` runs every quality hook — mypy, interrogate (docstrings), the
-test-layout check, the manifest JSON/version-parity checks, and the three that
-gate the prose (`command-contracts`, `prompt-wiring`, `docs-nav`). To run a
-single one, use `uvx prek run <hook-id> --all-files` (e.g. `mypy`,
-`interrogate`, `test-layout`, `manifest-version-parity`, `docs-nav`).
+`make lint` runs every quality hook — mypy, interrogate (docstrings),
+`doc-examples` (the doctests inside them), the test-layout check, the manifest
+JSON/version-parity checks, and the three that gate the prose
+(`command-contracts`, `prompt-wiring`, `docs-nav`). To run a single one, use
+`uvx prek run <hook-id> --all-files` (e.g. `mypy`, `interrogate`,
+`doc-examples`, `test-layout`, `manifest-version-parity`, `docs-nav`).
+
+`interrogate` and `doc-examples` are a pair, and the split is the point:
+interrogate answers *is there a docstring?* and `doc-examples` answers *is what
+it claims still true?*, by executing the examples inside them and the fenced
+blocks in `README.md`. A repo can hold 100% docstring coverage while documenting
+nothing anyone can run, which is what the second hook exists to notice.
 
 The runner is [`prek`](https://prek.j178.dev/), a drop-in reimplementation of
 `pre-commit` in Rust. The config file keeps the `.pre-commit-config.yaml` name and

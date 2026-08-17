@@ -38,6 +38,14 @@ def table_span(lines: list[str], name: str) -> tuple[int, int] | None:
 
     ``end_idx`` is the index of the next table header, or ``len(lines)`` when *name* is
     the last table in the document — so ``lines[header + 1 : end]`` is always the body.
+
+    >>> lines = ["[project]", 'name = "demo"', "", "[tool.ruff]", "line-length = 100"]
+    >>> table_span(lines, "project")
+    (0, 3)
+    >>> lines[1:3]
+    ['name = "demo"', '']
+    >>> table_span(lines, "missing") is None
+    True
     """
     header = next((i for i, line in enumerate(lines) if line.strip() == f"[{name}]"), None)
     if header is None:
@@ -61,7 +69,11 @@ def require_table(lines: list[str], name: str, filename: str) -> tuple[int, int]
 
 
 def present_keys(lines: list[str], header: int, end: int) -> set[str]:
-    """Return the keys assigned in the table body bounded by *header* and *end*."""
+    """Return the keys assigned in the table body bounded by *header* and *end*.
+
+    >>> sorted(present_keys(["[project]", 'name = "demo"', "version = '0.1.0'"], 0, 3))
+    ['name', 'version']
+    """
     return {
         match.group(1)
         for line in lines[header + 1 : end]
@@ -75,6 +87,10 @@ def table_end(lines: list[str], header: int, end: int) -> int:
     The insertion point for a new key: inside the table, before whatever blank line
     separates it from the next header. Inserting at a raw *end* would put the key after
     that blank line — still inside the table as TOML reads it, but it looks detached.
+
+    >>> lines = ["[project]", 'name = "demo"', "", "[tool.ruff]"]
+    >>> table_end(lines, 0, 3)
+    2
     """
     while end > header + 1 and not lines[end - 1].strip():
         end -= 1
@@ -93,11 +109,16 @@ def append_table(lines: list[str], header: str, body: list[str]) -> None:
 
 
 def rejoin(original: str, lines: list[str]) -> str:
-    """Join *lines*, restoring whether *original* ended in a newline.
+    r"""Join *lines*, restoring whether *original* ended in a newline.
 
     Every editing function routes its return value through this. A manifest that did not
     end in a newline must not grow one — the resulting one-line diff would be noise in
     somebody else's PR.
+
+    >>> rejoin('name = "demo"\n', ["name = 'demo'", "version = '0.1.0'"])
+    "name = 'demo'\nversion = '0.1.0'\n"
+    >>> rejoin('name = "demo"', ["name = 'demo'", "version = '0.1.0'"])
+    "name = 'demo'\nversion = '0.1.0'"
     """
     text = "\n".join(lines)
     return text + "\n" if original.endswith("\n") else text
@@ -111,7 +132,7 @@ def merge_table(
     filename: str,
     required: bool = False,
 ) -> tuple[str, list[str]]:
-    """Add the keys of *wanted* that *table* does not already declare.
+    r"""Add the keys of *wanted* that *table* does not already declare.
 
     *wanted* maps a key to its **rendered** right-hand side — ``'"a string"'``, or
     whatever ``json.dumps`` produced — because callers differ on how a value should be
@@ -126,6 +147,20 @@ def merge_table(
     there. With *required* set, an absent table raises ValueError instead of being
     created — a `Cargo.toml` with no ``[package]`` is a virtual workspace, which is a
     situation to report rather than a table to add.
+
+    The key already there is the user's and survives; only the absent one is written, at
+    the end of the body:
+
+    >>> text = '[package]\nname = "demo"\n'
+    >>> new, added = merge_table(
+    ...     text, "package", {"name": '"other"', "edition": '"2021"'}, filename="Cargo.toml"
+    ... )
+    >>> added
+    ['edition']
+    >>> print(new, end="")
+    [package]
+    name = "demo"
+    edition = "2021"
     """
     lines = text.splitlines()
     span = table_span(lines, table)
@@ -151,7 +186,7 @@ def set_key(
     filename: str,
     replaceable: Callable[[str], bool],
 ) -> tuple[str, bool]:
-    """Set a single *key* in *table* to *rendered*; return ``(new_text, changed)``.
+    r"""Set a single *key* in *table* to *rendered*; return ``(new_text, changed)``.
 
     Unlike :func:`merge_table` this one *replaces* — but only when the value already
     there is a placeholder the initialiser wrote, which is what *replaceable* decides
@@ -164,6 +199,27 @@ def set_key(
     them.
 
     Raises ValueError when *table* is absent — there would be nowhere to put the key.
+
+    >>> placeholder = lambda current: "Add your description" in current
+    >>> text = '[project]\nname = "demo"\ndescription = "Add your description here"\n'
+    >>> new, changed = set_key(
+    ...     text, "project", "description", '"Drives rhiza"',
+    ...     filename="pyproject.toml", replaceable=placeholder,
+    ... )
+    >>> changed
+    True
+    >>> print(new, end="")
+    [project]
+    name = "demo"
+    description = "Drives rhiza"
+
+    Run again, the value is no longer a placeholder — so it is the user's, and it stays:
+
+    >>> set_key(
+    ...     new, "project", "description", '"Something else"',
+    ...     filename="pyproject.toml", replaceable=placeholder,
+    ... )[1]
+    False
     """
     lines = text.splitlines()
     header, end = require_table(lines, table, filename)

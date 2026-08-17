@@ -75,6 +75,24 @@ repos:
         language: system
         pass_filenames: false
         files: '^plugin/scripts/.*\.py$'
+      # The other half of the hook above, and the reason it needed one: interrogate
+      # answers "is there a docstring?", never "is what it claims still true?". A repo
+      # can hold a perfect coverage number while documenting nothing anyone can run.
+      # This executes the doctests, so an example that stops matching its output fails
+      # here rather than misleading the next reader.
+      #
+      # Scoped to `plugin/scripts`, not `.`: with the repo root as the source root the
+      # runner also imports `paper/render_figures.py`, which needs Pillow and comes back
+      # permanently "unimportable" — a standing note that would mask the real one. It
+      # picks up README.md too, which is where the fence check lives.
+      - id: doc-examples
+        name: doctest examples still evaluate to what they claim
+        entry: >-
+          uv run --python 3.12 --no-project python
+          plugin/scripts/check_doc_examples.py --source-root plugin/scripts --run
+        language: system
+        pass_filenames: false
+        files: '^(plugin/scripts/.*\.py|README\.md)$'
       - id: test-layout
         name: test layout mirrors sources (1:1 files + Test classes)
         # --src is the *plugin* root, not plugin/scripts: the checker mirrors nested

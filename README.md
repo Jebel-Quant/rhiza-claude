@@ -56,7 +56,7 @@ repo.
 
 ## Install
 
-```
+```text
 /plugin marketplace add Jebel-Quant/rhiza-claude
 /plugin install rhiza@rhiza-claude
 ```
@@ -79,7 +79,7 @@ append that version's git tag as a `#<ref>` suffix when you add the marketplace
 (see the [releases page](https://github.com/Jebel-Quant/rhiza-claude/releases)
 for available tags):
 
-```
+```text
 /plugin marketplace add Jebel-Quant/rhiza-claude#v0.10.0
 /plugin install rhiza@rhiza-claude
 ```
@@ -96,7 +96,7 @@ is added, `/plugin install` uses whatever ref it points at. To switch versions,
 remove the marketplace and re-add it at the tag you want, which works in either
 direction — an older release as readily as a newer one:
 
-```
+```text
 /plugin marketplace remove rhiza-claude
 /plugin marketplace add Jebel-Quant/rhiza-claude#<tag>
 ```

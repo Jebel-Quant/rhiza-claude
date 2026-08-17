@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test e2e mutate book book-serve paper paper-figures clean changelog
+.PHONY: help install lint audit complexity test e2e mutate book book-serve paper paper-figures clean changelog
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -50,6 +50,23 @@ lint:  ## Run all prek hooks against every file
 audit:  ## Security-audit the bundled scripts (bandit) and the workflows (zizmor)
 	uvx bandit -q -r plugin/scripts
 	uvx zizmor --persona=regular --min-severity=medium .github/workflows/
+
+# The complexity bars this repo states as its own: no block above cyclomatic C(12), every
+# maintainability index at A. Scoped to `plugin/scripts/` because that is the scope of the
+# bar — `tests/` is exempt, and CLAUDE.md records the six C-grade blocks living there and
+# why they stay.
+#
+# **A report, not a gate.** `radon cc -n C` prints what it finds and exits 0 either way,
+# so this target tells you where you stand; it does not turn a PR red. Making it fail
+# needs a thresholding wrapper (xenon or equivalent) and is its own decision.
+#
+# It exists as a *target* rather than as two commands in prose for the reason every other
+# `uvx` call here is a target: only inside make does UV_CONSTRAINT bind, so the version is
+# the one requirements-dev.txt names. A hand-run `uvx radon` outside make resolves whatever
+# release is current, which is how two people read different numbers off the same commit.
+complexity:  ## Report cyclomatic complexity and maintainability index for plugin/scripts
+	uvx radon cc plugin/scripts -s -n C
+	uvx radon mi plugin/scripts -s
 
 # PyYAML is a *test* dependency only — the bundled scripts stay stdlib-only at runtime.
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:

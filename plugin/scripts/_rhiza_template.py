@@ -85,6 +85,11 @@ def normalise_excludes(entries: list[str]) -> set[str]:
     made bundle-sourced exclusions vanish: a destination path need not exist at the clone
     root at all — under a sparse checkout of ``bundles/…`` it usually does not — and an
     entry that failed to resolve was dropped silently rather than honoured.
+
+    The repo's own pointer at the template is always in the set, whatever the config says:
+
+    >>> sorted(normalise_excludes(["docs/", "./Makefile", "   "]))
+    ['.rhiza/template.yml', 'Makefile', 'docs']
     """
     result = {
         cleaned
@@ -103,6 +108,15 @@ def is_excluded(dest: str, excludes: set[str]) -> bool:
     The directory case has to be matched by prefix rather than by expanding the directory
     into its files, which is what :func:`normalise_excludes` used to do against the clone.
     Once matching moves to destination paths there is no directory on disk to expand.
+
+    The prefix carries the separator, so a directory covers what is under it without a
+    sibling whose name merely starts the same way being swept in:
+
+    >>> excludes = normalise_excludes(["docs"])
+    >>> is_excluded("docs", excludes), is_excluded("docs/index.md", excludes)
+    (True, True)
+    >>> is_excluded("docsite/index.md", excludes)
+    False
     """
     return dest in excludes or any(dest.startswith(f"{entry}/") for entry in excludes)
 
