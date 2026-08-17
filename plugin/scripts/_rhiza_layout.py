@@ -68,6 +68,17 @@ def command_files(root: Path) -> list[tuple[str, Path]]:
     A name claimed by both layouts is returned twice rather than silently deduplicated;
     ``check_command_contracts.py`` reports it, because which file wins at runtime is not
     something this repo should be resting on.
+
+    The directory is the command, and every skill's file has the same basename — which is
+    why nothing may resolve a command by its path:
+
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as tmp:
+    ...     skill = Path(tmp) / SKILLS_DIR / "init"
+    ...     skill.mkdir(parents=True)
+    ...     _ = (skill / SKILL_FILE).write_text("stub")
+    ...     command_files(Path(tmp))[0][0]
+    'init'
     """
     found = [(path.stem, path) for path in (root / COMMANDS_DIR).glob("*.md")]
     found += [(path.parent.name, path) for path in (root / SKILLS_DIR).glob(f"*/{SKILL_FILE}")]

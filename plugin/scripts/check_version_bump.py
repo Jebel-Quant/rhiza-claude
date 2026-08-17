@@ -58,6 +58,19 @@ def parse_semver(raw: str) -> tuple[Any, ...]:
 
     The prerelease component orders a release **above** its own pre-releases, per
     semver §11, by giving a bare release a higher leading marker than any prerelease.
+
+    >>> parse_semver("v1.2.3") > parse_semver("v1.2.3-rc.1")
+    True
+    >>> parse_semver("v1.2.3-rc.2") > parse_semver("v1.2.3-rc.10")
+    False
+
+    Anything not semver-shaped raises rather than sorting somewhere arbitrary:
+
+    >>> try:
+    ...     parse_semver("nightly")
+    ... except VersionError as exc:
+    ...     print(exc)
+    'nightly' is not a semver version (expected vX.Y.Z)
     """
     match = _SEMVER.match(raw.strip())
     if match is None:
@@ -74,7 +87,24 @@ def parse_semver(raw: str) -> tuple[Any, ...]:
 
 
 def compare(left: str, right: str) -> int:
-    """Return -1, 0 or 1 comparing two version strings as semver."""
+    """Return -1, 0 or 1 comparing two version strings as semver.
+
+    The case a lexical sort gets wrong, which is the whole reason this is not a string
+    comparison:
+
+    >>> compare("v1.10.0", "v1.9.0")
+    1
+    >>> "v1.10.0" > "v1.9.0"
+    False
+
+    A pre-release sorts below its own release, and build metadata is ignored for
+    ordering:
+
+    >>> compare("1.0.0-rc1", "1.0.0")
+    -1
+    >>> compare("v2.0.0", "2.0.0+build.5")
+    0
+    """
     a, b = parse_semver(left), parse_semver(right)
     return (a > b) - (a < b)
 
@@ -108,6 +138,11 @@ def compute_floor(current: str, tags: list[str]) -> str:
     The current version alone is not enough: a repo can carry a version lower than its
     newest tag (a reverted bump, a hand-edited manifest), and releasing from that would
     silently reuse a tag.
+
+    >>> compute_floor("0.9.0", ["v1.10.0", "v1.9.0"])
+    'v1.10.0'
+    >>> compute_floor("1.2.0", [])
+    'v1.2.0'
     """
     floor = f"v{current.lstrip('v')}"
     for tag in tags:
@@ -124,6 +159,9 @@ def suggest(floor: str) -> dict[str, str]:
     special case: a breaking change at ``0.x`` derives ``v1.0.0``, which spends the
     1.0 signal on a project that may not be ready for it. Showing ``v0.5.0`` beside it
     makes that choice explicit instead of implicit.
+
+    >>> suggest("v0.10.0")
+    {'patch': 'v0.10.1', 'minor': 'v0.11.0', 'major': 'v1.0.0'}
     """
     major, minor, patch, *_ = parse_semver(floor)
     return {

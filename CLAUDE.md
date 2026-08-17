@@ -48,8 +48,8 @@ live in the target and in `.pre-commit-config.yaml`, so a direct `uvx ruff`/`uvx
 interrogate` invocation measures something else. CI runs these same targets.
 
 To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
-(`mypy`, `interrogate`, `test-layout`, `command-contracts`, `prompt-wiring`,
-`manifest-version-parity`).
+(`mypy`, `interrogate`, `doc-examples`, `test-layout`, `command-contracts`,
+`prompt-wiring`, `manifest-version-parity`).
 
 **The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
 config file keeps its `.pre-commit-config.yaml` name and schema — prek reads that format
@@ -125,13 +125,13 @@ Only the *source-checkout fallback* carries the prefix now — `plugin/scripts/<
 `plugin/scripts/_rhiza_layout.py` holds the one definition of where things live; the four
 checkers that span both halves import it rather than hardcoding `plugin/` or a layout.
 
-**`scripts/` is one gated tree, not a location.** Seven gates are scoped to
-`plugin/scripts/` — mypy, interrogate, subprocess-discipline, the 100% coverage floor, both
-radon bars, and `check_command_contracts`' script/flag resolution — and five of them fail
-*open*. Bundling a script inside a skill directory to make that skill self-contained would
-therefore drop it out of the bar rather than move it — which is why every script lives in
-`plugin/scripts/`, `maffay.py` included, however self-contained its skill looks. Changing
-that means widening all seven scopes deliberately, in its own PR.
+**`scripts/` is one gated tree, not a location.** Eight gates are scoped to
+`plugin/scripts/` — mypy, interrogate, doc-examples, subprocess-discipline, the 100%
+coverage floor, both radon bars, and `check_command_contracts`' script/flag resolution — and
+six of them fail *open*. Bundling a script inside a skill directory to make that skill
+self-contained would therefore drop it out of the bar rather than move it — which is why
+every script lives in `plugin/scripts/`, `maffay.py` included, however self-contained its
+skill looks. Changing that means widening all eight scopes deliberately, in its own PR.
 
 **Skills vs `prompts/` is the load-bearing distinction.** Procedures live outside every
 discovery location specifically so they cannot be invoked as slash commands — that's the
@@ -222,6 +222,11 @@ that variable is empty, so prose should offer the repo-relative fallback.
 
 - **stdlib-only** — no third-party imports. The plugin must work with no install step.
 - **`mypy` strict** and **100% `interrogate` docstring coverage**.
+- **Docstring examples are executed** — the `doc-examples` hook runs every `>>>` under
+  `plugin/scripts/` with `doctest`, so an example that stops matching its output fails
+  the build. Coverage says a docstring exists; this says it is still true. Examples are
+  not required per module, but a wrong one is a defect, not a stale comment. Prefer them
+  on the pure helpers, where a reader gets the rule without needing a fixture.
 - **100% test coverage** — `make test` fails under 100%, so a new script is never a
   one-file change.
 - **`tests/` mirrors `scripts/` 1:1** — `check_test_layout.py` requires `test_<name>.py`
