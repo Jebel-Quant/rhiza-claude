@@ -191,7 +191,10 @@ def check_workflows(root: Path) -> list[str]:
     """
     pins: list[Pin] = []
     for path in sorted(root.rglob("*.yml")) + sorted(root.rglob("*.yaml")):
-        pins += collect_pins(path, path.name if path.parent == root else str(path.relative_to(root)))
+        # `as_posix`, not `str`: the relative path goes into the violation messages, and on
+        # Windows `str` spells it `shared\action.yaml` — a workflow path with a separator no
+        # workflow file uses. A direct child comes back as its bare name either way.
+        pins += collect_pins(path, path.relative_to(root).as_posix())
     return _unpinned_violations(pins) + _parity_violations(pins) + _uv_input_violations(pins)
 
 

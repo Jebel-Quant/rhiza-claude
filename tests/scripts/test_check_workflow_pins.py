@@ -158,8 +158,7 @@ def test_the_next_step_is_not_read_as_this_step(workflows):
         workflows,
         "book.yml",
         _job(
-            _uv_step(version=None)
-            + f"      - uses: actions/setup-node@{_OTHER_SHA} # v7.0.0\n"
+            _uv_step(version=None) + f"      - uses: actions/setup-node@{_OTHER_SHA} # v7.0.0\n"
             "        with:\n          version: '0.12.1'\n"
         ),
     )
@@ -185,7 +184,12 @@ def test_python_version_is_not_the_uv_version(workflows):
 
 
 def test_a_composite_action_beside_the_workflows_is_scanned(workflows):
-    """Moving a pin into a composite action must not be a way to leave the gate."""
+    """Moving a pin into a composite action must not be a way to leave the gate.
+
+    The forward slash in the expected path is the assertion, not an accident: this is the
+    only violation that carries a nested path, and `str(Path)` spelled it
+    `shared\\action.yaml` on Windows until the reporter switched to `as_posix`.
+    """
     nested = workflows / "shared"
     _workflow(
         nested,
@@ -213,13 +217,16 @@ def test_an_empty_directory_is_vacuously_clean(tmp_path):
 
 
 class TestPin:
-    def test_repository_drops_a_subpath(self):
-        assert cwp.Pin("actions/cache/save", _SHA, "v6.1.0", "ci.yml:1").repository == "actions/cache"
-
-    def test_repository_keeps_a_plain_action(self):
-        assert cwp.Pin("astral-sh/setup-uv", _SHA, "v10.0.0", "ci.yml:1").repository == (
-            "astral-sh/setup-uv"
-        )
+    @pytest.mark.parametrize(
+        ("action", "repository"),
+        [
+            ("actions/cache/save", "actions/cache"),
+            ("github/codeql-action/init", "github/codeql-action"),
+            ("astral-sh/setup-uv", "astral-sh/setup-uv"),
+        ],
+    )
+    def test_repository_drops_any_subpath(self, action, repository):
+        assert cwp.Pin(action, _SHA, "v1.0.0", "ci.yml:1").repository == repository
 
     def test_a_step_without_a_with_block_has_no_version_input(self, workflows):
         path = _workflow(
