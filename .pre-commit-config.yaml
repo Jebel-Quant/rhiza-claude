@@ -63,6 +63,17 @@ repos:
         language: system
         pass_filenames: false
         files: '^(plugin/\.claude-plugin/plugin|\.claude-plugin/marketplace)\.json$'
+      # The same shape as the parity hook above, one layer out: the manifests must agree
+      # about the plugin version, and the workflows must agree about the versions they
+      # pin. Both failures are invisible to review — a stale `# v7.1.1` comment beside a
+      # bumped SHA reads as a pin, and a missing `version:` input reads as one job's
+      # formatting. Dependabot watches the action SHAs and cannot see either.
+      - id: workflow-pins
+        name: workflow action pins and the uv version input agree
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_workflow_pins.py
+        language: system
+        pass_filenames: false
+        files: '^\.github/(workflows|actions)/.*\.ya?ml$'
       - id: mypy
         name: mypy (strict type check of scripts/)
         entry: uvx mypy

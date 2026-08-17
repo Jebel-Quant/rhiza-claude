@@ -48,8 +48,12 @@ jobs:
       # PATH before prek runs, or every local hook fails.
       #
       # uv is pinned rather than floated so a uv release cannot change what CI measures
-      # without a commit saying so. Note that Dependabot updates the *action* pin above
-      # but not this input — bumping it is manual, via `uv self version` locally.
+      # without a commit saying so. Dependabot updates the *action* pin above but not this
+      # input, so bumping it stays manual (`uv self version` locally) — what is no longer
+      # manual is noticing that it needs to happen everywhere at once. The `workflow-pins`
+      # hook fails the build unless every `setup-uv` call site passes this input and all of
+      # them agree, which is the check that was missing while `auto-tag.yml` shipped with no
+      # pin at all. Seven sites, one value: edit them together.
       - name: Install uv
         uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
         with:
