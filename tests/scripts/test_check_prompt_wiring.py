@@ -108,7 +108,9 @@ def test_flags_a_dangling_reference(plugin):
         "`Read` prompts/gone.md and follow it.\n", encoding="utf-8"
     )
     violations = cw.check_wiring(plugin)
-    assert any("references missing prompts/gone.md" in v for v in violations)
+    # The offending file is named, not just the missing target: a violation that says only
+    # what is missing leaves the reader grepping for who asked for it.
+    assert "plugin/commands/init.md references missing prompts/gone.md" in violations
 
 
 def test_checks_references_in_root_markdown_too(plugin):
@@ -251,6 +253,40 @@ def test_an_exemption_covers_only_the_directory_it_names(plugin):
     assert not any("refers to hooks/" in v for v in violations)
 
 
+@pytest.mark.parametrize("directory", ["agents", "bin", "commands", "hooks", "monitors", "skills"])
+def test_every_discovery_location_is_gated(directory, tmp_path):
+    """Each of the six names Claude Code scans for, spelled out one by one.
+
+    Deliberately **not** parametrized over `cw._DISCOVERY_DIRS`: iterating the constant
+    under test means a name quietly dropped from it also drops out of this test, which is
+    how a rule ends up gating five of six directories while looking fully covered. Mutation
+    testing found exactly that — four of the six entries could be corrupted with the suite
+    still green.
+
+    A bare root is used rather than the `plugin` fixture because the fixture creates
+    `commands/`, and a directory that exists is a true claim rule 6 must leave alone.
+    """
+    (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True)
+    (tmp_path / layout.PROMPTS_DIR / "skeleton.md").write_text(
+        _procedure(f"`prompts/`, not `{directory}/`"), encoding="utf-8"
+    )
+    violations = cw.check_wiring(tmp_path)
+    assert any(f"refers to {directory}/, which this plugin does not have" in v for v in violations)
+
+
+def test_a_dead_path_in_every_file_is_reported(plugin):
+    """The accumulator must be `+=`: with `=`, only the last file's violations survive."""
+    (plugin / layout.PROMPTS_DIR / "one.md").write_text(
+        _procedure("`prompts/`, not `agents/`") + "\nSee prompts/two.md.\n", encoding="utf-8"
+    )
+    (plugin / layout.PROMPTS_DIR / "two.md").write_text(
+        _procedure("`prompts/`, not `monitors/`") + "\nSee prompts/one.md.\n", encoding="utf-8"
+    )
+    violations = cw.check_wiring(plugin)
+    assert any("one.md refers to agents/" in v for v in violations)
+    assert any("two.md refers to monitors/" in v for v in violations)
+
+
 def test_repo_level_prose_may_name_an_absent_directory(plugin):
     """CLAUDE.md documents the layout *including what is gone*; that is not a violation."""
     (plugin / "CLAUDE.md").write_text(
@@ -273,6 +309,18 @@ def test_a_root_without_a_prompts_directory_is_vacuously_sound(tmp_path):
 def test_main_passes_on_a_sound_root(plugin, capsys):
     assert cw.main(["--root", str(plugin)]) == 0
     assert "prompt wiring is sound" in capsys.readouterr().out
+
+
+def test_main_defaults_to_the_working_directory(plugin, monkeypatch, capsys):
+    """The hook passes no `--root`, so a broken default would gate nothing at all.
+
+    Mutation testing found the default could be changed to any string: the checker then
+    reads an empty root, finds no procedures, and reports success.
+    """
+    (plugin / layout.PROMPTS_DIR / "stray.md").write_text(_INTERNAL, encoding="utf-8")
+    monkeypatch.chdir(plugin)
+    assert cw.main([]) == 1
+    assert "is never referenced" in capsys.readouterr().err
 
 
 def test_main_reports_each_violation(plugin, capsys):

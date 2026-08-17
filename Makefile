@@ -120,9 +120,20 @@ portable:  ## Run the unit tests without e2e or the coverage gate (the cross-pla
 # `None` and `tests/scripts/test__rhiza_lock.py` still passes — only `test_sync.py`
 # catches it.
 #
-# Scoped to the three modules that decide what lands in a *user's* repository during
-# `/rhiza:update`, because a surviving mutant there is the costliest kind. A full-tree run
-# is slow enough to get switched off, which is worse than not having it.
+# Scoped, still — a full-tree run over fifty modules is slow enough to get switched off,
+# which is worse than not having it — but scoped to two kinds of module rather than one:
+#
+#   * the three that decide what lands in a *user's* repository during `/rhiza:update`
+#     (`_rhiza_merge`, `_rhiza_lock`, `stage_synced`), where a surviving mutant is the
+#     costliest kind: a wrong merge or a wrong staged file set shipping green;
+#   * the two prose gates (`check_command_contracts`, `check_prompt_wiring`), where a
+#     surviving mutant means **a gate silently not gating** — the same failure as the
+#     `_PROTECTED` finding below, one level up. A checker that stops checking reports
+#     success, so nothing else in the repo can notice.
+#
+# The second group was added on the evidence of the first: everything the technique found
+# in the sync core was invisible to a 100% line-*and*-branch gate, and there is no reason
+# code that guards the build should be exempt from the same question.
 #
 # **The threshold is "no surviving mutant that changes behaviour", not zero survivors.**
 # Five categories are accepted, and each is a deliberate judgement rather than a shrug:
@@ -138,18 +149,21 @@ portable:  ## Run the unit tests without e2e or the coverage gate (the cross-pla
 #                   unreadable snapshot file. Excluded from coverage for the same reason.
 #   module guard    `if __name__ == "__main__":`. Not reachable from an import.
 #
-# Everything else is a test worth adding. All three modules have now been triaged, and the
+# Everything else is a test worth adding. All five modules have now been triaged, and the
 # split is recorded because the *ratio* is the useful number — a module that suddenly grows
 # real survivors is the signal:
 #
-#   module              survivors  real gaps  accepted
-#   _rhiza_lock.py         24          8         16
-#   stage_synced.py        33         14         19
-#   _rhiza_merge.py         9          7          2
+#   module                        survivors  real gaps  accepted
+#   _rhiza_lock.py                    24          8         16
+#   stage_synced.py                   33         14         19
+#   _rhiza_merge.py                    9          7          2
+#   check_command_contracts.py        70         31         39
+#   check_prompt_wiring.py            22          8         14
 #
 # `_rhiza_merge` is the instructive row: its property tests over generated edit triples
 # assert the merged *result*, so only nine mutants survived at all — the fewest of the
-# three, from the most intricate code. Its two accepted survivors are both pragma'd arms.
+# three sync-core modules, from the most intricate code. Its two accepted survivors are
+# both pragma'd arms.
 #
 # What the real gaps were, in every case, was code with 100% line *and* branch coverage
 # whose output nothing checked:
@@ -161,23 +175,54 @@ portable:  ## Run the unit tests without e2e or the coverage gate (the cross-pla
 #   * `is_binary(target) or is_binary(upstream) or is_binary(base)` could become `and`,
 #     so a text file locally replaced by a binary one would be merged and corrupted.
 #   * Every documented exit code, and every key in the summary dicts callers index.
+#
+# The checkers' 39 came out the same shape, and one class dominated: **a constant listing
+# what to check could be corrupted entry by entry.** Four of the six discovery-location
+# names rule 6 gates, ten of the twelve exempt shell builtins, and two of the four
+# top-of-repo prose files could each be changed to nonsense with the suite green — because
+# every test that covered them iterated the constant under test, which cannot detect an
+# entry missing from it. Those tests now spell the names out. The rest were five more
+# `continue`→`break`s, both `--root` defaults (a broken one makes the hook check an empty
+# tree and report success), and the accumulators — `violations = …` for `violations += …`
+# in three places, so only the last file's findings survived.
+#
+# **Two accepted rows in the checkers need their reasoning stated, because "equivalent"
+# is doing more work than usual there.** `script_flags` truncates each `add_argument`
+# window at the next call; five mutants of that truncation survive, and provably must —
+# the flags are unioned across all windows, so text the truncation removes is scanned by
+# the *next* window anyway. And the three `replace("\\\n", " ")` joins survive mutation of
+# the *replacement* string: what matters is that the newline goes, not what replaces it.
+#
+# **Bytecode caching makes mutmut over-report survivors, so this target disables it.**
+# CPython invalidates a `.pyc` on (source mtime-seconds, source size), and mutmut's
+# mutants are almost all exactly four bytes longer than the original (`x` → `XXxXX`), so
+# two consecutive same-length mutants written inside one clock second can run against the
+# *previous* mutant's cached bytecode. Three mutants here were reported as survivors while
+# provably failing the suite on their own — including `_MODEL_INVOCATION_OPT_OUT = None`,
+# which cannot even be collected. `PYTHONDONTWRITEBYTECODE=1` in the recipe removes the
+# whole class; without it the numbers in the table above are noise at the margin.
 # Comma-separated: mutmut takes one `--paths-to-mutate` value and splits it itself.
 # Override to narrow a local run to one module, e.g.
 #   make mutate MUTATE_MODULES=plugin/scripts/_rhiza_lock.py
-MUTATE_MODULES := plugin/scripts/_rhiza_merge.py,plugin/scripts/_rhiza_lock.py,plugin/scripts/stage_synced.py
+MUTATE_MODULES := plugin/scripts/_rhiza_merge.py,plugin/scripts/_rhiza_lock.py,plugin/scripts/stage_synced.py,plugin/scripts/check_command_contracts.py,plugin/scripts/check_prompt_wiring.py
 
-# The tests that actually exercise the sync core — not just each module's mirrored file.
-# Scoping the runner to the mirror alone over-reports survivors, since much of this code is
-# driven through `sync.py`: `build_lock`'s `strategy = "merge"` can be mutated to `None`
-# and `test__rhiza_lock.py` still passes, while `test_sync.py` catches it.
+# The tests that actually exercise those modules — not just each one's mirrored file.
+# Scoping the runner to the mirror alone over-reports survivors, since much of the sync core
+# is driven through `sync.py`: `build_lock`'s `strategy = "merge"` can be mutated to `None`
+# and `test__rhiza_lock.py` still passes, while `test_sync.py` catches it. The two checkers
+# are the opposite case — nothing else in the suite imports them, so their mirrors are the
+# whole story, which is worth knowing before reading a survivor as under-tested.
 #
 # **Ordered cheapest-first, and that ordering is load-bearing.** mutmut runs the suite with
 # `-x`, so a mutant dies at the first failing test and pays for nothing after it. Measured
-# on this machine: resolve_conflicts 0.8s, _rhiza_lock 0.9s, stage_synced 1.0s, sync 5.8s,
-# _rhiza_merge 11.3s. Fastest-first turns most kills into a one-second run; the previous
-# order billed every mutant for the slowest file. `-k 'not e2e'` drops the network-bound
-# tests, which are far too slow to run once per mutant.
-MUTATE_TESTS := tests/scripts/test_resolve_conflicts.py \
+# on this machine: check_prompt_wiring 0.1s, check_command_contracts 0.4s, resolve_conflicts
+# 0.8s, _rhiza_lock 0.9s, stage_synced 1.0s, sync 5.8s, _rhiza_merge 11.3s. Fastest-first
+# turns most kills into a one-second run; the previous order billed every mutant for the
+# slowest file. `-k 'not e2e'` drops the network-bound tests, which are far too slow to run
+# once per mutant.
+MUTATE_TESTS := tests/scripts/test_check_prompt_wiring.py \
+                tests/scripts/test_check_command_contracts.py \
+                tests/scripts/test_resolve_conflicts.py \
                 tests/scripts/test__rhiza_lock.py \
                 tests/scripts/test_stage_synced.py \
                 tests/scripts/test_sync.py \
@@ -201,14 +246,14 @@ MUTATE_WORKTREE := $(TESTS)/mutate
 # mutmut exits 2 when mutants survive, which is information rather than breakage: survivors
 # are the output of this target, not a malfunction. The exit code is passed through so a
 # caller can act on it, and the worktree is removed either way.
-mutate:  ## Mutation-test the sync core in an isolated worktree (slow; not in `make test`)
+mutate:  ## Mutation-test the sync core and the prose gates in an isolated worktree (slow)
 	@rm -rf $(MUTATE_WORKTREE)
 	@git worktree prune
 	@git worktree add --detach -q $(MUTATE_WORKTREE) HEAD
 	@mkdir -p $(TESTS)
 	@status=0; \
 	( cd $(MUTATE_WORKTREE) \
-	  && $(MUTMUT) run \
+	  && PYTHONDONTWRITEBYTECODE=1 $(MUTMUT) run \
 	       --paths-to-mutate "$(MUTATE_MODULES)" \
 	       --tests-dir tests/scripts \
 	       --runner "python -m pytest -x -q --no-header -p no:cacheprovider -k 'not e2e' $(MUTATE_TESTS)" \

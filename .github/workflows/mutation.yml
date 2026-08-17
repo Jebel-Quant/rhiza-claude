@@ -1,15 +1,17 @@
 name: Mutation
 
-# Do the sync core's *assertions* bite, or does it merely have 100% coverage?
+# Do the *assertions* bite, or does the suite merely have 100% coverage?
 #
 # `make test` gates at 100% line **and** branch coverage, which proves every arm ran. It
 # cannot prove that any assertion would notice if an arm were wrong — and coverage was the
 # only evidence this repo had for test strength. This job supplies the other kind.
 #
-# Scoped to the three modules that decide what lands in a *user's* repository during
-# `/rhiza:update` (`_rhiza_merge`, `_rhiza_lock`, `stage_synced`), because a surviving
-# mutant there is the costliest kind: it means a wrong merge or a wrong staged file set
-# could ship while the suite stays green.
+# Scoped (see `MUTATE_MODULES`) to the three modules that decide what lands in a *user's*
+# repository during `/rhiza:update` (`_rhiza_merge`, `_rhiza_lock`, `stage_synced`), because
+# a surviving mutant there is the costliest kind: a wrong merge or a wrong staged file set
+# shipping while the suite stays green — plus the two prose gates
+# (`check_command_contracts`, `check_prompt_wiring`), where a survivor means a gate that
+# has silently stopped gating and so cannot be caught by anything else in the repo.
 #
 # Deliberately **not** on the PR path. Mutation runs are slow and non-deterministic enough
 # that gating merges on them would get the job switched off, which is worse than not having
@@ -31,7 +33,7 @@ concurrency:
 
 jobs:
   mutate:
-    name: mutation-test the sync core
+    name: mutation-test the sync core and the prose gates
     # 60 minutes, which is double the ≤30 every other job here holds to, and the exception
     # is deliberate. Cost scales with the *number of mutants*, not the suite's wall-clock
     # time: each one reruns the sync-core tests, and while the runner is ordered so a killed

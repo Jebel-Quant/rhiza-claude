@@ -329,6 +329,14 @@ def test_main_passes_on_a_clean_plugin(plugin, capsys):
     assert "command contracts hold" in capsys.readouterr().out
 
 
+def test_main_defaults_to_the_working_directory(plugin, monkeypatch, capsys):
+    """The hook passes no `--root`, so a broken default would gate nothing at all."""
+    _write(plugin, "\n```bash\nuv run python scripts/ghost.py .\n```\n")
+    monkeypatch.chdir(plugin)
+    assert ccc.main([]) == 1
+    assert "scripts/ghost.py" in capsys.readouterr().err
+
+
 def test_main_reports_each_violation(plugin, capsys):
     _write(plugin, "\n```bash\nuv run python scripts/ghost.py .\n```\n")
     assert ccc.main(["--root", str(plugin)]) == 1
@@ -619,3 +627,176 @@ def test_this_repos_prose_test_references_all_resolve(repo_root: Path):
         )
     ]
     assert violations == []
+
+
+# --- gaps that mutation testing found (`make mutate`) --------------------------
+#
+# This checker *is* a gate, so a mutant that survives here is a gate silently not gating —
+# the same failure class as `_rhiza_lock`'s `_PROTECTED`, one level up. Every assertion
+# below kills a mutant that lived through the suite at 100% line and branch coverage,
+# grouped by what the mutation revealed rather than by rule.
+
+
+@pytest.mark.parametrize(
+    "builtin",
+    ["cd", "echo", "test", "if", "then", "else", "fi", "for", "do", "done", "printf", "export"],
+)
+def test_each_shell_builtin_needs_no_declaration(plugin, builtin):
+    """Every exempt word, one at a time — the list is what stops rule 6 crying wolf.
+
+    Spelled out rather than parametrized over `ccc._SHELL_BUILTINS`, because iterating the
+    constant under test cannot detect a word dropped from it. Ten of the twelve could be
+    corrupted with the suite green, and the symptom would be rule 6 demanding
+    `Bash(then*)` — a false positive, which is how a gate gets switched off.
+    """
+    _write(plugin, f"\n```bash\n{builtin}\n```\n")
+    assert not any(f"runs `{builtin}`" in v for v in ccc.check_contracts(plugin))
+
+
+def test_a_comment_line_is_not_a_binary(plugin):
+    """Prose blocks are full of `# …` lines; reading one as a command means `runs \\`#\\``."""
+    _write(plugin, '\n```bash\n# Explain the next line.\necho "hi"\n```\n')
+    assert ccc.check_contracts(plugin) == []
+
+
+def test_a_flag_at_the_start_of_a_line_is_not_a_binary(plugin):
+    """An unwrapped continuation puts a `--flag` first; it is not something to declare."""
+    _write(plugin, '\n```bash\ngit commit -m "x"\n--amend\n```\n')
+    assert not any("runs `--amend`" in v for v in ccc.check_contracts(plugin))
+
+
+def test_every_undeclared_binary_is_reported_not_just_the_first(plugin):
+    """The scan must not stop at the first line it skips, in either skipping arm."""
+    _write(plugin, "\n```bash\n# a comment\nBRANCH=x\ncurl https://a\nwget https://b\n```\n")
+    violations = ccc.check_contracts(plugin)
+    assert any("no Bash(curl*)" in v for v in violations)
+    assert any("no Bash(wget*)" in v for v in violations)
+
+
+def test_a_slash_command_in_a_bash_block_must_exist(plugin):
+    """Rule 5's other half: the `/rhiza:<name>` form inside a block, not just the phrase."""
+    _write(plugin, "\n```bash\n# hand off\n/rhiza:ghost\n```\n")
+    assert any("invoke `ghost`" in v for v in ccc.check_contracts(plugin))
+
+
+def test_slash_commands_are_collected_from_every_block(plugin):
+    """Accumulated across blocks, not overwritten by the last one nor intersected."""
+    _write(plugin, "\n```bash\n/rhiza:one\n```\n\n```bash\n/rhiza:two\n```\n")
+    violations = ccc.check_contracts(plugin)
+    assert any("invoke `one`" in v for v in violations)
+    assert any("invoke `two`" in v for v in violations)
+
+
+def test_a_missing_script_does_not_end_the_scan(plugin):
+    """The `continue` after a dead reference must not swallow the rest of the block."""
+    _write(
+        plugin,
+        "\n```bash\nuv run python scripts/ghost.py .\n"
+        "uv run python scripts/init_scaffold.py . --nope x\n```\n",
+    )
+    violations = ccc.check_contracts(plugin)
+    assert any("scripts/ghost.py, which does not exist" in v for v in violations)
+    assert any("passes --nope" in v for v in violations)
+
+
+def test_a_missing_script_in_prose_does_not_end_the_scan(plugin):
+    """Rule 7's copy of the same arm, over prose rather than blocks."""
+    _write_prose(
+        plugin,
+        "README.md",
+        "Run `scripts/ghost.py`, then `scripts/init_scaffold.py . --nope x`.\n",
+    )
+    violations = ccc.check_contracts(plugin)
+    assert any("scripts/ghost.py, which does not exist" in v for v in violations)
+    assert any("passes --nope" in v for v in violations)
+
+
+def test_prose_flag_violations_accumulate_within_a_file(plugin):
+    """Two bad flags in one prose file: `violations +=`, not `violations =`."""
+    _write_prose(plugin, "README.md", "Run `scripts/init_scaffold.py . --nope x --alsonope y`.\n")
+    violations = ccc.check_contracts(plugin)
+    assert any("passes --nope" in v for v in violations)
+    assert any("passes --alsonope" in v for v in violations)
+
+
+def test_prose_violations_accumulate_across_files(plugin):
+    """Each prose file adds to the report; the last one must not replace it."""
+    _write_prose(plugin, "README.md", "Run `scripts/ghost.py`.\n")
+    _write_prose(plugin, "CONTRIBUTING.md", "Run `scripts/phantom.py`.\n")
+    violations = ccc.check_contracts(plugin)
+    assert any("README.md: names scripts/ghost.py" in v for v in violations)
+    assert any("CONTRIBUTING.md: names scripts/phantom.py" in v for v in violations)
+
+
+@pytest.mark.parametrize("name", ["README.md", "CONTRIBUTING.md", "CLAUDE.md", "SECURITY.md"])
+def test_every_top_of_repo_prose_file_is_read(plugin, name):
+    """The four filenames, one at a time — a name dropped from the tuple gates nothing.
+
+    Two of the four could be corrupted with the suite still green, and the failure mode is
+    silent: `CLAUDE.md` may then name any script it likes.
+    """
+    _write_prose(plugin, name, "Run `scripts/ghost.py`.\n")
+    assert any(f"{name}: names scripts/ghost.py" in v for v in ccc.check_contracts(plugin))
+
+
+def test_a_wrapped_invocation_in_prose_is_joined(plugin):
+    """Rule 7 must join continuations too, or a bad flag hides on the second line."""
+    _write_prose(
+        plugin,
+        "README.md",
+        "```\nuv run python scripts/init_scaffold.py . \\\n  --nope x\n```\n",
+    )
+    assert any("passes --nope" in v for v in ccc.check_contracts(plugin))
+
+
+def test_the_violation_names_which_bash_block_failed(plugin):
+    """Blocks are numbered from 1, and the number is how a reader finds the right one."""
+    _write(plugin, '\n```bash\necho fine\n```\n\n```bash\nif [ -z "$X" ; then echo oops\n```\n')
+    violations = ccc.check_contracts(plugin)
+    assert any("bash block 2 is not valid shell" in v for v in violations)
+
+
+def test_an_empty_frontmatter_block_is_not_a_missing_one(plugin):
+    """`---\\n\\n---` parses as an empty mapping; reporting it as absent hides the keys."""
+    assert ccc.frontmatter("---\n\n---\n") == ""
+    (plugin / layout.COMMANDS_DIR / "demo.md").write_text("---\n\n---\n\nbody\n", encoding="utf-8")
+    violations = ccc.check_contracts(plugin)
+    assert not any("missing frontmatter" in v for v in violations)
+    assert any("has no `description`" in v for v in violations)
+
+
+def test_a_malformed_frontmatter_line_reports_its_line_number():
+    """The body starts at file line 2, so `start=2` is the number a reader can jump to."""
+    _, problems = ccc.parse_frontmatter("not-a-pair\ndescription: ok\n")
+    assert any("line 2 is not `key: value`" in p for p in problems)
+
+
+def test_a_malformed_line_does_not_stop_the_parse():
+    """`continue`, not `break`: the keys after a bad line are still declared."""
+    mapping, problems = ccc.parse_frontmatter(
+        "not-a-pair\ndescription: x\nargument-hint: y\nallowed-tools: Read\n"
+    )
+    assert set(mapping) == {"description", "argument-hint", "allowed-tools"}
+    assert len(problems) == 1
+
+
+def test_a_singly_indented_continuation_is_still_a_continuation():
+    """Continuation detection reads the *first* character, not the second.
+
+    With `line[1]`, a value wrapped under one space is parsed as a key line — so
+    `allowed-tools:` wrapped that way yields a bogus `key: value` problem instead of being
+    skipped.
+    """
+    mapping, problems = ccc.parse_frontmatter("description: >-\n one: wrapped\n")
+    assert set(mapping) == {"description"}
+    assert problems == []
+
+
+@pytest.mark.parametrize("leader", ["A", "X", "z", "0"])
+def test_a_plain_scalar_is_checked_whatever_letter_it_starts_with(leader):
+    """Only quotes and block scalars are exempt — the exemption is a fixed four.
+
+    Widening that set by one character is enough to stop the check firing on a real value,
+    and nothing noticed.
+    """
+    assert ccc.unquoted_mapping_colon(f"{leader}foo: bar") is True
