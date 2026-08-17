@@ -64,8 +64,18 @@ audit:  ## Security-audit the bundled scripts (bandit) and the workflows (zizmor
 # `uvx` call here is a target: only inside make does UV_CONSTRAINT bind, so the version is
 # the one requirements-dev.txt names. A hand-run `uvx radon` outside make resolves whatever
 # release is current, which is how two people read different numbers off the same commit.
-complexity:  ## Report cyclomatic complexity and maintainability index for plugin/scripts
-	uvx radon cc plugin/scripts -s -n C
+# `--total-average` rather than `-a`: with `-n C` filtering the output, `-a` averages only
+# the blocks that survived the filter, so `plugin/scripts` printed no average at all (nothing
+# matches) and `tests` printed "C (11.67)" — the mean of its six worst blocks, read at a
+# glance as the mean of all of them. `--total-average` ignores `-n` and reports the real one.
+#
+# `tests` is measured here despite the bar stopping at `plugin/scripts`, because CLAUDE.md's
+# census table states both rows as this repo's numbers and nothing regenerated them: both
+# were committed once and had drifted by roughly 15% before anyone re-measured. Printing
+# them is what makes the next drift a diff instead of a discovery.
+complexity:  ## Report cyclomatic complexity and maintainability index (the census CLAUDE.md quotes)
+	uvx radon cc plugin/scripts -s -n C --total-average
+	uvx radon cc tests -s -n C --total-average
 	uvx radon mi plugin/scripts -s
 
 # PyYAML is a *test* dependency only — the bundled scripts stay stdlib-only at runtime.

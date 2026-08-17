@@ -27,7 +27,7 @@ anywhere. That has two consequences worth internalising before you touch anythin
 make help           # list every target
 make lint           # all prek hooks over every file
 make audit          # bandit over the scripts, zizmor over the workflows
-make complexity     # radon CC/MI over plugin/scripts — reports, never fails
+make complexity     # radon CC/MI — the census this file quotes; reports, never fails
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
 make portable       # everything except e2e, no coverage gate (the cross-platform CI job's target)
@@ -196,11 +196,19 @@ it will report what that exemption covers, and the numbers are not small:
 
 | Tree | Blocks | Average | C-or-worse |
 | --- | --- | --- | --- |
-| `plugin/scripts` | 382 | A (4.08) | **0** |
-| `tests` | 1201 | A (2.91) | **6** |
+| `plugin/scripts` | 439 | A (4.08) | **0** |
+| `tests` | 1387 | A (2.85) | **6** |
+
+**Both rows are `make complexity` output — regenerate them there rather than editing them
+here.** The target prints exactly these four figures per tree, which it did not always do:
+it measured only `plugin/scripts` and passed `-a`, which averages just the blocks
+surviving `-n C`, so this table's numbers had no source to be checked against. They were
+committed once at 382 and 1201 and had drifted by roughly 15% before anyone re-measured.
+The qualitative claims never moved, which is why nobody noticed — so treat a changed count
+as routine and a changed *grade* as the signal.
 
 Six C-grade blocks (worst `C(13)`, in `test_e2e_release_bumps_every_declared_location`),
-and the five largest modules in the repo are all test files, each past the 500-line
+and the ten largest modules in the repo are all test files, each at or past the 500-line
 ceiling. **That is known and accepted, not an oversight.** An end-to-end test that syncs
 a real template into a real repo is branchy because the scenario is, and the alternative
 — splitting a fixture to satisfy a complexity grade — buys a better number by making the

@@ -100,6 +100,24 @@ def _collide(local_op: str, upstream_op: str, *, margin: int = 0) -> bool:
     return any(abs(a - b) <= margin for a in local for b in upstream)
 
 
+def _distinguishable(local_op: str, upstream_op: str) -> bool:
+    """Do these two edits still differ once applied?
+
+    Three ops ignore their tag — `noop`, `del-mid` and `truncate` produce the same bytes
+    whoever made them — so pairing one with itself gives two identical sides. There is no
+    collision to report when both sides already agree, and a merge that stays quiet is
+    correct, so `_collide` alone over-selects: it predicts a conflict from the regions
+    without noticing the content matches.
+
+    Excluded at collection time rather than skipped in the body. The body-skip version
+    left `make test` reporting `2 skipped` permanently, which in the summary line is
+    indistinguishable from the environmental skips that *are* worth noticing (absent
+    `git`, `gh`, `make`, PyYAML) — and it hid the exclusion from the parameter list, so
+    reading the decorator suggested a coverage this test never had.
+    """
+    return _edit(local_op, "LOCAL") != _edit(upstream_op, "UP")
+
+
 def _merge(tmp_path: Path, *, base: str, local: str, upstream: str) -> dict[str, Any]:
     """Run the real merge over three trees; report the result and any artifacts."""
     ctx = git.GitContext.default()
@@ -172,7 +190,10 @@ def test_property_a_file_untouched_upstream_keeps_local_content(local_op: str, t
         (local, upstream)
         for local in _OPS
         for upstream in _OPS
-        if local != "noop" and upstream != "noop" and _collide(local, upstream)
+        if local != "noop"
+        and upstream != "noop"
+        and _collide(local, upstream)
+        and _distinguishable(local, upstream)
     ],
 )
 def test_property_a_collision_is_never_resolved_silently(
@@ -184,8 +205,6 @@ def test_property_a_collision_is_never_resolved_silently(
     disappears, /update reports success, and nothing looks wrong until much later.
     """
     local, upstream = _edit(local_op, "LOCAL"), _edit(upstream_op, "UP")
-    if local == upstream:
-        pytest.skip("both sides made the identical edit — nothing to resolve")
 
     out = _merge(tmp_path, base=_BASE, local=local, upstream=upstream)
 
