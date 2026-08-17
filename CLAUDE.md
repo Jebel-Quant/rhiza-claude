@@ -30,6 +30,7 @@ make audit          # bandit over the scripts, zizmor over the workflows
 make complexity     # radon CC/MI over plugin/scripts — reports, never fails
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
+make portable       # everything except e2e, no coverage gate (the cross-platform CI job's target)
 make mutate         # mutation-test the sync core (slow, scheduled — not in `make test`)
 make book           # build the docs site into _book/ (runs paper + test first)
 make book-serve     # docs with live reload
@@ -265,9 +266,12 @@ off `main` and open a PR — never push to the default branch.
   repo root (this file included) is linted.
 - **`make book` depends on `paper` and `test`** by design: the docs link the PDF and
   `mkdocs build --strict` fails on a missing target, so neither can silently go stale.
-- **The end-to-end tests are part of `make test`, not an opt-in extra.** `make e2e` exists,
-  but it is a *narrowing* for the weekly template-drift job, which needs them without the
-  coverage gate — not a flag that turns them on. Every `make test` runs them. They sync real
+- **The end-to-end tests are part of `make test`, not an opt-in extra.** `make e2e` and
+  `make portable` exist, but both are *narrowings* with exactly one caller each — `e2e` for
+  the weekly template-drift job, which needs them without the coverage gate, and `portable`
+  (their complement) for the `cross-platform` CI job on macOS and Windows, where the e2e
+  fixtures' toolchains aren't the question and a filtered run can't reach the coverage
+  floor. Neither is a flag that turns anything on. Every `make test` runs them. They sync real
   repos from `jebel-quant/rhiza` at the ref pinned in `tests/conftest.py`, so the suite
   needs network, `uv`, and `cargo`/`go` for the Rust and Go fixtures. Anything tool-shaped
   skips when the tool is absent, which is why CI verifies both toolchains explicitly
