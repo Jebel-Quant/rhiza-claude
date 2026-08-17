@@ -290,7 +290,7 @@ def test_an_excluded_directory_is_not_orphan_cleaned(make_repo: Any) -> None:
     proj.commit("first sync")
     assert proj.exists("docs/guide.md")
 
-    body = (proj.path / ".rhiza" / "template.yml").read_text()
+    body = (proj.path / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     proj.write(".rhiza/template.yml", body + "exclude:\n  - docs\n")
     proj.commit("exclude docs")
 

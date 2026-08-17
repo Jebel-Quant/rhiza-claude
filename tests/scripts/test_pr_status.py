@@ -401,7 +401,7 @@ def test_gitlab_takes_a_second_call_for_the_pipeline(gitlab_repo, stub_cli):
     assert request["id"] == 4 and request["draft"] is True
     assert request["state"] == pr_status.FAILURE
     assert request["checks"][0]["name"] == "pipeline #88"
-    invoked = stub_cli.log.read_text()
+    invoked = stub_cli.log.read_text(encoding="utf-8")
     assert "glab mr list" in invoked and "glab ci get" in invoked
 
 

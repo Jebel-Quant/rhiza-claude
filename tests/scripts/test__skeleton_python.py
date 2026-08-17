@@ -60,18 +60,18 @@ def test_is_uv_placeholder_init(text, expected):
 def test_normalize_package_init_rewrites_placeholder(tmp_path):
     pkg = tmp_path / "src" / "acme_tool"
     pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text(UV_INIT)
+    (pkg / "__init__.py").write_text(UV_INIT, encoding="utf-8")
     assert py.normalize_package_init(tmp_path) == ["src/acme_tool/__init__.py"]
-    assert (pkg / "__init__.py").read_text() == '"""acme_tool package."""\n'
+    assert (pkg / "__init__.py").read_text(encoding="utf-8") == '"""acme_tool package."""\n'
 
 
 def test_normalize_package_init_leaves_real_code_alone(tmp_path):
     pkg = tmp_path / "src" / "acme_tool"
     pkg.mkdir(parents=True)
     real = '"""My own docstring."""\n\nVERSION = "1"\n'
-    (pkg / "__init__.py").write_text(real)
+    (pkg / "__init__.py").write_text(real, encoding="utf-8")
     assert py.normalize_package_init(tmp_path) == []
-    assert (pkg / "__init__.py").read_text() == real
+    assert (pkg / "__init__.py").read_text(encoding="utf-8") == real
 
 
 def test_normalize_package_init_without_src(tmp_path):
@@ -300,11 +300,11 @@ def test_finish_python_never_writes_classifiers(tmp_path):
     module nor /rhiza:license may write one — even though the template's pyproject
     gate still asserts it.
     """
-    (tmp_path / "pyproject.toml").write_text(UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(UV_PYPROJECT, encoding="utf-8")
     py.finish_python(
         tmp_path, owner="o", repo="r", domain="github.com", description="d",
         modified=[], notes=[],
     )  # fmt: skip
-    text = (tmp_path / "pyproject.toml").read_text()
+    text = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     assert "classifiers" not in text
     assert "License ::" not in text

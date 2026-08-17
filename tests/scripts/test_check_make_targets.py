@@ -64,7 +64,9 @@ def test_gate_order_is_preserved(quality_md: Path):
 
 def test_gate_targets_deduplicates(tmp_path):
     doc = tmp_path / "c.md"
-    doc.write_text("1. `make fmt` — a\n2. `make fmt` — again\n3. `make test` — b\n")
+    doc.write_text(
+        "1. `make fmt` — a\n2. `make fmt` — again\n3. `make test` — b\n", encoding="utf-8"
+    )
     assert cmt.gate_targets(doc) == ["fmt", "test"]
 
 
@@ -131,7 +133,9 @@ def test_a_makefile_with_none_of_the_gates_is_called_out(managed_unsynced_repo, 
     Distinct from having no makefile at all: something *is* there, so the likely cause
     is an incomplete sync rather than an unmanaged repo, and the note says so.
     """
-    (managed_unsynced_repo / "Makefile").write_text(".PHONY: build\nbuild: ; @echo build\n")
+    (managed_unsynced_repo / "Makefile").write_text(
+        ".PHONY: build\nbuild: ; @echo build\n", encoding="utf-8"
+    )
     result = cmt.probe(managed_unsynced_repo, quality_md)
     assert result["available"] == []
     assert result["exit_code"] == cmt.EXIT_OK  # probing worked; the repo is just bare
@@ -173,7 +177,7 @@ def test_target_exists_is_false_for_an_undefined_target(managed_synced_repo):
 
 def test_find_makefile_accepts_the_conventional_names(tmp_path):
     assert cmt.find_makefile(tmp_path) is None
-    (tmp_path / "GNUmakefile").write_text("x: ; @:\n")
+    (tmp_path / "GNUmakefile").write_text("x: ; @:\n", encoding="utf-8")
     assert cmt.find_makefile(tmp_path).name == "GNUmakefile"
 
 
@@ -182,7 +186,7 @@ def test_find_makefile_accepts_the_conventional_names(tmp_path):
 
 def test_a_command_without_a_gate_list_exits_2(managed_synced_repo, tmp_path):
     doc = tmp_path / "empty.md"
-    doc.write_text("# No gates here\n")
+    doc.write_text("# No gates here\n", encoding="utf-8")
     result = cmt.probe(managed_synced_repo, doc)
     assert result["exit_code"] == cmt.EXIT_NO_GATES
     assert any("no `make <target>` gate list" in n for n in result["notes"])
@@ -422,7 +426,9 @@ def test_an_unsynced_repo_reports_no_discovered_targets(managed_unsynced_repo, q
 
 def _synced_layout(root: Path) -> None:
     """Write the include shape a rhiza sync really delivers."""
-    (root / "Makefile").write_text("LOGO=x\ninclude .rhiza/rhiza.mk\n-include local.mk\n")
+    (root / "Makefile").write_text(
+        "LOGO=x\ninclude .rhiza/rhiza.mk\n-include local.mk\n", encoding="utf-8"
+    )
     (root / ".rhiza" / "make.d").mkdir(parents=True, exist_ok=True)
     (root / ".rhiza" / "rhiza.mk").write_text(
         "help:  ## Display this help message\n\ttrue\n-include .rhiza/make.d/*.mk\n"
@@ -467,28 +473,32 @@ def test_an_absent_optional_include_is_skipped(tmp_path):
 
 def test_a_local_extension_is_read_when_present(tmp_path):
     _synced_layout(tmp_path)
-    (tmp_path / "local.mk").write_text("mine:  ## my own target\n\ttrue\n")
+    (tmp_path / "local.mk").write_text("mine:  ## my own target\n\ttrue\n", encoding="utf-8")
     assert "mine" in cmt.documented_targets(tmp_path)
 
 
 def test_an_include_naming_a_make_variable_is_left_alone(tmp_path):
     """`include $(EXTRA)` cannot be resolved without evaluating make — omit, don't guess."""
-    (tmp_path / "Makefile").write_text("include $(EXTRA_MK)\nhelp:  ## help\n\ttrue\n")
+    (tmp_path / "Makefile").write_text(
+        "include $(EXTRA_MK)\nhelp:  ## help\n\ttrue\n", encoding="utf-8"
+    )
     assert [p.name for p in cmt.makefile_chain(tmp_path)] == ["Makefile"]
     assert cmt.documented_targets(tmp_path) == {"help": "help"}
 
 
 def test_a_cyclic_include_terminates(tmp_path):
-    (tmp_path / "Makefile").write_text("include a.mk\n")
-    (tmp_path / "a.mk").write_text("include Makefile\nlooped:  ## still found\n\ttrue\n")
+    (tmp_path / "Makefile").write_text("include a.mk\n", encoding="utf-8")
+    (tmp_path / "a.mk").write_text(
+        "include Makefile\nlooped:  ## still found\n\ttrue\n", encoding="utf-8"
+    )
     assert [p.name for p in cmt.makefile_chain(tmp_path)] == ["Makefile", "a.mk"]
     assert "looped" in cmt.documented_targets(tmp_path)
 
 
 def test_include_following_is_depth_limited(tmp_path):
-    (tmp_path / "Makefile").write_text("include a.mk\n")
-    (tmp_path / "a.mk").write_text("include b.mk\n")
-    (tmp_path / "b.mk").write_text("deep:  ## too deep\n\ttrue\n")
+    (tmp_path / "Makefile").write_text("include a.mk\n", encoding="utf-8")
+    (tmp_path / "a.mk").write_text("include b.mk\n", encoding="utf-8")
+    (tmp_path / "b.mk").write_text("deep:  ## too deep\n\ttrue\n", encoding="utf-8")
     assert [p.name for p in cmt.makefile_chain(tmp_path, depth=1)] == ["Makefile", "a.mk"]
     assert [p.name for p in cmt.makefile_chain(tmp_path, depth=2)] == ["Makefile", "a.mk", "b.mk"]
 
@@ -516,13 +526,15 @@ def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo, quali
 
 def test_a_command_without_a_gate_list_still_returns_the_discovery_keys(tmp_path):
     empty = tmp_path / "empty.md"
-    empty.write_text("# no gates here\n")
+    empty.write_text("# no gates here\n", encoding="utf-8")
     summary = cmt.probe(tmp_path, empty)
     assert summary["undeclared"] == [] and summary["documented"] == {}
 
 
 def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
-    (managed_unsynced_repo / "Makefile").write_text("vet:  ## go vet ./...\n\ttrue\n")
+    (managed_unsynced_repo / "Makefile").write_text(
+        "vet:  ## go vet ./...\n\ttrue\n", encoding="utf-8"
+    )
     cmt.main(["--target-dir", str(managed_unsynced_repo)])
     out = capsys.readouterr().out
     assert "discovered   make vet  # go vet ./..." in out
@@ -548,7 +560,7 @@ def _rust_make_targets(repo: Path) -> set[str]:
     includes = [p for p in (repo / ".rhiza" / "make.d").glob("*.mk") if "rust" in p.name]
     assert includes, "no Rust make include in the synced repo"
     documented = re.compile(r"^([a-z][a-z0-9_-]*)::?.*?##\s*(.+)$", re.MULTILINE)
-    return {m[0] for p in includes for m in documented.findall(p.read_text())}
+    return {m[0] for p in includes for m in documented.findall(p.read_text(encoding="utf-8"))}
 
 
 def test_e2e_the_rust_templates_own_targets_are_all_discovered(rust_synced_repo):
@@ -604,7 +616,7 @@ def _go_make_targets(repo: Path) -> set[str]:
     includes = [p for p in (repo / ".rhiza" / "make.d").glob("*.mk") if "go" in p.name]
     assert includes, "no Go make include in the synced repo"
     documented = re.compile(r"^([a-z][a-z0-9_-]*)::?.*?##\s*(.+)$", re.MULTILINE)
-    return {m[0] for p in includes for m in documented.findall(p.read_text())}
+    return {m[0] for p in includes for m in documented.findall(p.read_text(encoding="utf-8"))}
 
 
 def test_e2e_the_go_templates_own_targets_are_all_discovered(go_synced_repo):
@@ -659,7 +671,7 @@ def _collectible_tests(repo: Path, language: str) -> list[str]:
     else:
         # Rust keeps unit tests inline behind `#[cfg(test)]`, so there is no filename to
         # match: the attribute in the source is the only evidence a file carries tests.
-        found = (p for p in repo.rglob("*.rs") if "#[test]" in p.read_text())
+        found = (p for p in repo.rglob("*.rs") if "#[test]" in p.read_text(encoding="utf-8"))
     return sorted(str(p.relative_to(repo)) for p in found if ".rhiza" not in p.parts)
 
 

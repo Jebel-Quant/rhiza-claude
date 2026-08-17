@@ -76,10 +76,10 @@ _GO_MOD = "module github.com/jebel-quant/widget\n\ngo 1.24\n"
 
 
 def test_finish_skeleton_completes_a_uv_project(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     pkg = tmp_path / "src" / "acme_tool"
     pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text(_UV_INIT)
+    (pkg / "__init__.py").write_text(_UV_INIT, encoding="utf-8")
 
     summary = sk.finish_skeleton(
         tmp_path, owner="jebel-quant", repo="acme-tool", host="github", description="Acme things."
@@ -93,17 +93,17 @@ def test_finish_skeleton_completes_a_uv_project(tmp_path):
         "dependency-groups",
         "tool.bumpversion",
     ]
-    text = (tmp_path / "pyproject.toml").read_text()
+    text = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     assert 'description = "Acme things."' in text
     assert 'Homepage = "https://github.com/jebel-quant/acme-tool"' in text
     assert "[dependency-groups]" in text
-    assert (pkg / "__init__.py").read_text() == '"""acme_tool package."""\n'
+    assert (pkg / "__init__.py").read_text(encoding="utf-8") == '"""acme_tool package."""\n'
 
 
 def test_finish_skeleton_reports_the_seeded_readme(tmp_path):
     """The README is part of the skeleton's output, so it shows in `modified`."""
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
-    (tmp_path / "README.md").write_text("")
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
+    (tmp_path / "README.md").write_text("", encoding="utf-8")
 
     summary = sk.finish_skeleton(
         tmp_path, owner="jebel-quant", repo="acme-tool", host="github", description="Acme things."
@@ -111,26 +111,28 @@ def test_finish_skeleton_reports_the_seeded_readme(tmp_path):
 
     assert "README.md" in summary["modified"]
     assert any("README" in n for n in summary["notes"])
-    assert (tmp_path / "README.md").read_text().startswith("# acme-tool\n")
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# acme-tool\n")
 
 
 def test_finish_skeleton_is_idempotent(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     kwargs = {"owner": "o", "repo": "r", "host": "github", "description": "d"}
     sk.finish_skeleton(tmp_path, **kwargs)
-    first = (tmp_path / "pyproject.toml").read_text()
+    first = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
     second_summary = sk.finish_skeleton(tmp_path, **kwargs)
     assert second_summary["modified"] == []
     assert second_summary["changes"] == []
     assert any("already rhiza-shaped" in n for n in second_summary["notes"])
-    assert (tmp_path / "pyproject.toml").read_text() == first
+    assert (tmp_path / "pyproject.toml").read_text(encoding="utf-8") == first
 
 
 def test_finish_skeleton_uses_the_gitlab_host(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     sk.finish_skeleton(tmp_path, owner="grp", repo="proj", host="gitlab", description=None)
-    assert "https://gitlab.com/grp/proj" in (tmp_path / "pyproject.toml").read_text()
+    assert "https://gitlab.com/grp/proj" in (tmp_path / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_finish_skeleton_without_pyproject_reports_not_ok(tmp_path):
@@ -140,28 +142,28 @@ def test_finish_skeleton_without_pyproject_reports_not_ok(tmp_path):
 
 
 def test_finish_skeleton_without_project_table_reports_not_ok(tmp_path):
-    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n")
+    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n", encoding="utf-8")
     summary = sk.finish_skeleton(tmp_path, owner="o", repo="r", host="github", description="d")
     assert not summary["ok"]
     assert any("no [project] table" in n for n in summary["notes"])
 
 
 def test_finish_skeleton_flags_absent_authors(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_WITHOUT_AUTHORS)
+    (tmp_path / "pyproject.toml").write_text(_WITHOUT_AUTHORS, encoding="utf-8")
     summary = sk.finish_skeleton(tmp_path, owner="o", repo="r", host="github", description=None)
     assert summary["ok"]
     assert any("authors" in n for n in summary["notes"])
 
 
 def test_finish_skeleton_does_not_flag_present_authors(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     summary = sk.finish_skeleton(tmp_path, owner="o", repo="r", host="github", description=None)
     assert not any("authors" in n for n in summary["notes"])
 
 
 def test_finish_skeleton_falls_back_to_the_owner_without_a_git_identity(tmp_path, monkeypatch):
     """No git identity anywhere is the CI case — the gate still needs a named author."""
-    (tmp_path / "pyproject.toml").write_text(_WITHOUT_AUTHORS)
+    (tmp_path / "pyproject.toml").write_text(_WITHOUT_AUTHORS, encoding="utf-8")
     monkeypatch.setattr(common, "git_identity", lambda _t: (None, None))
 
     summary = sk.finish_skeleton(
@@ -169,16 +171,16 @@ def test_finish_skeleton_falls_back_to_the_owner_without_a_git_identity(tmp_path
     )
 
     assert "authors" in summary["changes"]
-    assert 'name = "jebel-quant"' in (tmp_path / "pyproject.toml").read_text()
+    assert 'name = "jebel-quant"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_finish_skeleton_prefers_the_git_identity(tmp_path, monkeypatch):
-    (tmp_path / "pyproject.toml").write_text(_WITHOUT_AUTHORS)
+    (tmp_path / "pyproject.toml").write_text(_WITHOUT_AUTHORS, encoding="utf-8")
     monkeypatch.setattr(common, "git_identity", lambda _t: ("Ada Lovelace", "ada@example.com"))
 
     sk.finish_skeleton(tmp_path, owner="jebel-quant", repo="r", host="github", description="d")
 
-    text = (tmp_path / "pyproject.toml").read_text()
+    text = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     assert 'name = "Ada Lovelace", email = "ada@example.com"' in text
 
 
@@ -186,9 +188,9 @@ def test_finish_skeleton_prefers_the_git_identity(tmp_path, monkeypatch):
 
 
 def test_finish_skeleton_rust_fills_the_manifest_and_writes_a_readme(tmp_path, monkeypatch):
-    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "Cargo.toml").write_text(_CARGO, encoding="utf-8")
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB, encoding="utf-8")
     monkeypatch.setattr(common, "git_identity", lambda _t: ("Ada Lovelace", "ada@example.com"))
 
     summary = sk.finish_skeleton(
@@ -201,16 +203,16 @@ def test_finish_skeleton_rust_fills_the_manifest_and_writes_a_readme(tmp_path, m
     )
 
     assert summary["ok"]
-    manifest = (tmp_path / "Cargo.toml").read_text()
+    manifest = (tmp_path / "Cargo.toml").read_text(encoding="utf-8")
     assert 'authors = ["Ada Lovelace <ada@example.com>"]' in manifest
     assert 'repository = "https://github.com/jebel-quant/acme-tool"' in manifest
     assert 'description = "A crate."' in manifest
     # cargo writes no README at all, so unlike the uv path this one creates it.
-    assert (tmp_path / "README.md").read_text().startswith("# acme-tool")
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# acme-tool")
 
 
 def test_finish_skeleton_rust_is_idempotent(tmp_path, monkeypatch):
-    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "Cargo.toml").write_text(_CARGO, encoding="utf-8")
     monkeypatch.setattr(common, "git_identity", lambda _t: ("A", None))
     kwargs = {
         "owner": "o",
@@ -220,9 +222,9 @@ def test_finish_skeleton_rust_is_idempotent(tmp_path, monkeypatch):
         "language": "rust",
     }
     sk.finish_skeleton(tmp_path, **kwargs)
-    once = (tmp_path / "Cargo.toml").read_text()
+    once = (tmp_path / "Cargo.toml").read_text(encoding="utf-8")
     summary = sk.finish_skeleton(tmp_path, **kwargs)
-    assert (tmp_path / "Cargo.toml").read_text() == once
+    assert (tmp_path / "Cargo.toml").read_text(encoding="utf-8") == once
     assert "already rhiza-shaped" in " ".join(summary["notes"])
 
 
@@ -234,7 +236,7 @@ def test_finish_skeleton_rust_exits_1_without_a_manifest(tmp_path, capsys):
 
 def test_finish_skeleton_rust_reports_a_workspace_root_manifest(tmp_path):
     """A virtual workspace has no [package] to fill in — say so instead of crashing."""
-    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n', encoding="utf-8")
     summary = sk.finish_skeleton(
         tmp_path, owner="o", repo="r", host="github", description="d", language="rust"
     )
@@ -246,14 +248,14 @@ def test_finish_skeleton_rust_reports_a_workspace_root_manifest(tmp_path):
 
 
 def test_finish_skeleton_go_writes_the_doc_and_readme(tmp_path):
-    (tmp_path / "go.mod").write_text(_GO_MOD)
+    (tmp_path / "go.mod").write_text(_GO_MOD, encoding="utf-8")
     result = sk.finish_skeleton(
         tmp_path, owner="jebel-quant", repo="widget", host="github",
         description="A widget library", language="go",
     )  # fmt: skip
     assert result["ok"]
     assert set(result["modified"]) == {"doc.go", "README.md"}
-    assert (tmp_path / "README.md").read_text().startswith("# widget")
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# widget")
 
 
 def test_finish_skeleton_go_without_a_module_fails_the_gate(tmp_path):
@@ -265,7 +267,7 @@ def test_finish_skeleton_go_without_a_module_fails_the_gate(tmp_path):
 
 
 def test_finish_skeleton_go_reports_a_module_without_a_path(tmp_path):
-    (tmp_path / "go.mod").write_text("go 1.24\n")
+    (tmp_path / "go.mod").write_text("go 1.24\n", encoding="utf-8")
     result = sk.finish_skeleton(
         tmp_path, owner="a", repo="b", host="github", description=None, language="go"
     )
@@ -273,23 +275,29 @@ def test_finish_skeleton_go_reports_a_module_without_a_path(tmp_path):
 
 
 def test_finish_skeleton_go_is_idempotent(tmp_path):
-    (tmp_path / "go.mod").write_text(_GO_MOD)
+    (tmp_path / "go.mod").write_text(_GO_MOD, encoding="utf-8")
     kwargs = {
         "owner": "jebel-quant", "repo": "widget", "host": "github",
         "description": "A widget library", "language": "go",
     }  # fmt: skip
     sk.finish_skeleton(tmp_path, **kwargs)
-    before = (tmp_path / "doc.go").read_text(), (tmp_path / "README.md").read_text()
+    before = (
+        (tmp_path / "doc.go").read_text(encoding="utf-8"),
+        (tmp_path / "README.md").read_text(encoding="utf-8"),
+    )
     second = sk.finish_skeleton(tmp_path, **kwargs)
     assert second["modified"] == []
-    assert ((tmp_path / "doc.go").read_text(), (tmp_path / "README.md").read_text()) == before
+    assert (
+        (tmp_path / "doc.go").read_text(encoding="utf-8"),
+        (tmp_path / "README.md").read_text(encoding="utf-8"),
+    ) == before
 
 
 # --- the version location is declared for every language --------------------
 
 
 def test_finish_skeleton_declares_the_version_location_for_python(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     result = sk.finish_skeleton(
         tmp_path, owner="acme", repo="widget", host="github", description="d"
     )
@@ -299,9 +307,9 @@ def test_finish_skeleton_declares_the_version_location_for_python(tmp_path):
 
 
 def test_finish_skeleton_declares_the_version_location_for_rust(tmp_path):
-    (tmp_path / "Cargo.toml").write_text(_CARGO)
+    (tmp_path / "Cargo.toml").write_text(_CARGO, encoding="utf-8")
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB)
+    (tmp_path / "src" / "lib.rs").write_text(_CARGO_LIB, encoding="utf-8")
     result = sk.finish_skeleton(
         tmp_path, owner="acme", repo="acme-tool", host="github", description="d", language="rust"
     )
@@ -310,7 +318,7 @@ def test_finish_skeleton_declares_the_version_location_for_rust(tmp_path):
 
 
 def test_finish_skeleton_go_says_where_the_version_location_comes_from(tmp_path):
-    (tmp_path / "go.mod").write_text(_GO_MOD)
+    (tmp_path / "go.mod").write_text(_GO_MOD, encoding="utf-8")
     result = sk.finish_skeleton(
         tmp_path, owner="a", repo="b", host="github", description=None, language="go"
     )
@@ -334,7 +342,7 @@ def test_a_directory_named_like_the_manifest_fails_the_gate(tmp_path, language):
 
 
 def test_main_json_output(tmp_path, capsys):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     rc = sk.main([str(tmp_path), "--owner", "o", "--repo", "r", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
@@ -343,7 +351,7 @@ def test_main_json_output(tmp_path, capsys):
 
 
 def test_main_text_output(tmp_path, capsys):
-    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_UV_PYPROJECT, encoding="utf-8")
     rc = sk.main([str(tmp_path), "--owner", "o", "--repo", "r", "--description", "Text mode."])
     assert rc == 0
     captured = capsys.readouterr()
@@ -367,7 +375,7 @@ def test_e2e_the_crate_doc_is_prepended_and_cargos_only_test_survives(rust_crate
     what the Python path does to uv's placeholder — would delete it, and the template's
     coverage gate would then measure a crate with no tests.
     """
-    lib = (rust_crate / "src" / "lib.rs").read_text()
+    lib = (rust_crate / "src" / "lib.rs").read_text(encoding="utf-8")
     assert lib.startswith("//! widget crate."), lib[:80]
     assert "fn it_works()" in lib, "cargo's placeholder test was lost"
     assert "pub fn add(left: u64, right: u64) -> u64" in lib
@@ -380,7 +388,7 @@ def test_e2e_a_real_crate_has_no_undocumented_public_item_left(rust_crate):
     fetch and so cannot run here. It caught a crate that `/rhiza:init` produced and then
     could not get through its own gate: the `//!` was seeded, the `pub fn add` was not.
     """
-    lib = (rust_crate / "src" / "lib.rs").read_text()
+    lib = (rust_crate / "src" / "lib.rs").read_text(encoding="utf-8")
     assert lib.startswith("//! widget crate."), lib[:80]
     before, sep, _ = lib.partition("pub fn add(")
     assert sep, f"cargo's placeholder changed shape:\n{lib}"
@@ -389,14 +397,14 @@ def test_e2e_a_real_crate_has_no_undocumented_public_item_left(rust_crate):
 
 def test_e2e_the_readme_cargo_never_writes_is_seeded(rust_crate):
     """`cargo init` creates no README at all, and `/rhiza:docs` needs one to own."""
-    readme = (rust_crate / "README.md").read_text()
+    readme = (rust_crate / "README.md").read_text(encoding="utf-8")
     assert readme.startswith("# widget")
     assert "/rhiza:docs" in readme
 
 
 def test_e2e_the_package_metadata_cargo_omits_is_filled_in(rust_crate):
     """`cargo init --lib` writes only name/version/edition."""
-    manifest = (rust_crate / "Cargo.toml").read_text()
+    manifest = (rust_crate / "Cargo.toml").read_text(encoding="utf-8")
     for key in ("repository", "homepage", "authors", "description"):
         assert f"{key} = " in manifest, f"Cargo.toml lacks {key}:\n{manifest}"
     assert 'repository = "https://github.com/jebel-quant/widget"' in manifest
@@ -412,7 +420,10 @@ def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_crate(
     """Running it twice must change nothing — /init can be re-run after a failed step."""
     copy = tmp_path / "widget"
     shutil.copytree(rust_crate, copy)
-    before = (copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()
+    before = (
+        (copy / "Cargo.toml").read_text(encoding="utf-8"),
+        (copy / "src" / "lib.rs").read_text(encoding="utf-8"),
+    )
     scripts = plugin_scripts
     assert_ok(
         run_cmd(
@@ -422,7 +433,10 @@ def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_crate(
         ),
         "init_skeleton (second run)",
     )  # fmt: skip
-    assert ((copy / "Cargo.toml").read_text(), (copy / "src" / "lib.rs").read_text()) == before
+    assert (
+        (copy / "Cargo.toml").read_text(encoding="utf-8"),
+        (copy / "src" / "lib.rs").read_text(encoding="utf-8"),
+    ) == before
 
 
 # --- end-to-end: a real module from `go mod init` -----------------------------
@@ -430,7 +444,7 @@ def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_crate(
 
 def test_e2e_the_module_gets_the_package_doc_go_mod_init_omits(go_module):
     """`go mod init` writes one file; without a Go file there is nothing to document."""
-    doc = (go_module / "doc.go").read_text()
+    doc = (go_module / "doc.go").read_text(encoding="utf-8")
     assert doc.startswith("// Package widget is the root package of github.com/jebel-quant/widget.")
     assert doc.rstrip().endswith("package widget")
 
@@ -445,12 +459,12 @@ def test_e2e_the_module_compiles_and_vets_clean(go_module):
 
 
 def test_e2e_the_readme_go_never_writes_is_seeded(go_module):
-    assert (go_module / "README.md").read_text().startswith("# widget")
+    assert (go_module / "README.md").read_text(encoding="utf-8").startswith("# widget")
 
 
 def test_e2e_go_mod_is_left_exactly_as_go_wrote_it(go_module):
     """There is no metadata to add: `go.mod` has no description, URL or licence field."""
-    body = (go_module / "go.mod").read_text()
+    body = (go_module / "go.mod").read_text(encoding="utf-8")
     assert body.startswith("module github.com/jebel-quant/widget")
     for key in ("description", "repository", "homepage", "authors", "license"):
         assert key not in body, f"{key} is not a go.mod field"
@@ -477,14 +491,14 @@ def test_e2e_the_placeholder_uv_writes_is_replaced_not_appended_to(python_packag
     carries the crate's only test. Worth asserting side by side: the two languages differ
     here on purpose, and a change that unified them would silently break one of them.
     """
-    init_py = (python_package / "src" / "widget" / "__init__.py").read_text()
+    init_py = (python_package / "src" / "widget" / "__init__.py").read_text(encoding="utf-8")
     assert "def hello()" not in init_py, f"uv's placeholder survived:\n{init_py}"
     assert init_py.startswith('"""'), init_py[:80]
 
 
 def test_e2e_the_metadata_uv_leaves_as_a_placeholder_is_filled_in(python_package):
     """`uv init` writes "Add your description here" and no URLs at all."""
-    manifest = (python_package / "pyproject.toml").read_text()
+    manifest = (python_package / "pyproject.toml").read_text(encoding="utf-8")
     assert "Add your description here" not in manifest
     assert 'Homepage = "https://github.com/jebel-quant/widget"' in manifest
     assert 'Repository = "https://github.com/jebel-quant/widget"' in manifest
@@ -493,17 +507,17 @@ def test_e2e_the_metadata_uv_leaves_as_a_placeholder_is_filled_in(python_package
 
 def test_e2e_the_python_version_reaches_the_real_package(python_package):
     """/init applies it through `/python-version`, so the classifiers are its evidence."""
-    manifest = (python_package / "pyproject.toml").read_text()
+    manifest = (python_package / "pyproject.toml").read_text(encoding="utf-8")
     assert 'requires-python = ">=3.12"' in manifest
     assert "Programming Language :: Python :: 3.12" in manifest
-    assert (python_package / ".python-version").read_text().strip() == "3.12"
+    assert (python_package / ".python-version").read_text(encoding="utf-8").strip() == "3.12"
 
 
 def test_e2e_the_version_location_for_python_is_the_manifest_itself(python_package):
     """No `.bumpversion.toml`: `[project] version` is the location, unlike Rust and Go."""
     assert not (python_package / ".bumpversion.toml").exists()
     assert ver.bumpversion_config(python_package) == "pyproject.toml"
-    assert "[tool.bumpversion]" in (python_package / "pyproject.toml").read_text()
+    assert "[tool.bumpversion]" in (python_package / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_e2e_a_fresh_python_package_has_no_test_of_its_own(python_package):
@@ -525,7 +539,7 @@ def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_package(
     """The Python half of the Rust idempotence check — /init can be re-run after a failure."""
     copy = tmp_path / "widget"
     shutil.copytree(python_package, copy)
-    before = (copy / "pyproject.toml").read_text()
+    before = (copy / "pyproject.toml").read_text(encoding="utf-8")
     assert_ok(
         run_cmd(
             [*PY, str(plugin_scripts / "init_skeleton.py"), str(copy), "--language", "python",
@@ -534,4 +548,4 @@ def test_e2e_the_skeleton_finisher_is_idempotent_on_a_real_package(
         ),
         "init_skeleton (second run)",
     )  # fmt: skip
-    assert (copy / "pyproject.toml").read_text() == before
+    assert (copy / "pyproject.toml").read_text(encoding="utf-8") == before

@@ -31,7 +31,7 @@ def repo(tmp_path: Path) -> Path:
     _git(tmp_path, "init", "-q", "-b", "main")
     _git(tmp_path, "config", "user.email", "t@example.com")
     _git(tmp_path, "config", "user.name", "T")
-    (tmp_path / "f.txt").write_text("x\n")
+    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-qm", "initial")
     return tmp_path
@@ -362,8 +362,8 @@ def test_e2e_release_bumps_every_declared_location(synced_repo_copy, plugin_scri
         "jobs:\n  ci:\n    uses: jebel-quant/widget/.github/workflows/reusable.yml@v0.1.0\n"
         "  other:\n    uses: actions/checkout@v0.1.0\n"
     )
-    pyproject.write_text(pyproject.read_text() + _BUMPVERSION_CONFIG)
-    assert 'version = "0.1.0"' in pyproject.read_text()
+    pyproject.write_text(pyproject.read_text(encoding="utf-8") + _BUMPVERSION_CONFIG)
+    assert 'version = "0.1.0"' in pyproject.read_text(encoding="utf-8")
 
     # The skeleton writes `allow_dirty = false` — a release is cut from a clean tree — so
     # commit what the sync left behind first. That constraint is part of what is under
@@ -395,8 +395,8 @@ def test_e2e_release_bumps_every_declared_location(synced_repo_copy, plugin_scri
         "bump-my-version bump",
     )  # fmt: skip
 
-    body = pyproject.read_text()
-    stub = (repo / ".github" / "workflows" / "stub.yml").read_text()
+    body = pyproject.read_text(encoding="utf-8")
+    stub = (repo / ".github" / "workflows" / "stub.yml").read_text(encoding="utf-8")
     # Count whole lines, not substrings: `current_version = "0.2.0"` in the bumpversion
     # config legitimately contains `version = "0.2.0"`, and it is *meant* to advance.
     version_lines = [ln.strip() for ln in body.splitlines() if ln.strip().startswith("version = ")]
@@ -429,7 +429,7 @@ def test_e2e_a_synced_go_module_has_a_discoverable_version_location(go_synced_re
 
     assert _skeleton_version.bumpversion_config(go_synced_repo) == ".bumpversion.toml"
 
-    body = (go_synced_repo / ".bumpversion.toml").read_text()
+    body = (go_synced_repo / ".bumpversion.toml").read_text(encoding="utf-8")
     assert 'filename = "internal/version/version.go"' in body
     assert (go_synced_repo / "internal" / "version" / "version.go").is_file()
     # No `current_version` *assignment* — the mentions inside `search`/`replace` are the
@@ -452,7 +452,7 @@ def test_e2e_the_first_go_release_needs_an_explicit_current_version(go_synced_re
     show = run_cmd(["uvx", "bump-my-version", "show", "current_version"], go_synced_repo)
     assert show.returncode != 0, "a tagless Go module cannot report a current version"
 
-    constant = (go_synced_repo / "internal" / "version" / "version.go").read_text()
+    constant = (go_synced_repo / "internal" / "version" / "version.go").read_text(encoding="utf-8")
     assert 'const Version = "0.0.0"' in constant, "the documented starting point moved"
 
     bump = run_cmd(
@@ -461,10 +461,9 @@ def test_e2e_the_first_go_release_needs_an_explicit_current_version(go_synced_re
         go_synced_repo,
     )  # fmt: skip
     assert_ok(bump, "bump-my-version bump --current-version 0.0.0")
-    assert (
-        'const Version = "0.1.0"'
-        in (go_synced_repo / "internal" / "version" / "version.go").read_text()
-    )
+    assert 'const Version = "0.1.0"' in (
+        go_synced_repo / "internal" / "version" / "version.go"
+    ).read_text(encoding="utf-8")
 
 
 # --- end-to-end: where a Rust crate's version lives ---------------------------
@@ -487,7 +486,7 @@ def test_e2e_a_synced_crate_has_a_discoverable_version_location(rust_synced_repo
 
     assert _skeleton_version.bumpversion_config(rust_synced_repo) == ".bumpversion.toml"
 
-    body = (rust_synced_repo / ".bumpversion.toml").read_text()
+    body = (rust_synced_repo / ".bumpversion.toml").read_text(encoding="utf-8")
     assert 'filename = "Cargo.toml"' in body
     # Anchored to `[package]`, or the rewrite would also hit a dependency pinned at the
     # crate's own version — the reason the entry is `regex = true`.
@@ -523,7 +522,9 @@ def test_e2e_the_first_rust_release_needs_its_own_explicit_current_version(
     assert show.returncode != 0, "a tagless crate cannot report a current version"
 
     manifest = repo / "Cargo.toml"
-    assert 'version = "0.1.0"' in manifest.read_text(), "the documented starting point moved"
+    assert 'version = "0.1.0"' in manifest.read_text(encoding="utf-8"), (
+        "the documented starting point moved"
+    )
 
     # Go's answer, applied to a crate: rejected, because it is not what Cargo.toml holds.
     wrong = run_cmd(
@@ -532,7 +533,9 @@ def test_e2e_the_first_rust_release_needs_its_own_explicit_current_version(
         repo,
     )  # fmt: skip
     assert wrong.returncode != 0, "0.0.0 bumped a crate that never held it"
-    assert 'version = "0.1.0"' in manifest.read_text(), "the failed bump still wrote"
+    assert 'version = "0.1.0"' in manifest.read_text(encoding="utf-8"), (
+        "the failed bump still wrote"
+    )
 
     # The value step 1 reads out of the manifest.
     bump = run_cmd(
@@ -541,4 +544,4 @@ def test_e2e_the_first_rust_release_needs_its_own_explicit_current_version(
         repo,
     )  # fmt: skip
     assert_ok(bump, "bump-my-version bump --current-version 0.1.0")
-    assert 'version = "0.2.0"' in manifest.read_text()
+    assert 'version = "0.2.0"' in manifest.read_text(encoding="utf-8")

@@ -36,7 +36,7 @@ def _git(repo: Path, *args: str) -> None:
 def repo(tmp_path: Path) -> Path:
     """A git repo with a body file and no remote yet."""
     _git(tmp_path, "init", "-q", "-b", "main")
-    (tmp_path / "BODY.md").write_text("## Summary\n\nbody\n")
+    (tmp_path / "BODY.md").write_text("## Summary\n\nbody\n", encoding="utf-8")
     return tmp_path
 
 
@@ -293,7 +293,7 @@ def test_gitlab_invocation_is_actually_made(repo, stub_cli):
     assert result["exit_code"] == platform_cli.EXIT_OK
     assert result["platform"] == "gitlab"
     assert result["url"] == "https://gitlab.com/grp/proj/-/merge_requests/7"
-    invoked = stub_cli.log.read_text()
+    invoked = stub_cli.log.read_text(encoding="utf-8")
     assert "glab mr create" in invoked
     assert "--source-branch feat" in invoked
     assert "--description-file" not in invoked
@@ -308,7 +308,7 @@ def test_github_invocation_is_actually_made(repo, stub_cli):
     )
 
     assert result["url"] == "https://github.com/acme/widget/pull/3"
-    assert "gh pr create" in stub_cli.log.read_text()
+    assert "gh pr create" in stub_cli.log.read_text(encoding="utf-8")
 
 
 def test_issue_create_returns_the_issue_url(repo, stub_cli):
@@ -318,7 +318,7 @@ def test_issue_create_returns_the_issue_url(repo, stub_cli):
     result = platform_cli.run(repo, "issue-create", title="T", body_file="BODY.md", body=_BODY)
 
     assert result["url"] == "https://gitlab.com/grp/proj/-/issues/12"
-    assert "glab issue create" in stub_cli.log.read_text()
+    assert "glab issue create" in stub_cli.log.read_text(encoding="utf-8")
 
 
 def test_auth_status_succeeds_when_logged_in(repo, stub_cli):
@@ -328,7 +328,7 @@ def test_auth_status_succeeds_when_logged_in(repo, stub_cli):
     result = platform_cli.run(repo, "auth-status")
 
     assert result["exit_code"] == platform_cli.EXIT_OK
-    assert "gh auth status" in stub_cli.log.read_text()
+    assert "gh auth status" in stub_cli.log.read_text(encoding="utf-8")
 
 
 def test_auth_status_fails_when_logged_out(repo, stub_cli):
@@ -433,7 +433,7 @@ def test_resolve_body_reads_a_repo_relative_path(repo):
 
 def test_resolve_body_falls_back_to_a_path_outside_the_repo(repo, tmp_path):
     outside = tmp_path / "elsewhere.md"
-    outside.write_text("scratchpad body\n")
+    outside.write_text("scratchpad body\n", encoding="utf-8")
     assert platform_cli.resolve_body(repo, str(outside)) == "scratchpad body\n"
 
 

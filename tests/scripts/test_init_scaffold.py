@@ -67,12 +67,14 @@ def test_scaffold_writes_only_the_pointer(tmp_path):
     assert summary["created"] == [".rhiza/template.yml"]
     # Everything else belongs to uv init / the sync / the focused commands.
     assert set(p.name for p in tmp_path.iterdir()) == {".rhiza"}
-    assert (tmp_path / ".rhiza" / "template.yml").read_text().startswith("repository:")
+    assert (
+        (tmp_path / ".rhiza" / "template.yml").read_text(encoding="utf-8").startswith("repository:")
+    )
 
 
 def test_scaffold_skips_an_existing_pointer(tmp_path):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("hand-written\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text("hand-written\n", encoding="utf-8")
     summary = scaf.scaffold(
         tmp_path,
         host="github",
@@ -82,7 +84,9 @@ def test_scaffold_skips_an_existing_pointer(tmp_path):
     )
     assert summary["created"] == []
     assert summary["skipped"] == [".rhiza/template.yml"]
-    assert (tmp_path / ".rhiza" / "template.yml").read_text() == "hand-written\n"  # untouched
+    assert (tmp_path / ".rhiza" / "template.yml").read_text(
+        encoding="utf-8"
+    ) == "hand-written\n"  # untouched
 
 
 def test_scaffold_rust_uses_the_shared_template_and_a_rust_profile(tmp_path):
@@ -95,7 +99,7 @@ def test_scaffold_rust_uses_the_shared_template_and_a_rust_profile(tmp_path):
         ref="main",
     )
     assert summary["profile"] == "rust-local"
-    tpl = (tmp_path / ".rhiza" / "template.yml").read_text()
+    tpl = (tmp_path / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     assert "jebel-quant/rhiza" in tpl
     assert "language: rust" in tpl
     assert "  - rust-local" in tpl
@@ -133,7 +137,7 @@ def test_scaffold_go_defaults(tmp_path):
     )
     assert summary["created"] == [".rhiza/template.yml"]
     assert summary["profile"] == "go-local"
-    tpl = (tmp_path / ".rhiza" / "template.yml").read_text()
+    tpl = (tmp_path / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     assert "language: go" in tpl
     assert 'repository: "jebel-quant/rhiza"' in tpl
 
@@ -168,7 +172,7 @@ def test_main_text_output(tmp_path, capsys):
 
 def test_main_text_output_skipped(tmp_path, capsys):
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text("x\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text("x\n", encoding="utf-8")
     rc = scaf.main([str(tmp_path)])
     assert rc == 0
     assert "skipped" in capsys.readouterr().err
@@ -185,7 +189,7 @@ def test_e2e_init_produces_the_pointer_and_nothing_else(synced_repo):
     """/init writes exactly one file itself; the rest comes from other steps."""
     pointer = synced_repo / ".rhiza" / "template.yml"
     assert pointer.is_file()
-    body = pointer.read_text()
+    body = pointer.read_text(encoding="utf-8")
     assert 'repository: "jebel-quant/rhiza"' in body
     assert "  - github-project" in body
 
@@ -204,14 +208,14 @@ def test_e2e_the_skeleton_satisfies_the_templates_pyproject_gate(synced_repo):
     Without it /update's gates cannot run at all: `make test` depends on a `uv sync`
     that needs a pyproject, and the synced gate checks these specific fields.
     """
-    body = (synced_repo / "pyproject.toml").read_text()
+    body = (synced_repo / "pyproject.toml").read_text(encoding="utf-8")
     assert "[project.urls]" in body
     assert "[dependency-groups]" in body
     assert 'license = "MIT"' in body
     assert "Programming Language :: Python :: 3.12" in body
     assert 'requires-python = ">=3.12"' in body
     # uv's undocumented placeholder must be gone, or interrogate and coverage both fail.
-    assert (synced_repo / "src" / "widget" / "__init__.py").read_text() == (
+    assert (synced_repo / "src" / "widget" / "__init__.py").read_text(encoding="utf-8") == (
         '"""widget package."""\n'
     )
 
@@ -236,7 +240,7 @@ def test_e2e_gitlab_profile_is_written_without_redirecting_the_template(gitlab_s
     read Username for 'https://gitlab.com'". A GitLab repo on a GitHub-hosted template
     must have no `template-host` at all.
     """
-    body = (gitlab_synced_repo / ".rhiza" / "template.yml").read_text()
+    body = (gitlab_synced_repo / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     assert "  - gitlab-project" in body
     assert "template-host" not in body
 
@@ -274,7 +278,7 @@ def test_e2e_the_rust_pointer_names_the_language_and_its_profile(rust_crate):
     """
     from conftest import language_profile_name
 
-    body = (rust_crate / ".rhiza" / "template.yml").read_text()
+    body = (rust_crate / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     assert 'repository: "jebel-quant/rhiza"' in body, "Rust shares the Python template"
     assert "language: rust" in body
     assert f"  - {language_profile_name('rust')}" in body
@@ -331,7 +335,7 @@ def test_e2e_the_go_pointer_names_the_shared_template_and_go_local(go_module):
     """Go follows `jebel-quant/rhiza` like the other two — one multi-language template."""
     from conftest import language_profile_name
 
-    body = (go_module / ".rhiza" / "template.yml").read_text()
+    body = (go_module / ".rhiza" / "template.yml").read_text(encoding="utf-8")
     assert 'repository: "jebel-quant/rhiza"' in body
     assert "language: go" in body
     assert f"  - {language_profile_name('go')}" in body

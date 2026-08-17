@@ -134,10 +134,10 @@ def test_apply_tolerates_an_unterminated_classifiers_array():
 
 
 def test_set_python_version_writes_pyproject(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     summary = sp.set_python_version(tmp_path, python_version="3.12")
     assert "pyproject.toml" in summary["modified"]
-    assert 'requires-python = ">=3.12"' in (tmp_path / "pyproject.toml").read_text()
+    assert 'requires-python = ">=3.12"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def test_set_python_version_no_pyproject_notes(tmp_path):
@@ -148,7 +148,7 @@ def test_set_python_version_no_pyproject_notes(tmp_path):
 
 def test_set_python_version_notes_a_malformed_pyproject(tmp_path):
     """No `[project]` table is reported, not raised — nothing is written."""
-    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n")
+    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n", encoding="utf-8")
     summary = sp.set_python_version(tmp_path, python_version="3.12")
     assert summary["modified"] == []
     assert any("no [project] table" in n for n in summary["notes"])
@@ -156,14 +156,14 @@ def test_set_python_version_notes_a_malformed_pyproject(tmp_path):
 
 def test_set_python_version_is_idempotent(tmp_path):
     """A second run reports 'already up to date' and rewrites nothing."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     sp.set_python_version(tmp_path, python_version="3.12")
-    first = (tmp_path / "pyproject.toml").read_text()
+    first = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
 
     summary = sp.set_python_version(tmp_path, python_version="3.12")
     assert summary["modified"] == []
     assert any("already up to date" in n for n in summary["notes"])
-    assert (tmp_path / "pyproject.toml").read_text() == first
+    assert (tmp_path / "pyproject.toml").read_text(encoding="utf-8") == first
 
 
 # --- main() / CLI -----------------------------------------------------------
@@ -175,7 +175,7 @@ def test_main_rejects_unsupported_version(tmp_path):
 
 
 def test_main_json(tmp_path, capsys):
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     rc = sp.main([str(tmp_path), "--python-version", "3.13", "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
@@ -185,7 +185,7 @@ def test_main_json(tmp_path, capsys):
 
 def test_main_text_output(tmp_path, capsys):
     """Text mode prints the modified paths on stdout and notes on stderr."""
-    (tmp_path / "pyproject.toml").write_text(_PYPROJECT)
+    (tmp_path / "pyproject.toml").write_text(_PYPROJECT, encoding="utf-8")
     rc = sp.main([str(tmp_path), "--python-version", "3.12"])
     assert rc == 0
     captured = capsys.readouterr()

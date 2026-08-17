@@ -14,7 +14,7 @@ from conftest import PY, assert_ok, run_cmd
 def _write_lock(repo, body: str):
     rhiza = repo / ".rhiza"
     rhiza.mkdir(parents=True, exist_ok=True)
-    (rhiza / "template.lock").write_text(body)
+    (rhiza / "template.lock").write_text(body, encoding="utf-8")
 
 
 def test_as_list_normalisation():

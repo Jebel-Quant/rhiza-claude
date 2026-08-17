@@ -284,7 +284,7 @@ def test_e2e_a_real_crate_gets_a_rust_badge_carrying_its_own_edition(rust_crate)
     """
     import re as _re
 
-    manifest = (rust_crate / "Cargo.toml").read_text()
+    manifest = (rust_crate / "Cargo.toml").read_text(encoding="utf-8")
     edition = _re.search(r'^\s*edition\s*=\s*"([^"]+)"', manifest, _re.MULTILINE)
     assert edition, f"cargo wrote no edition:\n{manifest}"
 
@@ -326,7 +326,9 @@ def test_e2e_a_real_module_gets_a_go_badge_carrying_its_own_directive(go_module)
     """
     import re as _re
 
-    directive = _re.search(r"^go\s+(\S+)", (go_module / "go.mod").read_text(), _re.MULTILINE)
+    directive = _re.search(
+        r"^go\s+(\S+)", (go_module / "go.mod").read_text(encoding="utf-8"), _re.MULTILINE
+    )
     assert directive, "go mod init wrote no go directive"
 
     summary = rb.build_badges(

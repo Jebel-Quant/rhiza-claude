@@ -110,38 +110,42 @@ def test_malformed_blocks_raise_rather_than_produce_a_plausible_file(text, why):
 def test_a_malformed_file_leaves_everything_on_disk_untouched(tmp_path):
     """Refusing must be atomic: a half-resolved tree is worse than an unresolved one."""
     good = tmp_path / "good.txt"
-    good.write_text(CONFLICT)
+    good.write_text(CONFLICT, encoding="utf-8")
     bad = tmp_path / "bad.txt"
-    bad.write_text("<<<<<<< ours\nunterminated\n")
+    bad.write_text("<<<<<<< ours\nunterminated\n", encoding="utf-8")
 
     summary = rc.resolve(tmp_path)
 
     assert summary["exit_code"] == rc.EXIT_MALFORMED
     assert summary["resolved"] == []
-    assert good.read_text() == CONFLICT, "a later failure must not leave earlier writes"
-    assert bad.read_text() == "<<<<<<< ours\nunterminated\n"
+    assert good.read_text(encoding="utf-8") == CONFLICT, (
+        "a later failure must not leave earlier writes"
+    )
+    assert bad.read_text(encoding="utf-8") == "<<<<<<< ours\nunterminated\n"
 
 
 # --- resolve(): the directory walk --------------------------------------------
 
 
 def test_resolves_every_marked_file(tmp_path):
-    (tmp_path / "a.txt").write_text(CONFLICT)
+    (tmp_path / "a.txt").write_text(CONFLICT, encoding="utf-8")
     (tmp_path / "sub").mkdir()
-    (tmp_path / "sub" / "b.txt").write_text(CONFLICT)
-    (tmp_path / "clean.txt").write_text("nothing here\n")
+    (tmp_path / "sub" / "b.txt").write_text(CONFLICT, encoding="utf-8")
+    (tmp_path / "clean.txt").write_text("nothing here\n", encoding="utf-8")
 
     summary = rc.resolve(tmp_path)
 
     assert summary["exit_code"] == rc.EXIT_OK
     assert {e["path"] for e in summary["resolved"]} == {"a.txt", "sub/b.txt"}
-    assert (tmp_path / "a.txt").read_text() == "before\nupstream edit\nafter\n"
-    assert (tmp_path / "clean.txt").read_text() == "nothing here\n"
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "before\nupstream edit\nafter\n"
+    assert (tmp_path / "clean.txt").read_text(encoding="utf-8") == "nothing here\n"
 
 
 def test_rejects_are_reported_and_never_applied(tmp_path):
     """A .rej holds hunks git could not place; guessing where they go corrupts files."""
-    (tmp_path / "x.txt.rej").write_text("--- a/x.txt\n+++ b/x.txt\n@@ -1 +1 @@\n-a\n+b\n")
+    (tmp_path / "x.txt.rej").write_text(
+        "--- a/x.txt\n+++ b/x.txt\n@@ -1 +1 @@\n-a\n+b\n", encoding="utf-8"
+    )
 
     summary = rc.resolve(tmp_path)
 
@@ -153,13 +157,13 @@ def test_rejects_are_reported_and_never_applied(tmp_path):
 
 def test_markers_are_resolved_even_when_a_reject_also_remains(tmp_path):
     """Partial progress is still progress; the exit code carries the warning."""
-    (tmp_path / "a.txt").write_text(CONFLICT)
-    (tmp_path / "b.txt.rej").write_text("hunk\n")
+    (tmp_path / "a.txt").write_text(CONFLICT, encoding="utf-8")
+    (tmp_path / "b.txt.rej").write_text("hunk\n", encoding="utf-8")
 
     summary = rc.resolve(tmp_path)
 
     assert summary["exit_code"] == rc.EXIT_REJECTS_REMAIN
-    assert (tmp_path / "a.txt").read_text() == "before\nupstream edit\nafter\n"
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "before\nupstream edit\nafter\n"
 
 
 def test_a_reject_is_reported_and_never_deleted(tmp_path):
@@ -170,8 +174,10 @@ def test_a_reject_is_reported_and_never_deleted(tmp_path):
     reject too would have applied the change twice. `git apply --reject` is gone, so
     that cause is gone — and deleting a reject nobody inspected would now be a guess.
     """
-    (tmp_path / "shared.txt").write_text(CONFLICT)
-    (tmp_path / "shared.txt.rej").write_text("@@ -1,3 +1,3 @@\n-base\n+upstream\n")
+    (tmp_path / "shared.txt").write_text(CONFLICT, encoding="utf-8")
+    (tmp_path / "shared.txt.rej").write_text(
+        "@@ -1,3 +1,3 @@\n-base\n+upstream\n", encoding="utf-8"
+    )
 
     summary = rc.resolve(tmp_path)
 
@@ -179,12 +185,12 @@ def test_a_reject_is_reported_and_never_deleted(tmp_path):
     assert summary["rejects"] == ["shared.txt.rej"]
     assert (tmp_path / "shared.txt.rej").exists(), "a reject must survive for a human"
     # The markers are still resolved — partial progress is progress.
-    assert (tmp_path / "shared.txt").read_text() == "before\nupstream edit\nafter\n"
+    assert (tmp_path / "shared.txt").read_text(encoding="utf-8") == "before\nupstream edit\nafter\n"
     assert any("no longer creates these" in n for n in summary["notes"])
 
 
 def test_a_clean_tree_says_so(tmp_path):
-    (tmp_path / "a.txt").write_text("fine\n")
+    (tmp_path / "a.txt").write_text("fine\n", encoding="utf-8")
     summary = rc.resolve(tmp_path)
     assert summary["exit_code"] == rc.EXIT_OK
     assert any("no conflicts found" in n for n in summary["notes"])
@@ -192,10 +198,10 @@ def test_a_clean_tree_says_so(tmp_path):
 
 def test_dry_run_writes_nothing(tmp_path):
     target = tmp_path / "a.txt"
-    target.write_text(CONFLICT)
+    target.write_text(CONFLICT, encoding="utf-8")
     summary = rc.resolve(tmp_path, dry_run=True)
     assert summary["resolved"][0]["blocks"] == 1
-    assert target.read_text() == CONFLICT
+    assert target.read_text(encoding="utf-8") == CONFLICT
     assert any("dry run" in n for n in summary["notes"])
 
 
@@ -203,10 +209,10 @@ def test_the_git_directory_is_never_walked(tmp_path):
     """Objects and hooks can contain anything; rewriting them would be catastrophic."""
     git = tmp_path / ".git"
     git.mkdir()
-    (git / "COMMIT_EDITMSG").write_text(CONFLICT)
+    (git / "COMMIT_EDITMSG").write_text(CONFLICT, encoding="utf-8")
     summary = rc.resolve(tmp_path)
     assert summary["resolved"] == []
-    assert (git / "COMMIT_EDITMSG").read_text() == CONFLICT
+    assert (git / "COMMIT_EDITMSG").read_text(encoding="utf-8") == CONFLICT
 
 
 def test_binary_files_are_skipped(tmp_path):
@@ -218,25 +224,25 @@ def test_binary_files_are_skipped(tmp_path):
 
 
 def test_main_reports_each_resolution(tmp_path, capsys):
-    (tmp_path / "a.txt").write_text(CONFLICT)
+    (tmp_path / "a.txt").write_text(CONFLICT, encoding="utf-8")
     assert rc.main([str(tmp_path)]) == rc.EXIT_OK
     assert "resolved a.txt: 1 block(s) -> upstream" in capsys.readouterr().out
 
 
 def test_main_exits_1_with_rejects(tmp_path, capsys):
-    (tmp_path / "x.rej").write_text("hunk\n")
+    (tmp_path / "x.rej").write_text("hunk\n", encoding="utf-8")
     assert rc.main([str(tmp_path)]) == rc.EXIT_REJECTS_REMAIN
     assert "reject   x.rej" in capsys.readouterr().err
 
 
 def test_main_exits_2_on_malformed_input(tmp_path, capsys):
-    (tmp_path / "a.txt").write_text("<<<<<<< ours\nunterminated\n")
+    (tmp_path / "a.txt").write_text("<<<<<<< ours\nunterminated\n", encoding="utf-8")
     assert rc.main([str(tmp_path)]) == rc.EXIT_MALFORMED
     assert "nothing was written" in capsys.readouterr().err
 
 
 def test_main_json_output(tmp_path, capsys):
-    (tmp_path / "a.txt").write_text(CONFLICT)
+    (tmp_path / "a.txt").write_text(CONFLICT, encoding="utf-8")
     assert rc.main([str(tmp_path), "--json"]) == rc.EXIT_OK
     payload = json.loads(capsys.readouterr().out)
     assert payload["resolved"] == [{"path": "a.txt", "blocks": 1}]
@@ -264,14 +270,16 @@ def conflict_scenario(tmp_path: Path, plugin_scripts: Path) -> tuple[Path, Path]
 
     template = tmp_path / "template"
     (template / ".rhiza").mkdir(parents=True)
-    (template / "shared.txt").write_text("line one\nBASE\nline three\n")
+    (template / "shared.txt").write_text("line one\nBASE\nline three\n", encoding="utf-8")
     (template / ".rhiza" / "template-bundles.yml").write_text(
         "bundles:\n  core:\n    description: core\n"
         "profiles:\n  default:\n    bundles:\n      - core\n"
     )
     (template / "bundles").mkdir()
     (template / "bundles" / "core").mkdir()
-    (template / "bundles" / "core" / "shared.txt").write_text("line one\nBASE\nline three\n")
+    (template / "bundles" / "core" / "shared.txt").write_text(
+        "line one\nBASE\nline three\n", encoding="utf-8"
+    )
     _git(template, "init", "-q", "-b", "main")
     _git(template, "config", "user.email", "t@e.com")
     _git(template, "config", "user.name", "T")
@@ -292,12 +300,12 @@ def conflict_scenario(tmp_path: Path, plugin_scripts: Path) -> tuple[Path, Path]
     # First sync: a clean add, exit 0 — the state the existing e2e already covers.
     first = run_cmd([*PY, str(plugin_scripts / "sync.py"), "."], project)
     assert first.returncode == 0, f"first sync should be clean:\n{first.stdout}{first.stderr}"
-    assert (project / "shared.txt").read_text() == "line one\nBASE\nline three\n"
+    assert (project / "shared.txt").read_text(encoding="utf-8") == "line one\nBASE\nline three\n"
     _git(project, "add", "-A")
     _git(project, "commit", "-qm", "chore: apply sync")
 
     # Now both sides change the same line — the collision.
-    (project / "shared.txt").write_text("line one\nLOCAL EDIT\nline three\n")
+    (project / "shared.txt").write_text("line one\nLOCAL EDIT\nline three\n", encoding="utf-8")
     _git(project, "add", "-A")
     _git(project, "commit", "-qm", "local change")
 
@@ -336,7 +344,7 @@ def test_e2e_resolving_takes_upstream_and_clears_every_artifact(conflict_scenari
     resolved = run_cmd([*PY, str(plugin_scripts / "resolve_conflicts.py"), "."], project)
     assert resolved.returncode == rc.EXIT_OK, f"{resolved.stdout}{resolved.stderr}"
 
-    body = (project / "shared.txt").read_text()
+    body = (project / "shared.txt").read_text(encoding="utf-8")
     assert body == "line one\nUPSTREAM EDIT\nline three\n"
     assert "LOCAL EDIT" not in body, "the local side must be dropped for a managed file"
     assert "<<<<<<<" not in body
@@ -358,7 +366,7 @@ def test_e2e_the_resolved_file_is_then_staged_as_template_owned(conflict_scenari
     run_cmd([*PY, str(plugin_scripts / "resolve_conflicts.py"), "."], project)
 
     # A repo-owned edit alongside, which must not be swept in.
-    (project / "mine.txt").write_text("my own work\n")
+    (project / "mine.txt").write_text("my own work\n", encoding="utf-8")
 
     summary = stage_synced.stage_synced(project)
 

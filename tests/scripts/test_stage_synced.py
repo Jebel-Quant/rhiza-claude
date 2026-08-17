@@ -40,10 +40,12 @@ def repo(tmp_path: Path) -> Path:
     _git(tmp_path, "config", "user.email", "t@example.com")
     _git(tmp_path, "config", "user.name", "T")
     (tmp_path / ".rhiza").mkdir()
-    (tmp_path / ".rhiza" / "template.yml").write_text('repository: "o/r"\nref: "v1"\n')
-    (tmp_path / "ruff.toml").write_text("# template-owned\n")
+    (tmp_path / ".rhiza" / "template.yml").write_text(
+        'repository: "o/r"\nref: "v1"\n', encoding="utf-8"
+    )
+    (tmp_path / "ruff.toml").write_text("# template-owned\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "app.py").write_text('"""Repo-owned."""\n')
+    (tmp_path / "src" / "app.py").write_text('"""Repo-owned."""\n', encoding="utf-8")
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-qm", "initial")
     return tmp_path
@@ -52,7 +54,7 @@ def repo(tmp_path: Path) -> Path:
 def _write_lock(repo: Path, files: list[str], *, sha: str = "abc123") -> None:
     """Write a `.rhiza/template.lock` recording *files* as template-owned."""
     body = f'sha: "{sha}"\nstrategy: merge\nfiles:\n' + "".join(f"  - {f}\n" for f in files)
-    (repo / ".rhiza" / "template.lock").write_text(body)
+    (repo / ".rhiza" / "template.lock").write_text(body, encoding="utf-8")
 
 
 # --- lock_files --------------------------------------------------------------
@@ -60,7 +62,7 @@ def _write_lock(repo: Path, files: list[str], *, sha: str = "abc123") -> None:
 
 def test_lock_files_reads_the_list(tmp_path):
     lock = tmp_path / "template.lock"
-    lock.write_text('sha: "x"\nfiles:\n  - Makefile\n  - ruff.toml\n')
+    lock.write_text('sha: "x"\nfiles:\n  - Makefile\n  - ruff.toml\n', encoding="utf-8")
     assert st.lock_files(lock) == ["Makefile", "ruff.toml"]
 
 
@@ -70,13 +72,13 @@ def test_lock_files_missing_lock_is_empty(tmp_path):
 
 def test_lock_files_without_a_files_key_is_empty(tmp_path):
     lock = tmp_path / "template.lock"
-    lock.write_text('sha: "x"\nstrategy: merge\n')
+    lock.write_text('sha: "x"\nstrategy: merge\n', encoding="utf-8")
     assert st.lock_files(lock) == []
 
 
 def test_lock_files_ignores_a_non_list_files_value(tmp_path):
     lock = tmp_path / "template.lock"
-    lock.write_text('files: "Makefile"\n')
+    lock.write_text('files: "Makefile"\n', encoding="utf-8")
     assert st.lock_files(lock) == []
 
 
@@ -105,8 +107,8 @@ def test_deleted_paths_sees_either_column():
 
 def test_stages_only_template_files(repo):
     """The headline invariant: repo-owned edits are left behind."""
-    (repo / "ruff.toml").write_text("# changed upstream\n")
-    (repo / "src" / "app.py").write_text('"""Reformatted by make fmt."""\n')
+    (repo / "ruff.toml").write_text("# changed upstream\n", encoding="utf-8")
+    (repo / "src" / "app.py").write_text('"""Reformatted by make fmt."""\n', encoding="utf-8")
     _write_lock(repo, ["ruff.toml"])
 
     summary = st.stage_synced(repo)
@@ -119,8 +121,10 @@ def test_stages_only_template_files(repo):
 
 
 def test_stages_new_template_files_and_the_config(repo):
-    (repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
-    (repo / ".rhiza" / "template.yml").write_text('repository: "o/r"\nref: "v2"\n')
+    (repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
+    (repo / ".rhiza" / "template.yml").write_text(
+        'repository: "o/r"\nref: "v2"\n', encoding="utf-8"
+    )
     _write_lock(repo, ["Makefile", "ruff.toml"])
 
     summary = st.stage_synced(repo)
@@ -142,7 +146,7 @@ def test_stages_an_upstream_deletion(repo):
 
 def test_tolerates_a_stale_lock_entry(repo):
     """A lock path that is neither on disk nor tracked must not fail the whole batch."""
-    (repo / "ruff.toml").write_text("# changed\n")
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
     _write_lock(repo, ["ruff.toml", "docs/never-existed.md"])
 
     summary = st.stage_synced(repo)
@@ -153,7 +157,7 @@ def test_tolerates_a_stale_lock_entry(repo):
 
 def test_deduplicates_lock_entries_against_the_config_paths(repo):
     """A lock that repeats a path, or lists template.yml itself, stages it once."""
-    (repo / "ruff.toml").write_text("# changed\n")
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
     _write_lock(repo, ["ruff.toml", ".rhiza/template.yml", "ruff.toml"])
 
     summary = st.stage_synced(repo)
@@ -176,8 +180,8 @@ def test_nothing_to_stage_is_reported(repo):
 
 def test_a_damaged_lock_still_stages_only_the_config(repo):
     """An unparseable lock degrades to the pointer, never to a blanket add."""
-    (repo / ".rhiza" / "template.lock").write_text("\t: not: valid: yaml: [\n")
-    (repo / "src" / "app.py").write_text('"""Edited."""\n')
+    (repo / ".rhiza" / "template.lock").write_text("\t: not: valid: yaml: [\n", encoding="utf-8")
+    (repo / "src" / "app.py").write_text('"""Edited."""\n', encoding="utf-8")
 
     summary = st.stage_synced(repo)
 
@@ -207,7 +211,7 @@ def test_a_git_failure_exits_2(tmp_path):
 )
 def test_a_failure_at_any_later_git_call_exits_2(repo, monkeypatch, failing_call, label):
     """Every git invocation after the first is checked, not just the status probe."""
-    (repo / "ruff.toml").write_text("# changed\n")
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
     _write_lock(repo, ["ruff.toml"])
 
     real_git = st._git
@@ -230,7 +234,7 @@ def test_batches_large_lock_lists(repo):
     """More paths than the batch size still all get staged."""
     names = [f"f{i:03d}.txt" for i in range(st._BATCH + 5)]
     for name in names:
-        (repo / name).write_text(f"{name}\n")
+        (repo / name).write_text(f"{name}\n", encoding="utf-8")
     _write_lock(repo, names)
 
     summary = st.stage_synced(repo)
@@ -244,7 +248,7 @@ def test_batches_large_lock_lists(repo):
 
 
 def test_main_json_output(repo, capsys):
-    (repo / "ruff.toml").write_text("# changed\n")
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
     _write_lock(repo, ["ruff.toml"])
     rc = st.main([str(repo), "--json"])
     assert rc == 0
@@ -253,8 +257,8 @@ def test_main_json_output(repo, capsys):
 
 
 def test_main_text_output(repo, capsys):
-    (repo / "ruff.toml").write_text("# changed\n")
-    (repo / "src" / "app.py").write_text('"""Edited."""\n')
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
+    (repo / "src" / "app.py").write_text('"""Edited."""\n', encoding="utf-8")
     _write_lock(repo, ["ruff.toml"])
     rc = st.main([str(repo)])
     assert rc == 0
@@ -286,7 +290,7 @@ def test_e2e_update_stages_only_template_files(synced_repo_copy):
     _git(repo, "commit", "-qm", "chore: apply sync")
 
     # Now: a template file changes upstream-style, and the repo's own source changes.
-    (repo / "ruff.toml").write_text('target-version = "py312"\n')
+    (repo / "ruff.toml").write_text('target-version = "py312"\n', encoding="utf-8")
     (repo / "src" / "widget" / "main.py").write_text(
         '"""Entry point for widget."""\n\n\ndef greeting() -> str:\n'
         '    """Reformatted locally."""\n    return "hello"\n'
@@ -347,7 +351,7 @@ def test_the_summary_always_carries_the_same_four_keys(repo, tmp_path_factory):
     expected = {"staged", "unstaged", "notes", "exit_code"}
 
     _write_lock(repo, ["ruff.toml"])
-    (repo / "ruff.toml").write_text("# changed\n")
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
     assert set(st.stage_synced(repo)) == expected
 
     (repo / ".rhiza" / "template.lock").unlink()
@@ -438,8 +442,8 @@ def test_a_duplicate_lock_entry_does_not_truncate_the_rest(repo):
     would be dropped from the staged set — a template bump PR missing most of its files,
     reported as a success.
     """
-    (repo / "ruff.toml").write_text("# changed\n")
-    (repo / "Makefile").write_text("all:\n")
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
+    (repo / "Makefile").write_text("all:\n", encoding="utf-8")
 
     # The duplicate comes *first*, so a `break` loses both real entries after it.
     _write_lock(repo, [".rhiza/template.yml", "ruff.toml", "Makefile"])

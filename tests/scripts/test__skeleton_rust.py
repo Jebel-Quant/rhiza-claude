@@ -66,11 +66,11 @@ def test_is_cargo_placeholder_lib(text, expected):
 def test_seed_crate_docs_prepends_and_keeps_the_placeholder_test(tmp_path):
     """The crate doc is prepended, never substituted — cargo's stub holds the only test."""
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text(CARGO_LIB)
+    (tmp_path / "src" / "lib.rs").write_text(CARGO_LIB, encoding="utf-8")
 
     assert rs.seed_crate_docs(tmp_path) == ["src/lib.rs"]
 
-    text = (tmp_path / "src" / "lib.rs").read_text()
+    text = (tmp_path / "src" / "lib.rs").read_text(encoding="utf-8")
     assert text.startswith("//! ")
     assert "fn it_works()" in text, "cargo's placeholder test must survive"
 
@@ -83,11 +83,11 @@ def test_seed_crate_docs_documents_cargos_placeholder_fn(tmp_path):
     only the `//!` is why a crate straight out of `/rhiza:init` failed its first gate run.
     """
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text(CARGO_LIB)
+    (tmp_path / "src" / "lib.rs").write_text(CARGO_LIB, encoding="utf-8")
 
     assert rs.seed_crate_docs(tmp_path) == ["src/lib.rs"]
 
-    text = (tmp_path / "src" / "lib.rs").read_text()
+    text = (tmp_path / "src" / "lib.rs").read_text(encoding="utf-8")
     before, _, after = text.partition("pub fn add(")
     assert before.splitlines()[-1].startswith("///"), before
     assert "fn it_works()" in after, "cargo's placeholder test must survive"
@@ -102,11 +102,11 @@ def test_seed_crate_docs_never_documents_the_users_own_public_api(tmp_path):
     """
     (tmp_path / "src").mkdir()
     theirs = "pub fn add(a: u8) -> u8 { a }\n"
-    (tmp_path / "src" / "lib.rs").write_text(theirs)
+    (tmp_path / "src" / "lib.rs").write_text(theirs, encoding="utf-8")
 
     assert rs.seed_crate_docs(tmp_path) == ["src/lib.rs"]
 
-    text = (tmp_path / "src" / "lib.rs").read_text()
+    text = (tmp_path / "src" / "lib.rs").read_text(encoding="utf-8")
     assert "///" not in text, "a user's function was documented on their behalf"
     assert text.endswith(theirs), "their code must be untouched below the crate doc"
 
@@ -114,21 +114,23 @@ def test_seed_crate_docs_never_documents_the_users_own_public_api(tmp_path):
 def test_seed_crate_docs_handles_an_empty_crate_root(tmp_path):
     """An empty root gets the crate doc and nothing else — there is no item to document."""
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text("")
+    (tmp_path / "src" / "lib.rs").write_text("", encoding="utf-8")
 
     assert rs.seed_crate_docs(tmp_path) == ["src/lib.rs"]
-    assert (tmp_path / "src" / "lib.rs").read_text() == f"//! {rs.crate_name(tmp_path)} crate.\n"
+    assert (tmp_path / "src" / "lib.rs").read_text(
+        encoding="utf-8"
+    ) == f"//! {rs.crate_name(tmp_path)} crate.\n"
 
 
 def test_seed_crate_docs_leaves_a_documented_crate_alone(tmp_path):
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text("//! Mine.\n\npub fn f() {}\n")
+    (tmp_path / "src" / "lib.rs").write_text("//! Mine.\n\npub fn f() {}\n", encoding="utf-8")
     assert rs.seed_crate_docs(tmp_path) == []
 
 
 def test_seed_crate_docs_handles_a_binary_crate(tmp_path):
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "main.rs").write_text("fn main() {}\n")
+    (tmp_path / "src" / "main.rs").write_text("fn main() {}\n", encoding="utf-8")
     assert rs.seed_crate_docs(tmp_path) == ["src/main.rs"]
 
 
@@ -138,12 +140,14 @@ def test_seed_crate_docs_without_a_src_directory(tmp_path):
 
 def test_the_crate_doc_names_the_crate_not_the_directory(tmp_path):
     """`cargo init --name widget` in another folder still gets "//! widget crate."."""
-    (tmp_path / "Cargo.toml").write_text('[package]\nname = "widget"\nversion = "0.1.0"\n')
+    (tmp_path / "Cargo.toml").write_text(
+        '[package]\nname = "widget"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text(CARGO_LIB)
+    (tmp_path / "src" / "lib.rs").write_text(CARGO_LIB, encoding="utf-8")
 
     rs.seed_crate_docs(tmp_path)
-    assert (tmp_path / "src" / "lib.rs").read_text().startswith("//! widget crate.")
+    assert (tmp_path / "src" / "lib.rs").read_text(encoding="utf-8").startswith("//! widget crate.")
 
 
 # --- crate_name / cargo_package_name -----------------------------------------
@@ -152,7 +156,7 @@ def test_the_crate_doc_names_the_crate_not_the_directory(tmp_path):
 def test_crate_name_falls_back_to_the_directory(tmp_path):
     """No manifest yet (or none with a `name`) — the folder is the best guess left."""
     assert rs.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
-    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n', encoding="utf-8")
     assert rs.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
 
 
@@ -171,7 +175,7 @@ def test_crate_name_falls_back_when_the_package_table_declares_no_name(tmp_path)
 
 def test_crate_name_hyphens_become_underscores(tmp_path):
     """A crate's Rust identifier is its package name with `-` mapped to `_`."""
-    (tmp_path / "Cargo.toml").write_text('[package]\nname = "acme-tool"\n')
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "acme-tool"\n', encoding="utf-8")
     assert rs.crate_name(tmp_path) == "acme_tool"
 
 
@@ -231,7 +235,9 @@ def test_set_cargo_keys_keeps_a_trailing_newline_when_there_was_one():
 
 def test_fill_cargo_manifest_omits_description_when_there_is_none(tmp_path):
     """`description` is the one optional key — absent means absent, not empty-string."""
-    (tmp_path / "Cargo.toml").write_text('[package]\nname = "x"\nversion = "0.1.0"\n')
+    (tmp_path / "Cargo.toml").write_text(
+        '[package]\nname = "x"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
     result = rs.fill_cargo_manifest(
         tmp_path,
         owner="acme",
@@ -242,7 +248,7 @@ def test_fill_cargo_manifest_omits_description_when_there_is_none(tmp_path):
         notes=[],
     )
     assert result["ok"] is True
-    assert "description" not in (tmp_path / "Cargo.toml").read_text()
+    assert "description" not in (tmp_path / "Cargo.toml").read_text(encoding="utf-8")
 
 
 def test_fill_cargo_manifest_reports_an_absent_manifest(tmp_path):
@@ -256,7 +262,7 @@ def test_fill_cargo_manifest_reports_an_absent_manifest(tmp_path):
 
 def test_fill_cargo_manifest_reports_a_workspace_root(tmp_path):
     """A virtual workspace has no [package] to fill in — say so instead of crashing."""
-    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n', encoding="utf-8")
     result = rs.fill_cargo_manifest(
         tmp_path, owner="o", repo="r", domain="github.com", description=None,
         modified=[], notes=[],

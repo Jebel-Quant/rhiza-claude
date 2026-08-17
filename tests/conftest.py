@@ -47,7 +47,7 @@ def plugin_scripts() -> Path:
 def git_repo(tmp_path: Path) -> Path:
     """A minimal git repo skeleton: a `.git` dir and a `pyproject.toml`."""
     (tmp_path / ".git").mkdir()
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
     return tmp_path
@@ -58,7 +58,7 @@ def write_template(repo: Path, body: str) -> Path:
     rhiza = repo / ".rhiza"
     rhiza.mkdir(exist_ok=True)
     tmpl = rhiza / "template.yml"
-    tmpl.write_text(body)
+    tmpl.write_text(body, encoding="utf-8")
     return tmpl
 
 
@@ -130,12 +130,12 @@ class Repo:
         """Write *content* to *rel* (creating parents) and return the path."""
         target = self.path / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content)
+        target.write_text(content, encoding="utf-8")
         return target
 
     def read(self, rel: str) -> str:
         """Return the text of *rel*."""
-        return (self.path / rel).read_text()
+        return (self.path / rel).read_text(encoding="utf-8")
 
     def exists(self, rel: str) -> bool:
         """Return whether *rel* exists in the working tree."""
@@ -252,7 +252,9 @@ def unmanaged_repo(tmp_path: Path) -> Path:
     """
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0.1.0"\n')
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "0.1.0"\n', encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -271,20 +273,20 @@ def managed_unsynced_repo(unmanaged_repo: Path, template_ref: str) -> Path:
 def managed_synced_repo(managed_unsynced_repo: Path) -> Path:
     """Rhiza-managed *and* synced: the makefile and lock the sync delivers are present."""
     rhiza = managed_unsynced_repo / ".rhiza"
-    (rhiza / "rhiza.mk").write_text(SYNCED_MAKEFILE)
+    (rhiza / "rhiza.mk").write_text(SYNCED_MAKEFILE, encoding="utf-8")
     (rhiza / "template.lock").write_text(
         'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n  - Makefile\n'
     )
-    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
-    (managed_unsynced_repo / "ruff.toml").write_text('target-version = "py311"\n')
+    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
+    (managed_unsynced_repo / "ruff.toml").write_text('target-version = "py311"\n', encoding="utf-8")
     return managed_unsynced_repo
 
 
 @pytest.fixture
 def partial_profile_repo(managed_unsynced_repo: Path) -> Path:
     """A synced repo on a reduced profile, missing the tests-bundle gates."""
-    (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE)
-    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n")
+    (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE, encoding="utf-8")
+    (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
     return managed_unsynced_repo
 
 

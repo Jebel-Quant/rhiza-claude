@@ -31,27 +31,29 @@ def test_host_url_builds_the_canonical_project_url():
 
 def test_seed_readme_fills_the_empty_file_uv_leaves(tmp_path):
     """`uv init --lib` writes README.md with zero bytes; the template rejects that."""
-    (tmp_path / "README.md").write_text("")
+    (tmp_path / "README.md").write_text("", encoding="utf-8")
 
     assert common.seed_readme(tmp_path, repo="widget", description="A widget.") is True
 
-    body = (tmp_path / "README.md").read_text()
+    body = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert body.startswith("# widget\n")
     assert "A widget." in body
 
 
 def test_seed_readme_never_overwrites_a_real_readme(tmp_path):
     """/rhiza:docs owns the README; finding its work replaced would be the worst bug."""
-    (tmp_path / "README.md").write_text("# Hand-written\n\nCarefully worded.\n")
+    (tmp_path / "README.md").write_text("# Hand-written\n\nCarefully worded.\n", encoding="utf-8")
 
     assert common.seed_readme(tmp_path, repo="widget", description="A widget.") is False
-    assert (tmp_path / "README.md").read_text() == "# Hand-written\n\nCarefully worded.\n"
+    assert (tmp_path / "README.md").read_text(
+        encoding="utf-8"
+    ) == "# Hand-written\n\nCarefully worded.\n"
 
 
 def test_seed_readme_treats_whitespace_only_as_empty(tmp_path):
-    (tmp_path / "README.md").write_text("\n\n   \n")
+    (tmp_path / "README.md").write_text("\n\n   \n", encoding="utf-8")
     assert common.seed_readme(tmp_path, repo="widget", description=None) is True
-    assert (tmp_path / "README.md").read_text().startswith("# widget\n")
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# widget\n")
 
 
 def test_seed_readme_does_not_create_an_absent_readme(tmp_path):
@@ -63,14 +65,14 @@ def test_seed_readme_does_not_create_an_absent_readme(tmp_path):
 def test_seed_readme_creates_one_when_asked(tmp_path):
     """`cargo init` and `go mod init` write no README at all — absence is the norm."""
     assert common.seed_readme(tmp_path, repo="widget", description=None, create=True) is True
-    assert (tmp_path / "README.md").read_text().startswith("# widget\n")
+    assert (tmp_path / "README.md").read_text(encoding="utf-8").startswith("# widget\n")
 
 
 def test_seed_readme_writes_no_code_blocks(tmp_path):
     """The same template test *executes* fenced blocks it finds in the README."""
-    (tmp_path / "README.md").write_text("")
+    (tmp_path / "README.md").write_text("", encoding="utf-8")
     common.seed_readme(tmp_path, repo="widget", description="A widget.")
-    assert "```" not in (tmp_path / "README.md").read_text()
+    assert "```" not in (tmp_path / "README.md").read_text(encoding="utf-8")
 
 
 # --- git_identity -------------------------------------------------------------

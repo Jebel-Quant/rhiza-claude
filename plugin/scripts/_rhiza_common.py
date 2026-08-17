@@ -16,6 +16,29 @@ class SyncError(Exception):
     """A fatal, non-conflict sync failure (bad config, dirty tree, git error)."""
 
 
+def has_drive_letter(value: str) -> bool:
+    """Does *value* begin with a Windows drive letter (``C:``)?
+
+    Shared because two callers ask it for opposite reasons and must agree on the answer:
+    `_rhiza_bundles` **rejects** a drive-lettered bundle path as an escape from the
+    project directory, while `_rhiza_template` **accepts** one as a local template to
+    clone verbatim. A copy that drifted would either sync from `https://github.com/C:/…`
+    or let a bundle write outside the repo.
+
+    >>> has_drive_letter("C:/Users/dev/template")
+    True
+    >>> has_drive_letter(r"d:\\work\\rhiza")
+    True
+
+    A forward-slash path, a URL and an ``owner/repo`` are all unaffected — none has a
+    colon in second position:
+
+    >>> [has_drive_letter(v) for v in ("/tmp/t", "jebel-quant/rhiza", "https://x/y")]
+    [False, False, False]
+    """
+    return len(value) >= 2 and value[0].isalpha() and value[1] == ":"
+
+
 def log(message: str) -> None:
     """Emit a progress/diagnostic line to stderr.
 

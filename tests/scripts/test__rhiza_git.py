@@ -49,9 +49,9 @@ def test_get_git_executable_missing(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_scan_conflict_artifacts_rej_and_markers(tmp_path: Path) -> None:
-    (tmp_path / "a.rej").write_text("hunk\n")
-    (tmp_path / "b.txt").write_text("x\n<<<<<<< HEAD\n")
-    (tmp_path / "clean.txt").write_text("fine\n")
+    (tmp_path / "a.rej").write_text("hunk\n", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("x\n<<<<<<< HEAD\n", encoding="utf-8")
+    (tmp_path / "clean.txt").write_text("fine\n", encoding="utf-8")
     (tmp_path / "sub").mkdir()
     rej, markers = git.scan_conflict_artifacts(tmp_path)
     assert rej == ["a.rej"]
@@ -61,7 +61,7 @@ def test_scan_conflict_artifacts_rej_and_markers(tmp_path: Path) -> None:
 def test_scan_conflict_artifacts_tolerates_unreadable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / "x.txt").write_text("data\n")
+    (tmp_path / "x.txt").write_text("data\n", encoding="utf-8")
     orig = Path.read_bytes
 
     def boom(self: Path, *a: Any, **k: Any) -> bytes:

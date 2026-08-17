@@ -21,7 +21,7 @@ def log() -> Log:
 def test_python_structure(tmp_path):
     lg = log()
     assert vs.validate_python_structure(lg, tmp_path) is False  # no pyproject
-    (tmp_path / "pyproject.toml").write_text("[project]\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
     (tmp_path / "tests").mkdir()
     lg2 = log()
@@ -32,7 +32,7 @@ def test_python_structure(tmp_path):
 def test_go_structure(tmp_path):
     lg = log()
     assert vs.validate_go_structure(lg, tmp_path) is False  # no go.mod, warns on cmd/pkg
-    (tmp_path / "go.mod").write_text("module x\n")
+    (tmp_path / "go.mod").write_text("module x\n", encoding="utf-8")
     (tmp_path / "cmd").mkdir()
     (tmp_path / "pkg").mkdir()
     (tmp_path / "internal").mkdir()
@@ -47,7 +47,7 @@ def test_go_structure_accepts_either_package_folder_alone(tmp_path, present):
     The rule is "not neither", so each folder's success path has to be reachable on its
     own, not only when the other is there too.
     """
-    (tmp_path / "go.mod").write_text("module x\n")
+    (tmp_path / "go.mod").write_text("module x\n", encoding="utf-8")
     (tmp_path / present).mkdir()
     lg = log()
     assert vs.validate_go_structure(lg, tmp_path) is True
@@ -56,13 +56,13 @@ def test_go_structure_accepts_either_package_folder_alone(tmp_path, present):
 def test_rust_structure(tmp_path):
     lg = log()
     assert vs.validate_rust_structure(lg, tmp_path) is False  # no Cargo.toml
-    (tmp_path / "Cargo.toml").write_text("[package]\nname = 'x'\n")
+    (tmp_path / "Cargo.toml").write_text("[package]\nname = 'x'\n", encoding="utf-8")
     lg2 = log()
     assert vs.validate_rust_structure(lg2, tmp_path) is True  # manifest is enough to pass
     assert any("lib.rs" in w for w in lg2.warnings)  # ...but the missing crate root warns
 
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "lib.rs").write_text("//! x\n")
+    (tmp_path / "src" / "lib.rs").write_text("//! x\n", encoding="utf-8")
     lg3 = log()
     assert vs.validate_rust_structure(lg3, tmp_path) is True
     assert not lg3.warnings
@@ -70,7 +70,7 @@ def test_rust_structure(tmp_path):
 
 def test_rust_workspace_root_needs_no_crate_root(tmp_path):
     """A virtual workspace has a Cargo.toml and deliberately no src/ — not a warning."""
-    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n', encoding="utf-8")
     lg = log()
     assert vs.validate_rust_structure(lg, tmp_path) is True
     assert not lg.warnings
@@ -78,9 +78,9 @@ def test_rust_workspace_root_needs_no_crate_root(tmp_path):
 
 def test_rust_structure_reports_a_binary_crate_root(tmp_path):
     """`src/main.rs` is as valid a crate root as `src/lib.rs`."""
-    (tmp_path / "Cargo.toml").write_text("[package]\nname = 'x'\n")
+    (tmp_path / "Cargo.toml").write_text("[package]\nname = 'x'\n", encoding="utf-8")
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "main.rs").write_text("fn main() {}\n")
+    (tmp_path / "src" / "main.rs").write_text("fn main() {}\n", encoding="utf-8")
     lg = log()
     assert vs.validate_rust_structure(lg, tmp_path) is True
     assert not lg.warnings

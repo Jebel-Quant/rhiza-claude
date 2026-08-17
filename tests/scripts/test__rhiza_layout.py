@@ -58,7 +58,7 @@ def test_marketplace_points_at_the_plugin_dir(repo_root: Path):
     """`source` and PLUGIN_DIR must agree, or an install resolves to the wrong tree."""
     import json
 
-    manifest = json.loads((repo_root / layout.MARKETPLACE_MANIFEST).read_text())
+    manifest = json.loads((repo_root / layout.MARKETPLACE_MANIFEST).read_text(encoding="utf-8"))
     sources = {entry["source"] for entry in manifest["plugins"]}
     assert sources == {f"./{layout.PLUGIN_DIR}"}
 
@@ -69,7 +69,7 @@ def test_marketplace_points_at_the_plugin_dir(repo_root: Path):
 def test_command_files_names_a_flat_command_by_its_file(tmp_path: Path):
     (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
     path = tmp_path / layout.COMMANDS_DIR / "status.md"
-    path.write_text("---\ndescription: x\n---\n")
+    path.write_text("---\ndescription: x\n---\n", encoding="utf-8")
     assert layout.command_files(tmp_path) == [("status", path)]
 
 
@@ -77,33 +77,33 @@ def test_command_files_names_a_skill_by_its_directory(tmp_path: Path):
     """`SKILL.md` is the same basename for every skill, so the directory is the name."""
     (tmp_path / layout.SKILLS_DIR / "maffay").mkdir(parents=True)
     path = tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE
-    path.write_text("---\ndescription: x\n---\n")
+    path.write_text("---\ndescription: x\n---\n", encoding="utf-8")
     assert layout.command_files(tmp_path) == [("maffay", path)]
 
 
 def test_command_files_ignores_stray_markdown_beside_a_skill(tmp_path: Path):
     """Only `SKILL.md` is discovered, so a skill may bundle its own notes."""
     (tmp_path / layout.SKILLS_DIR / "maffay").mkdir(parents=True)
-    (tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE).write_text("x")
-    (tmp_path / layout.SKILLS_DIR / "maffay" / "NOTES.md").write_text("y")
+    (tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE).write_text("x", encoding="utf-8")
+    (tmp_path / layout.SKILLS_DIR / "maffay" / "NOTES.md").write_text("y", encoding="utf-8")
     assert [name for name, _ in layout.command_files(tmp_path)] == ["maffay"]
 
 
 def test_command_files_merges_the_layouts_in_name_order(tmp_path: Path):
     (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
-    (tmp_path / layout.COMMANDS_DIR / "update.md").write_text("x")
-    (tmp_path / layout.COMMANDS_DIR / "docs.md").write_text("x")
+    (tmp_path / layout.COMMANDS_DIR / "update.md").write_text("x", encoding="utf-8")
+    (tmp_path / layout.COMMANDS_DIR / "docs.md").write_text("x", encoding="utf-8")
     (tmp_path / layout.SKILLS_DIR / "maffay").mkdir(parents=True)
-    (tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE).write_text("x")
+    (tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE).write_text("x", encoding="utf-8")
     assert [name for name, _ in layout.command_files(tmp_path)] == ["docs", "maffay", "update"]
 
 
 def test_command_files_reports_a_name_claimed_by_both_layouts_twice(tmp_path: Path):
     """Deduplicating here would hide the half-finished migration rule 10 exists to catch."""
     (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
-    (tmp_path / layout.COMMANDS_DIR / "maffay.md").write_text("x")
+    (tmp_path / layout.COMMANDS_DIR / "maffay.md").write_text("x", encoding="utf-8")
     (tmp_path / layout.SKILLS_DIR / "maffay").mkdir(parents=True)
-    (tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE).write_text("x")
+    (tmp_path / layout.SKILLS_DIR / "maffay" / layout.SKILL_FILE).write_text("x", encoding="utf-8")
     assert [name for name, _ in layout.command_files(tmp_path)] == ["maffay", "maffay"]
 
 

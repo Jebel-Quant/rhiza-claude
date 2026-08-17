@@ -17,7 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError  # noqa: E402
+from _rhiza_common import SyncError, has_drive_letter  # noqa: E402
 from _rhiza_template import Template  # noqa: E402
 from _rhiza_yaml import as_list  # noqa: E402
 
@@ -51,8 +51,7 @@ def _ensure_safe_bundle_path(value: str) -> None:
     """
     normalized = value.replace("\\", "/")
     pure = PurePosixPath(normalized)
-    has_drive = len(normalized) >= 2 and normalized[0].isalpha() and normalized[1] == ":"
-    if pure.is_absolute() or has_drive or ".." in pure.parts:
+    if pure.is_absolute() or has_drive_letter(normalized) or ".." in pure.parts:
         raise SyncError(
             f"Unsafe bundle path {value!r}: paths must be relative to the project root "
             "(no absolute paths, drive letters, or '..' traversal)."

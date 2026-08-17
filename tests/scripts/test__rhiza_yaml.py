@@ -28,11 +28,11 @@ def test_load_yaml_with_pyyaml(tmp_path):
     the real thing is available.
     """
     f = tmp_path / "f.yml"
-    f.write_text("a: 1\n")
+    f.write_text("a: 1\n", encoding="utf-8")
     assert y.load_yaml(f) == {"a": 1}
-    f.write_text("# just a comment\n")
+    f.write_text("# just a comment\n", encoding="utf-8")
     assert y.load_yaml(f) == {}
-    f.write_text("- 1\n- 2\n")
+    f.write_text("- 1\n- 2\n", encoding="utf-8")
     with pytest.raises(ValueError, match="not a mapping"):
         y.load_yaml(f)
 
@@ -67,7 +67,7 @@ def test_dumps_yaml_empty_dict():
 def test_dump_yaml_writes_file(tmp_path):
     path = tmp_path / "template.lock"
     y.dump_yaml({"sha": "x", "files": ["a"]}, path)
-    assert path.read_text() == "sha: x\nfiles:\n- a\n"
+    assert path.read_text(encoding="utf-8") == "sha: x\nfiles:\n- a\n"
 
 
 @pytest.mark.parametrize(
@@ -147,7 +147,7 @@ def test_both_readers_agree_on_a_scalar_yaml_1_1_would_coerce(tmp_path, text, ke
     whether PyYAML happened to be importable.
     """
     path = tmp_path / "t.yml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     via_pyyaml = y.load_yaml(path)
     assert via_pyyaml[key] == expected
     assert via_pyyaml == yp.parse_subset(text)
@@ -171,7 +171,7 @@ def test_the_two_readers_agree_on_a_whole_pointer_file(tmp_path):
         "profiles: [rust-local, core]\n"
     )
     path = tmp_path / "template.yml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     assert y.load_yaml(path) == yp.parse_subset(text)
 
 
@@ -185,7 +185,7 @@ def test_a_quoted_scalar_is_not_coerced_by_either_reader(tmp_path):
     """
     text = 'a: "true"\nb: true\nc: "1.20"\n'
     path = tmp_path / "t.yml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     loaded = y.load_yaml(path)
     assert loaded == {"a": "true", "b": True, "c": "1.20"}
     assert loaded == yp.parse_subset(text)
@@ -199,7 +199,7 @@ def test_structure_still_comes_from_pyyaml(tmp_path):
     normalises *scalars*, and must not have flattened the capability it was protecting.
     """
     path = tmp_path / "t.yml"
-    path.write_text("defaults: &d\n  branch: main\nrepo:\n  <<: *d\n  name: x\n")
+    path.write_text("defaults: &d\n  branch: main\nrepo:\n  <<: *d\n  name: x\n", encoding="utf-8")
     assert y.load_yaml(path)["repo"] == {"branch": "main", "name": "x"}
 
 
@@ -207,7 +207,7 @@ def test_the_subset_parser_is_used_when_pyyaml_is_absent(tmp_path, monkeypatch):
     """The runtime case: the commands run under `uv run --no-project`, with no PyYAML."""
     monkeypatch.setattr(y, "_pyyaml", None)
     path = tmp_path / "t.yml"
-    path.write_text("ref: 1.20\nstrategy: no\n")
+    path.write_text("ref: 1.20\nstrategy: no\n", encoding="utf-8")
     assert y.load_yaml(path) == {"ref": "1.20", "strategy": "no"}
 
 
@@ -220,7 +220,7 @@ def test_both_readers_agree_on_a_block_scalar(tmp_path):
     """
     text = "notes: |\n  first\n  second\n"
     path = tmp_path / "t.yml"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     assert y.load_yaml(path)["notes"] == "first\nsecond"
     assert y.load_yaml(path) == yp.parse_subset(text)
 
@@ -229,7 +229,7 @@ def test_both_readers_agree_on_a_block_scalar(tmp_path):
 def test_a_quoted_string_keeps_its_deliberate_whitespace(tmp_path):
     """Only block styles are stripped — stripping every string would be a new bug."""
     path = tmp_path / "t.yml"
-    path.write_text('a: "  padded  "\n')
+    path.write_text('a: "  padded  "\n', encoding="utf-8")
     assert y.load_yaml(path)["a"] == "  padded  "
 
 
@@ -244,7 +244,7 @@ def test_a_damaged_document_raises_the_error_callers_actually_catch(tmp_path):
     the PyYAML one strict, but both must fail in a way the callers handle.
     """
     path = tmp_path / "template.lock"
-    path.write_text("\t: not: valid: yaml: [\n")
+    path.write_text("\t: not: valid: yaml: [\n", encoding="utf-8")
     with pytest.raises(ValueError, match="could not parse YAML"):
         y.load_yaml(path)
 
@@ -256,7 +256,7 @@ def test_load_yaml_missing_file(tmp_path):
 
 def test_load_yaml_empty_returns_empty_dict(tmp_path):
     f = tmp_path / "empty.yml"
-    f.write_text("# just a comment\n")
+    f.write_text("# just a comment\n", encoding="utf-8")
     assert y.load_yaml(f) == {}
 
 
@@ -266,5 +266,5 @@ def test_load_yaml_empty_returns_empty_dict(tmp_path):
 def test_a_block_scalar_running_to_the_end_of_the_document(tmp_path):
     """The scan exhausts the file instead of breaking on a dedented line."""
     path = tmp_path / "t.yml"
-    path.write_text("name: x\nnotes: |\n  first\n  second\n")
+    path.write_text("name: x\nnotes: |\n  first\n  second\n", encoding="utf-8")
     assert y.load_yaml(path)["notes"] == "first\nsecond"

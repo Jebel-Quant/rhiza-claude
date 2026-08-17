@@ -34,11 +34,11 @@ def repo(tmp_path: Path) -> Path:
     """A minimal tree in parity: one command, one procedure, both paged and navigable."""
     for directory in (layout.COMMANDS_DIR, layout.PROMPTS_DIR, "docs/skills", "docs/internals"):
         (tmp_path / directory).mkdir(parents=True)
-    (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text("# demo\n")
-    (tmp_path / layout.PROMPTS_DIR / "proc.md").write_text("# proc\n")
-    (tmp_path / "docs" / "skills" / "demo.md").write_text("# demo page\n")
-    (tmp_path / "docs" / "internals" / "proc.md").write_text("# proc page\n")
-    (tmp_path / "mkdocs.yml").write_text(_MKDOCS)
+    (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text("# demo\n", encoding="utf-8")
+    (tmp_path / layout.PROMPTS_DIR / "proc.md").write_text("# proc\n", encoding="utf-8")
+    (tmp_path / "docs" / "skills" / "demo.md").write_text("# demo page\n", encoding="utf-8")
+    (tmp_path / "docs" / "internals" / "proc.md").write_text("# proc page\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text(_MKDOCS, encoding="utf-8")
     return tmp_path
 
 
@@ -53,7 +53,7 @@ def test_a_tree_in_parity_has_no_violations(repo):
 
 
 def test_flags_a_command_with_no_docs_page(repo):
-    (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n")
+    (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n", encoding="utf-8")
     assert (
         f"{layout.COMMANDS_DIR}/fresh.md has no page at docs/skills/fresh.md"
         in cdn.check_docs_nav(repo)
@@ -61,7 +61,7 @@ def test_flags_a_command_with_no_docs_page(repo):
 
 
 def test_flags_a_procedure_with_no_docs_page(repo):
-    (repo / layout.PROMPTS_DIR / "fresh.md").write_text("# fresh\n")
+    (repo / layout.PROMPTS_DIR / "fresh.md").write_text("# fresh\n", encoding="utf-8")
     assert (
         f"{layout.PROMPTS_DIR}/fresh.md has no page at docs/internals/fresh.md"
         in cdn.check_docs_nav(repo)
@@ -73,15 +73,17 @@ def test_flags_a_procedure_with_no_docs_page(repo):
 
 def test_flags_a_page_that_is_not_in_the_nav(repo):
     """The orphan direction mkdocs --strict cannot see."""
-    (repo / layout.COMMANDS_DIR / "extra.md").write_text("# extra\n")
-    (repo / "docs" / "skills" / "extra.md").write_text("# extra page\n")
+    (repo / layout.COMMANDS_DIR / "extra.md").write_text("# extra\n", encoding="utf-8")
+    (repo / "docs" / "skills" / "extra.md").write_text("# extra page\n", encoding="utf-8")
     violations = cdn.check_docs_nav(repo)
     assert "docs/skills/extra.md exists but is not in mkdocs.yml's nav" in violations
 
 
 def test_a_nav_entry_spelled_with_the_docs_prefix_counts(repo):
     """`docs/skills/x.md` and `skills/x.md` both mean the same page."""
-    (repo / "mkdocs.yml").write_text(_MKDOCS.replace("skills/demo.md", "docs/skills/demo.md"))
+    (repo / "mkdocs.yml").write_text(
+        _MKDOCS.replace("skills/demo.md", "docs/skills/demo.md"), encoding="utf-8"
+    )
     assert cdn.check_docs_nav(repo) == []
 
 
@@ -89,7 +91,7 @@ def test_a_nav_entry_spelled_with_the_docs_prefix_counts(repo):
 
 
 def test_flags_a_page_whose_command_was_removed(repo):
-    (repo / "docs" / "skills" / "retired.md").write_text("# stale instructions\n")
+    (repo / "docs" / "skills" / "retired.md").write_text("# stale instructions\n", encoding="utf-8")
     violations = cdn.check_docs_nav(repo)
     assert (
         "docs/skills/retired.md has no command or procedure behind it — orphan page" in violations
@@ -100,13 +102,15 @@ def test_a_command_that_moved_into_skills_keeps_its_page(repo):
     """The page is named for the command, so migrating a file must not orphan its docs."""
     (repo / layout.COMMANDS_DIR / "demo.md").unlink()
     (repo / layout.SKILLS_DIR / "demo").mkdir(parents=True)
-    (repo / layout.SKILLS_DIR / "demo" / layout.SKILL_FILE).write_text("# demo\n")
+    (repo / layout.SKILLS_DIR / "demo" / layout.SKILL_FILE).write_text("# demo\n", encoding="utf-8")
     assert cdn.check_docs_nav(repo) == []
 
 
 def test_flags_a_skill_with_no_page(repo):
     (repo / layout.SKILLS_DIR / "fresh").mkdir(parents=True)
-    (repo / layout.SKILLS_DIR / "fresh" / layout.SKILL_FILE).write_text("# fresh\n")
+    (repo / layout.SKILLS_DIR / "fresh" / layout.SKILL_FILE).write_text(
+        "# fresh\n", encoding="utf-8"
+    )
     violations = cdn.check_docs_nav(repo)
     assert (
         f"{layout.SKILLS_DIR}/fresh/{layout.SKILL_FILE} has no page at docs/skills/fresh.md"
@@ -131,7 +135,9 @@ def test_flags_a_missing_page_named_with_the_docs_prefix(repo):
     long-form entry counted as wiring, and the dangling check — matching `skills/` alone —
     never looked at it. A nav pointing at a page nobody wrote was therefore green.
     """
-    (repo / "mkdocs.yml").write_text(_MKDOCS.replace("skills/demo.md", "docs/skills/gone.md"))
+    (repo / "mkdocs.yml").write_text(
+        _MKDOCS.replace("skills/demo.md", "docs/skills/gone.md"), encoding="utf-8"
+    )
     violations = cdn.check_docs_nav(repo)
     assert "mkdocs.yml nav points at docs/skills/gone.md, which does not exist" in violations
 
@@ -163,13 +169,15 @@ def test_nav_targets_reads_every_md_path(repo):
 def test_nav_targets_stops_at_the_next_top_level_key(repo):
     """`theme:` ends the block — a later `*.md` elsewhere in the file is not a nav entry."""
     assert "material.md" not in cdn.nav_targets(repo / "mkdocs.yml")
-    (repo / "mkdocs.yml").write_text(_MKDOCS + "\nextra_css:\n  - not-a-page.md\n")
+    (repo / "mkdocs.yml").write_text(
+        _MKDOCS + "\nextra_css:\n  - not-a-page.md\n", encoding="utf-8"
+    )
     assert "not-a-page.md" not in cdn.nav_targets(repo / "mkdocs.yml")
 
 
 def test_nav_targets_handles_a_nav_that_runs_to_end_of_file(tmp_path):
     path = tmp_path / "mkdocs.yml"
-    path.write_text("site_name: x\n\nnav:\n  - Home: index.md\n")
+    path.write_text("site_name: x\n\nnav:\n  - Home: index.md\n", encoding="utf-8")
     assert cdn.nav_targets(path) == {"index.md"}
 
 
@@ -179,7 +187,7 @@ def test_nav_targets_on_a_missing_file_is_empty(tmp_path):
 
 def test_nav_targets_on_a_file_without_a_nav_key_is_empty(tmp_path):
     path = tmp_path / "mkdocs.yml"
-    path.write_text("site_name: x\ntheme:\n  name: material\n")
+    path.write_text("site_name: x\ntheme:\n  name: material\n", encoding="utf-8")
     assert cdn.nav_targets(path) == set()
 
 
@@ -196,7 +204,7 @@ def test_main_passes_on_a_tree_in_parity(repo, capsys):
 
 
 def test_main_reports_each_violation(repo, capsys):
-    (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n")
+    (repo / layout.COMMANDS_DIR / "fresh.md").write_text("# fresh\n", encoding="utf-8")
     assert cdn.main(["--root", str(repo)]) == 1
     err = capsys.readouterr().err
     assert "Docs/nav parity check failed" in err
