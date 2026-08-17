@@ -267,7 +267,7 @@ def test_a_lock_listing_itself_is_not_deleted_twice(tmp_path):
     (tmp_path / ".rhiza").mkdir(parents=True)
     (tmp_path / "kept.txt").write_text("x", encoding="utf-8")
     (tmp_path / ".rhiza" / "template.lock").write_text(
-        "sha: abc\nfiles:\n- .rhiza/template.lock\n- kept.txt\n"
+        "sha: abc\nfiles:\n- .rhiza/template.lock\n- kept.txt\n", encoding="utf-8"
     )
     assert detach.detach(tmp_path, force=True) == 0
     assert not (tmp_path / ".rhiza" / "template.lock").exists()

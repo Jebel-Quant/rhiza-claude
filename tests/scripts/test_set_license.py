@@ -359,14 +359,15 @@ def test_e2e_both_manifests_are_visited_so_they_cannot_disagree(rust_crate, tmp_
     repo = tmp_path / "widget"
     shutil.copytree(rust_crate, repo)
     (repo / "pyproject.toml").write_text(
-        '[project]\nname = "widget"\nversion = "0.1.0"\nlicense = "Apache-2.0"\n'
+        '[project]\nname = "widget"\nversion = "0.1.0"\nlicense = "Apache-2.0"\n', encoding="utf-8"
     )
     # A stale `license-file` is the trap: left behind, `cargo publish` describes terms
     # the repo no longer ships.
     (repo / "Cargo.toml").write_text(
         (repo / "Cargo.toml")
         .read_text(encoding="utf-8")
-        .replace('license = "MIT"', 'license-file = "COPYING"')
+        .replace('license = "MIT"', 'license-file = "COPYING"'),
+        encoding="utf-8",
     )
 
     summary = sl.set_license(repo, license_id="MIT", holder="jebel-quant", year="2026", force=True)

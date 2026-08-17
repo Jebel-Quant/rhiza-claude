@@ -273,7 +273,8 @@ def conflict_scenario(tmp_path: Path, plugin_scripts: Path) -> tuple[Path, Path]
     (template / "shared.txt").write_text("line one\nBASE\nline three\n", encoding="utf-8")
     (template / ".rhiza" / "template-bundles.yml").write_text(
         "bundles:\n  core:\n    description: core\n"
-        "profiles:\n  default:\n    bundles:\n      - core\n"
+        "profiles:\n  default:\n    bundles:\n      - core\n",
+        encoding="utf-8",
     )
     (template / "bundles").mkdir()
     (template / "bundles" / "core").mkdir()
@@ -289,7 +290,8 @@ def conflict_scenario(tmp_path: Path, plugin_scripts: Path) -> tuple[Path, Path]
     project = tmp_path / "project"
     (project / ".rhiza").mkdir(parents=True)
     (project / ".rhiza" / "template.yml").write_text(
-        f'repository: "{template}"\nref: main\n\nprofiles:\n  - default\n'
+        f'repository: "{template.as_posix()}"\nref: main\n\nprofiles:\n  - default\n',
+        encoding="utf-8",
     )
     _git(project, "init", "-q", "-b", "main")
     _git(project, "config", "user.email", "t@e.com")
@@ -310,7 +312,7 @@ def conflict_scenario(tmp_path: Path, plugin_scripts: Path) -> tuple[Path, Path]
     _git(project, "commit", "-qm", "local change")
 
     (template / "bundles" / "core" / "shared.txt").write_text(
-        "line one\nUPSTREAM EDIT\nline three\n"
+        "line one\nUPSTREAM EDIT\nline three\n", encoding="utf-8"
     )
     _git(template, "add", "-A")
     _git(template, "commit", "-qm", "upstream change")

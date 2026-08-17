@@ -118,7 +118,8 @@ def test_seeding_writes_bumpversion_toml_for_a_crate(tmp_path):
 def test_seeding_is_idempotent_and_never_overwrites_the_users_config(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "x"\nversion = "1.2.3"\n\n'
-        '[tool.bumpversion]\ncurrent_version = "9.9.9"\n'
+        '[tool.bumpversion]\ncurrent_version = "9.9.9"\n',
+        encoding="utf-8",
     )
     assert ver.seed_bumpversion_config(tmp_path, "python") is None
     assert 'current_version = "9.9.9"' in (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
@@ -183,7 +184,8 @@ def test_note_bumpversion_says_nothing_when_the_manifest_work_failed(tmp_path):
 
 def test_note_bumpversion_reports_an_existing_declaration(tmp_path):
     (tmp_path / "pyproject.toml").write_text(
-        '[project]\nversion = "1.0.0"\n\n[tool.bumpversion]\ncurrent_version = "1.0.0"\n'
+        '[project]\nversion = "1.0.0"\n\n[tool.bumpversion]\ncurrent_version = "1.0.0"\n',
+        encoding="utf-8",
     )
     result = {"modified": [], "changes": [], "notes": [], "ok": True}
     ver.note_bumpversion(tmp_path, "python", result)

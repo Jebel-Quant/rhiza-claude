@@ -37,7 +37,8 @@ def plugin(tmp_path: Path, repo_root: Path) -> Path:
     (tmp_path / layout.COMMANDS_DIR / "demo.md").write_text(
         _GOOD_FRONTMATTER + "\nRun it:\n\n```bash\n"
         "uv run python scripts/init_scaffold.py . --host github --ref v1.0.0\n"
-        "```\n"
+        "```\n",
+        encoding="utf-8",
     )
     return tmp_path
 
@@ -238,7 +239,7 @@ def test_variable_assignments_are_not_binaries(plugin):
 def test_a_procedure_is_not_checked_for_allowed_tools(plugin):
     """Procedures have no frontmatter, so they inherit the caller's permissions."""
     (plugin / layout.PROMPTS_DIR / "p.md").write_text(
-        "# P\n\n```bash\ncurl https://example.com\n```\n"
+        "# P\n\n```bash\ncurl https://example.com\n```\n", encoding="utf-8"
     )
     assert ccc.check_contracts(plugin) == []
 
@@ -359,7 +360,8 @@ def test_flags_a_description_with_an_unquoted_colon(plugin):
         "description: delegates to internal procedures: install-uv, skeleton\n"
         'argument-hint: "[x]"\n'
         "allowed-tools: Read\n"
-        "---\n\nbody\n"
+        "---\n\nbody\n",
+        encoding="utf-8",
     )
     violations = ccc.check_contracts(plugin)
     assert any("unquoted `: `" in v and "description" in v for v in violations)
@@ -372,7 +374,8 @@ def test_a_quoted_value_may_contain_a_colon(plugin):
         'description: "delegates to internal procedures: install-uv"\n'
         'argument-hint: "[x]"\n'
         "allowed-tools: Read\n"
-        "---\n\nbody\n"
+        "---\n\nbody\n",
+        encoding="utf-8",
     )
     assert ccc.check_contracts(plugin) == []
 
@@ -384,7 +387,8 @@ def test_a_block_scalar_may_contain_a_colon(plugin):
         "  delegates to internal procedures: install-uv\n"
         'argument-hint: "[x]"\n'
         "allowed-tools: Read\n"
-        "---\n\nbody\n"
+        "---\n\nbody\n",
+        encoding="utf-8",
     )
     assert ccc.check_contracts(plugin) == []
 
@@ -496,7 +500,7 @@ def test_flags_a_dead_script_reference_in_contributing(plugin):
     ```bash block, and no gate read the top-of-repo prose at all.
     """
     (plugin / "CONTRIBUTING.md").write_text(
-        "Bump with `uv run --no-project python scripts/bump_version.py`.\n"
+        "Bump with `uv run --no-project python scripts/bump_version.py`.\n", encoding="utf-8"
     )
     violations = ccc.check_contracts(plugin)
     assert any("scripts/bump_version.py, which does not exist" in v for v in violations)

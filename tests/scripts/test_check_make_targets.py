@@ -74,7 +74,8 @@ def test_gate_targets_ignores_prose_mentions_of_make(tmp_path):
     """Only the numbered gate list counts, not every `make x` in the document."""
     doc = tmp_path / "c.md"
     doc.write_text(
-        "Run `make help` first.\n\n1. `make fmt` — a\n\nLater, `make book` builds docs.\n"
+        "Run `make help` first.\n\n1. `make fmt` — a\n\nLater, `make book` builds docs.\n",
+        encoding="utf-8",
     )
     assert cmt.gate_targets(doc) == ["fmt"]
 
@@ -165,7 +166,7 @@ def test_probing_runs_no_recipes(managed_synced_repo):
     """`make -n` must expand without executing, or probing would have side effects."""
     marker = managed_synced_repo / "SIDE_EFFECT"
     (managed_synced_repo / ".rhiza" / "rhiza.mk").write_text(
-        ".PHONY: fmt\nfmt: ; @touch SIDE_EFFECT\n"
+        ".PHONY: fmt\nfmt: ; @touch SIDE_EFFECT\n", encoding="utf-8"
     )
     assert cmt.target_exists(managed_synced_repo, "fmt")
     assert not marker.exists()
@@ -359,7 +360,8 @@ def test_documented_targets_reads_the_help_convention(tmp_path):
     (tmp_path / "Makefile").write_text(
         "help:  ## Show this help\n\ttrue\n"
         "build:  ## Compile the crate\n\ttrue\n"
-        "internal-thing:\n\ttrue\n"  # undocumented: deliberately not discovered
+        "internal-thing:\n\ttrue\n",  # undocumented: deliberately not discovered
+        encoding="utf-8",
     )
     found = cmt.documented_targets(tmp_path)
     assert found == {"help": "Show this help", "build": "Compile the crate"}
@@ -380,7 +382,8 @@ def test_a_non_python_repo_yields_discovered_targets_instead_of_nothing(
     (managed_unsynced_repo / "Makefile").write_text(
         "test:  ## go test ./...\n\ttrue\n"
         "vet:  ## go vet ./...\n\ttrue\n"
-        "lint:  ## golangci-lint run\n\ttrue\n"
+        "lint:  ## golangci-lint run\n\ttrue\n",
+        encoding="utf-8",
     )
     summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["undeclared"] == ["lint", "vet"]  # `test` is a named gate already
@@ -396,7 +399,7 @@ def test_the_discovery_hint_fires_even_though_test_is_a_named_gate(
     Requiring zero matches would hide the hint from exactly the repos it exists for.
     """
     (managed_unsynced_repo / "Makefile").write_text(
-        "test:  ## go test ./...\n\ttrue\nvet:  ## go vet ./...\n\ttrue\n"
+        "test:  ## go test ./...\n\ttrue\nvet:  ## go vet ./...\n\ttrue\n", encoding="utf-8"
     )
     summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["available"] == ["test"]
@@ -431,12 +434,14 @@ def _synced_layout(root: Path) -> None:
     )
     (root / ".rhiza" / "make.d").mkdir(parents=True, exist_ok=True)
     (root / ".rhiza" / "rhiza.mk").write_text(
-        "help:  ## Display this help message\n\ttrue\n-include .rhiza/make.d/*.mk\n"
+        "help:  ## Display this help message\n\ttrue\n-include .rhiza/make.d/*.mk\n",
+        encoding="utf-8",
     )
     (root / ".rhiza" / "make.d" / "rust.mk").write_text(
         "test::  ## run the test suite with nextest\n\ttrue\n"
         "deps:  ## report unused dependencies (the deptry analogue)\n\ttrue\n"
-        "license:  ## run license compliance scan\n\ttrue\n"
+        "license:  ## run license compliance scan\n\ttrue\n",
+        encoding="utf-8",
     )
 
 
@@ -458,7 +463,7 @@ def test_makefile_chain_is_ordered_root_first_and_visits_each_file_once(tmp_path
     _synced_layout(tmp_path)
     # A second include of the same file (make tolerates it) must not duplicate.
     (tmp_path / "Makefile").write_text(
-        "include .rhiza/rhiza.mk\ninclude .rhiza/rhiza.mk\n-include local.mk\n"
+        "include .rhiza/rhiza.mk\ninclude .rhiza/rhiza.mk\n-include local.mk\n", encoding="utf-8"
     )
     chain = [p.relative_to(tmp_path).as_posix() for p in cmt.makefile_chain(tmp_path)]
     assert chain == ["Makefile", ".rhiza/rhiza.mk", ".rhiza/make.d/rust.mk"]
@@ -516,7 +521,8 @@ def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo, quali
     (managed_unsynced_repo / ".rhiza" / "make.d" / "quality.mk").write_text(
         "fmt:  ## format\n\ttrue\ntypecheck:  ## clippy\n\ttrue\n"
         "docs-coverage:  ## missing_docs\n\ttrue\nsecurity:  ## advisories\n\ttrue\n"
-        "rhiza-test:  ## template tests\n\ttrue\n"
+        "rhiza-test:  ## template tests\n\ttrue\n",
+        encoding="utf-8",
     )
     summary = cmt.probe(managed_unsynced_repo, quality_md)
     assert summary["unavailable"] == ["deptry"]

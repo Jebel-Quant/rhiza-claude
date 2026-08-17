@@ -168,7 +168,7 @@ def test_crate_name_falls_back_when_the_package_table_declares_no_name(tmp_path)
     directory fallback.
     """
     (tmp_path / "Cargo.toml").write_text(
-        '[package]\nversion = "0.1.0"\n\n[dependencies.serde]\nname = "serde"\n'
+        '[package]\nversion = "0.1.0"\n\n[dependencies.serde]\nname = "serde"\n', encoding="utf-8"
     )
     assert rs.crate_name(tmp_path) == tmp_path.name.replace("-", "_")
 

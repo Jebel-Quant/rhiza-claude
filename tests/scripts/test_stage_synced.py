@@ -293,7 +293,8 @@ def test_e2e_update_stages_only_template_files(synced_repo_copy):
     (repo / "ruff.toml").write_text('target-version = "py312"\n', encoding="utf-8")
     (repo / "src" / "widget" / "main.py").write_text(
         '"""Entry point for widget."""\n\n\ndef greeting() -> str:\n'
-        '    """Reformatted locally."""\n    return "hello"\n'
+        '    """Reformatted locally."""\n    return "hello"\n',
+        encoding="utf-8",
     )
 
     summary = st.stage_synced(repo)

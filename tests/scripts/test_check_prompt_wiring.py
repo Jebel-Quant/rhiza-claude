@@ -25,7 +25,7 @@ def plugin(tmp_path: Path) -> Path:
     (tmp_path / layout.COMMANDS_DIR).mkdir(parents=True)
     (tmp_path / layout.PROMPTS_DIR).mkdir(parents=True)
     (tmp_path / layout.COMMANDS_DIR / "init.md").write_text(
-        "---\ndescription: x\n---\n\n`Read` prompts/skeleton.md and follow it.\n"
+        "---\ndescription: x\n---\n\n`Read` prompts/skeleton.md and follow it.\n", encoding="utf-8"
     )
     (tmp_path / layout.PROMPTS_DIR / "skeleton.md").write_text(_INTERNAL, encoding="utf-8")
     return tmp_path
@@ -52,7 +52,8 @@ def test_flags_a_procedure_that_does_not_declare_itself(plugin):
 def test_flags_command_frontmatter_on_a_procedure(plugin):
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
         '---\ndescription: x\nargument-hint: "[n]"\nallowed-tools: Read\n---\n\n'
-        "> **Not a slash command.**\n"
+        "> **Not a slash command.**\n",
+        encoding="utf-8",
     )
     violations = cw.check_wiring(plugin)
     assert any("opens with command frontmatter" in v for v in violations)
@@ -84,7 +85,7 @@ def test_a_skill_can_reach_a_procedure(plugin):
     (plugin / layout.COMMANDS_DIR / "init.md").unlink()
     (plugin / layout.SKILLS_DIR / "init").mkdir(parents=True)
     (plugin / layout.SKILLS_DIR / "init" / layout.SKILL_FILE).write_text(
-        "---\ndescription: x\n---\n\n`Read` prompts/skeleton.md and follow it.\n"
+        "---\ndescription: x\n---\n\n`Read` prompts/skeleton.md and follow it.\n", encoding="utf-8"
     )
     assert cw.check_wiring(plugin) == []
 
@@ -138,7 +139,7 @@ def test_a_procedure_may_be_reached_from_another_procedure(plugin):
     """skeleton -> python-version is the real chain, and must be allowed."""
     (plugin / layout.PROMPTS_DIR / "python-version.md").write_text(_INTERNAL, encoding="utf-8")
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
-        _INTERNAL + "\n`Read` prompts/python-version.md and follow it.\n"
+        _INTERNAL + "\n`Read` prompts/python-version.md and follow it.\n", encoding="utf-8"
     )
     assert cw.check_wiring(plugin) == []
 
@@ -146,7 +147,8 @@ def test_a_procedure_may_be_reached_from_another_procedure(plugin):
 def test_flags_a_procedure_invoked_via_the_skill_tool(plugin):
     (plugin / layout.COMMANDS_DIR / "init.md").write_text(
         "prompts/skeleton.md exists, but this line invokes the "
-        "`skeleton` command via the Skill tool instead.\n"
+        "`skeleton` command via the Skill tool instead.\n",
+        encoding="utf-8",
     )
     violations = cw.check_wiring(plugin)
     assert any("via the Skill tool" in v for v in violations)
@@ -158,7 +160,8 @@ def test_allows_skill_invocation_of_a_real_command(plugin):
         "---\ndescription: x\n---\n", encoding="utf-8"
     )
     (plugin / layout.COMMANDS_DIR / "init.md").write_text(
-        "`Read` prompts/skeleton.md, and invoke the `update` command via the Skill tool.\n"
+        "`Read` prompts/skeleton.md, and invoke the `update` command via the Skill tool.\n",
+        encoding="utf-8",
     )
     assert cw.check_wiring(plugin) == []
 
@@ -174,7 +177,7 @@ def _procedure(justification: str) -> str:
 def test_flags_a_procedure_justified_against_a_directory_that_is_absent(plugin):
     """The #141 regression: the argument for un-invocability names a vanished directory."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
-        _procedure("`prompts/`, not `hooks/`, so the user cannot invoke it")
+        _procedure("`prompts/`, not `hooks/`, so the user cannot invoke it"), encoding="utf-8"
     )
     violations = cw.check_wiring(plugin)
     assert any("refers to hooks/, which this plugin does not have" in v for v in violations)
@@ -184,7 +187,7 @@ def test_flags_a_dead_path_in_a_skill_body(plugin):
     """Rule 1 only reads `prompts/`, so three of #141's eleven files sat outside it."""
     (plugin / layout.SKILLS_DIR / "quality").mkdir(parents=True)
     (plugin / layout.SKILLS_DIR / "quality" / layout.SKILL_FILE).write_text(
-        "Procedures sit outside `hooks/` so the user can't invoke them.\n"
+        "Procedures sit outside `hooks/` so the user can't invoke them.\n", encoding="utf-8"
     )
     violations = cw.check_wiring(plugin)
     assert any("skills/quality" in v and "refers to hooks/" in v for v in violations)
@@ -193,7 +196,7 @@ def test_flags_a_dead_path_in_a_skill_body(plugin):
 def test_accepts_a_discovery_location_that_exists(plugin):
     """Naming a real directory is a true claim, and rule 6 must leave it alone."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
-        _procedure("`prompts/`, which is not `commands/`")
+        _procedure("`prompts/`, which is not `commands/`"), encoding="utf-8"
     )
     assert cw.check_wiring(plugin) == []
 
@@ -201,7 +204,7 @@ def test_accepts_a_discovery_location_that_exists(plugin):
 def test_ignores_a_path_under_a_foreign_prefix(plugin):
     """`docs/agents/` is a site path, not a claim about where Claude Code looks."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
-        _procedure("`prompts/`; see docs/agents/index.md for the rest")
+        _procedure("`prompts/`; see docs/agents/index.md for the rest"), encoding="utf-8"
     )
     assert cw.check_wiring(plugin) == []
 
@@ -210,7 +213,7 @@ def test_ignores_a_path_under_a_foreign_prefix(plugin):
 def test_flags_a_dead_path_reached_through_the_plugin_root(prefix, plugin):
     """Both spellings of the plugin root are how a skill actually reaches it."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
-        _procedure(f"`prompts/`; the hook is at {prefix}hooks/hooks.json")
+        _procedure(f"`prompts/`; the hook is at {prefix}hooks/hooks.json"), encoding="utf-8"
     )
     violations = cw.check_wiring(plugin)
     assert any("refers to hooks/" in v for v in violations)
@@ -220,7 +223,8 @@ def test_an_exemption_with_a_reason_suppresses_the_violation(plugin):
     """Prose about *another* repo's layout needs an escape hatch, or the rule gets deleted."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
         _procedure("`prompts/`; a repo importing `hooks/` from a model layer is a violation")
-        + "<!-- rhiza-layout-exempt: hooks/ the repo under assessment, not this plugin -->\n"
+        + "<!-- rhiza-layout-exempt: hooks/ the repo under assessment, not this plugin -->\n",
+        encoding="utf-8",
     )
     assert cw.check_wiring(plugin) == []
 
@@ -228,7 +232,8 @@ def test_an_exemption_with_a_reason_suppresses_the_violation(plugin):
 def test_an_exemption_without_a_reason_does_not_suppress(plugin):
     """Fail closed: an unexplained pragma is not an exemption."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
-        _procedure("`prompts/`, not `hooks/`") + "<!-- rhiza-layout-exempt: hooks/ -->\n"
+        _procedure("`prompts/`, not `hooks/`") + "<!-- rhiza-layout-exempt: hooks/ -->\n",
+        encoding="utf-8",
     )
     violations = cw.check_wiring(plugin)
     assert any("refers to hooks/" in v for v in violations)
@@ -238,7 +243,8 @@ def test_an_exemption_covers_only_the_directory_it_names(plugin):
     """Exempting one path must not blanket the file."""
     (plugin / layout.PROMPTS_DIR / "skeleton.md").write_text(
         _procedure("`prompts/`, and not `hooks/` nor `agents/`")
-        + "<!-- rhiza-layout-exempt: hooks/ deliberately discussed here -->\n"
+        + "<!-- rhiza-layout-exempt: hooks/ deliberately discussed here -->\n",
+        encoding="utf-8",
     )
     violations = cw.check_wiring(plugin)
     assert any("refers to agents/" in v for v in violations)

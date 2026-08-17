@@ -255,7 +255,8 @@ def test_e2e_docs_syncs_the_make_help_block(synced_repo_copy):
     repo = synced_repo_copy
     readme = repo / "README.md"
     readme.write_text(
-        f"# widget\n\nIntro that must survive.\n\n## Development\n\n{srh.MARKER}\n\n```\n```\n"
+        f"# widget\n\nIntro that must survive.\n\n## Development\n\n{srh.MARKER}\n\n```\n```\n",
+        encoding="utf-8",
     )
 
     first = srh.sync_readme_help(repo)

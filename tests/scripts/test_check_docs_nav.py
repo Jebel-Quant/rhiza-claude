@@ -148,7 +148,8 @@ def test_reports_a_missing_page_once_when_the_nav_names_both_spellings(repo):
         _MKDOCS.replace(
             "      - demo: skills/demo.md",
             "      - demo: skills/gone.md\n      - demo again: docs/skills/gone.md",
-        )
+        ),
+        encoding="utf-8",
     )
     violations = cdn.check_docs_nav(repo)
     dangling = [v for v in violations if "which does not exist" in v]

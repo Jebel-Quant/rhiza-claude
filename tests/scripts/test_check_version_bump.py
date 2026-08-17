@@ -360,9 +360,12 @@ def test_e2e_release_bumps_every_declared_location(synced_repo_copy, plugin_scri
     # self-referencing CI stub pin — the case /release used to miss entirely.
     (repo / ".github" / "workflows" / "stub.yml").write_text(
         "jobs:\n  ci:\n    uses: jebel-quant/widget/.github/workflows/reusable.yml@v0.1.0\n"
-        "  other:\n    uses: actions/checkout@v0.1.0\n"
+        "  other:\n    uses: actions/checkout@v0.1.0\n",
+        encoding="utf-8",
     )
-    pyproject.write_text(pyproject.read_text(encoding="utf-8") + _BUMPVERSION_CONFIG)
+    pyproject.write_text(
+        pyproject.read_text(encoding="utf-8") + _BUMPVERSION_CONFIG, encoding="utf-8"
+    )
     assert 'version = "0.1.0"' in pyproject.read_text(encoding="utf-8")
 
     # The skeleton writes `allow_dirty = false` — a release is cut from a clean tree — so

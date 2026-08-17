@@ -15,7 +15,7 @@ def _write(root, plugin_ver, market_ver):
     d = root / ".claude-plugin"
     d.mkdir()
     (d / "marketplace.json").write_text(
-        f'{{"plugins": [{{"name": "rhiza", "version": "{market_ver}"}}]}}'
+        f'{{"plugins": [{{"name": "rhiza", "version": "{market_ver}"}}]}}', encoding="utf-8"
     )
 
 

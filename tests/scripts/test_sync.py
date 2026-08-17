@@ -401,7 +401,14 @@ def test_merge_file_fallback_clean(make_repo: Any) -> None:
 
     proj = _project(make_repo, tmpl, _include("f.txt"))
     proj.write("f.txt", "l1\nl2\nLOCAL\n")  # diverged on line 3; pristine base never committed
-    lock = f'sha: {base_sha}\nrepo: "{tmpl.path}"\nhost: github\nref: main\nfiles:\n- f.txt\n'
+    # `.as_posix()` for the same reason as `_project` above — and the lock is the worse
+    # place to get it wrong: an unparseable lock is not an error here, it reads as *no
+    # previous sync*, so the file is overwritten wholesale and the local edit this test
+    # exists to preserve disappears silently.
+    lock = (
+        f'sha: {base_sha}\nrepo: "{tmpl.path.as_posix()}"\n'
+        "host: github\nref: main\nfiles:\n- f.txt\n"
+    )
     proj.write(".rhiza/template.lock", lock)
     proj.commit("diverged")
 

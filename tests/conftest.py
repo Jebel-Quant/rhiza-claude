@@ -275,7 +275,7 @@ def managed_synced_repo(managed_unsynced_repo: Path) -> Path:
     rhiza = managed_unsynced_repo / ".rhiza"
     (rhiza / "rhiza.mk").write_text(SYNCED_MAKEFILE, encoding="utf-8")
     (rhiza / "template.lock").write_text(
-        'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n  - Makefile\n'
+        'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n  - Makefile\n', encoding="utf-8"
     )
     (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
     (managed_unsynced_repo / "ruff.toml").write_text('target-version = "py311"\n', encoding="utf-8")
@@ -366,13 +366,15 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # real to measure.
     (repo / "src" / "widget" / "main.py").write_text(
         '"""Entry point for widget."""\n\n\ndef greeting() -> str:\n'
-        '    """Return the greeting."""\n    return "hello"\n'
+        '    """Return the greeting."""\n    return "hello"\n',
+        encoding="utf-8",
     )
     (repo / "tests" / "widget").mkdir(parents=True)
     (repo / "tests" / "widget" / "test_main.py").write_text(
         '"""Tests for widget.main."""\n\nfrom widget.main import greeting\n\n\n'
         'def test_greeting() -> None:\n    """The greeting is returned."""\n'
-        '    assert greeting() == "hello"\n'
+        '    assert greeting() == "hello"\n',
+        encoding="utf-8",
     )
 
     assert_ok(

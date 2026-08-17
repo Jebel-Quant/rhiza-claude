@@ -134,7 +134,8 @@ def test_read_config_absent(tmp_path):
 def test_read_config_via_tomllib(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n'
+        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n',
+        encoding="utf-8",
     )
     assert ctl._read_config(pyproject) == {"enforce": False, "reason": "behaviour-grouped"}
 
@@ -161,7 +162,8 @@ def test_read_config_fallback_without_tomllib(tmp_path, monkeypatch):
     monkeypatch.setattr(ctl, "tomllib", None)
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n'
+        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped"\n',
+        encoding="utf-8",
     )
     assert ctl._read_config(pyproject) == {"enforce": False, "reason": "behaviour-grouped"}
 
@@ -296,7 +298,8 @@ def test_unquote():
 def test_main_enforce_false_ok(tmp_path, capsys):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped suite"\n'
+        '[tool.check_test_layout]\nenforce = false\nreason = "behaviour-grouped suite"\n',
+        encoding="utf-8",
     )
     assert ctl.main(["--src", str(tmp_path / "src"), "--config", str(pyproject)]) == 0
     out = capsys.readouterr().out
