@@ -34,6 +34,16 @@ PyYAML==6.0.3
 bandit==1.9.4
 zizmor==1.29.0
 
-# Docs and release: `make book`, `make changelog`.
+# Complexity bars: `make complexity`. Not a gate — it reports the numbers CLAUDE.md
+# states as this repo's bars, and an unpinned radon would let those numbers move without
+# the code moving.
+radon==6.0.1
+
+# Docs and release: `make book`, `make changelog`. `mkdocs-material` and `genbadge` arrive
+# through `uvx --with`, which UV_CONSTRAINT reaches the same as the tool itself; the
+# published coverage badge and the rendered site are outputs nobody diffs, so a silent
+# theme or renderer change is exactly the kind that goes unnoticed.
 mkdocs==1.6.1
+mkdocs-material==9.7.7
+genbadge==1.1.3
 git-cliff==2.13.1

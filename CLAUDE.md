@@ -26,6 +26,8 @@ anywhere. That has two consequences worth internalising before you touch anythin
 ```bash
 make help           # list every target
 make lint           # all prek hooks over every file
+make audit          # bandit over the scripts, zizmor over the workflows
+make complexity     # radon CC/MI over plugin/scripts — reports, never fails
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
 make mutate         # mutation-test the sync core (slow, scheduled — not in `make test`)
@@ -178,13 +180,16 @@ command ever names. Four families, plus the sync core:
 | `_doc_examples_*` | `check_doc_examples.py`'s two halves: the doctests under a source root, and the README's fenced blocks. They share only a verdict, so the dispatcher runs each independently — a repo with no source root still gets its README checked |
 
 Two consequences worth knowing before you move code. **The size and complexity bars are
-enforced by measurement, not taste** — no module over 500 lines, no block above
-cyclomatic C(12), every maintainability index ≥ 40 (`uvx radon cc plugin/scripts -s -n C`,
-`uvx radon mi plugin/scripts -s`). And the 1:1 test-layout rule binds these modules too,
-so extracting one is never a one-file change: it needs its own `test__<name>.py`.
+measured, not taste** — no module over 500 lines, no block above cyclomatic C(12), every
+maintainability index at A. `make complexity` reports both; it prints what it finds and
+exits 0, so it tells you where you stand rather than failing the build. Run it bare, as
+with every other target: only inside make does `UV_CONSTRAINT` bind, and a hand-run `uvx
+radon` measures with whatever release is current instead of the pinned one. And the 1:1
+test-layout rule binds these modules too, so extracting one is never a one-file change: it
+needs its own `test__<name>.py`.
 
 **Those bars stop at `plugin/scripts/`, and `tests/` is deliberately exempt.** Note the
-path in both commands: it is the scope, not an example. A `/rhiza:quality` run in
+path the target passes: it is the scope, not an example. A `/rhiza:quality` run in
 degraded mode measures the whole repo — the census reports `.` as the source root — so
 it will report what that exemption covers, and the numbers are not small:
 
