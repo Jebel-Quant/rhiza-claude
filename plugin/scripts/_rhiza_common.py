@@ -10,6 +10,7 @@ answer than five copies or a circular import.
 from __future__ import annotations
 
 import sys
+from pathlib import PurePosixPath
 
 
 class SyncError(Exception):
@@ -37,6 +38,30 @@ def has_drive_letter(value: str) -> bool:
     [False, False, False]
     """
     return len(value) >= 2 and value[0].isalpha() and value[1] == ":"
+
+
+def escapes_root(value: str) -> bool:
+    r"""Would joining *value* onto a project root land outside it?
+
+    Every path this plugin joins onto a target directory arrives from the template repo —
+    a bundle's ``dest``, a lock file's ``files`` entry — so none of them is the repo's own
+    text. Three shapes leave the project: an absolute path, a Windows drive letter, and a
+    ``..`` component. A backslash is normalised to a forward slash **first**, so a Windows
+    separator cannot smuggle a traversal past the check:
+
+    >>> [escapes_root(v) for v in ("Makefile", ".github/workflows/ci.yml", "a/./b")]
+    [False, False, False]
+    >>> [escapes_root(v) for v in ("/etc/passwd", "..\\secrets.env", "C:/Windows", "a/../../b")]
+    [True, True, True, True]
+
+    A predicate rather than a raiser because its two callers must fail differently: the
+    sync raises :class:`SyncError` on a bad bundle path, while `stage_synced` returns a
+    summary dict and an exit code. Sharing the *rule* is the point; a second copy of it
+    is how one of them ends up enforcing something slightly different.
+    """
+    normalized = value.replace("\\", "/")
+    pure = PurePosixPath(normalized)
+    return pure.is_absolute() or has_drive_letter(normalized) or ".." in pure.parts
 
 
 def log(message: str) -> None:

@@ -4,20 +4,22 @@ The largest single job in the sync and the one with no I/O at all: `profiles` ex
 bundle names, bundle names expand to `(source, dest)` file entries, and the result is an
 ordered, de-duplicated path list plus a remap table.
 
-It also owns the path-safety check. `template-bundles.yml` comes from the template repo,
-so a `dest` is untrusted input that gets joined onto the target directory — an absolute
-path, a drive letter or a `..` component would write outside the project.
+It also applies the path-safety check. `template-bundles.yml` comes from the template
+repo, so a `dest` is untrusted input that gets joined onto the target directory — an
+absolute path, a drive letter or a `..` component would write outside the project. The
+rule is `_rhiza_common.escapes_root`, shared with `stage_synced.py`, which judges lock
+entries by exactly the same standard; what this module owns is aborting the sync over one.
 """
 
 from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import SyncError, has_drive_letter  # noqa: E402
+from _rhiza_common import SyncError, escapes_root  # noqa: E402
 from _rhiza_template import Template  # noqa: E402
 from _rhiza_yaml import as_list  # noqa: E402
 
@@ -46,12 +48,15 @@ def _ensure_safe_bundle_path(value: str) -> None:
     rejected  ..\secrets.env
     rejected  C:/Windows/system32
 
+    The rule itself lives in `_rhiza_common.escapes_root`, because a lock file's ``files``
+    entry is joined onto the target the same way and must be judged identically — see
+    `stage_synced.py`. What stays here is the *consequence*: a bad bundle path aborts the
+    sync, while a bad lock entry is reported by a script that returns an exit code.
+
     Raises:
         SyncError: If *value* is absolute, uses a drive letter, or traverses up.
     """
-    normalized = value.replace("\\", "/")
-    pure = PurePosixPath(normalized)
-    if pure.is_absolute() or has_drive_letter(normalized) or ".." in pure.parts:
+    if escapes_root(value):
         raise SyncError(
             f"Unsafe bundle path {value!r}: paths must be relative to the project root "
             "(no absolute paths, drive letters, or '..' traversal)."

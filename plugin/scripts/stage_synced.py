@@ -20,6 +20,7 @@ Exit codes:
   0  staged cleanly (possibly with nothing to stage)
   1  no ``.rhiza/template.lock`` — run the sync first
   2  a git failure
+  3  the lock names a path outside the repository — nothing was staged
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_common import escapes_root  # noqa: E402
 from _rhiza_yaml import load_yaml  # noqa: E402
 
 # Always staged alongside the lock's `files`: the pointer and the lock itself.
@@ -42,6 +44,7 @@ _CONFIG_PATHS = (".rhiza/template.yml", ".rhiza/template.lock")
 EXIT_OK = 0
 EXIT_NO_LOCK = 1
 EXIT_GIT_ERROR = 2
+EXIT_UNSAFE_LOCK = 3
 
 # `git add` takes many pathspecs, but keep batches bounded so a first sync of
 # several hundred files cannot overflow the command line.
@@ -108,6 +111,27 @@ def lock_files(lock_path: Path) -> list[str]:
     return [str(entry) for entry in raw if str(entry).strip()]
 
 
+def escaping_entries(paths: list[str]) -> list[str]:
+    """Return the lock entries that would resolve outside the target root.
+
+    Every entry here is joined onto *target* — by ``(target / path).exists()`` below, and
+    by ``git add --`` after that — and every entry arrives from the template repository by
+    way of the lock. Containment has always held, but until this it held because no
+    upstream entry had ever contained ``..``, not because anything checked; the same shape
+    of unasserted invariant that `_rhiza_lock._PROTECTED` turned out to be.
+
+    Scope it honestly: the join at the call site is read-only, and a template that can
+    produce such an entry can already write file *contents* verbatim, which is the larger
+    primitive. What this buys is that the assumption is now stated and tested.
+
+    >>> escaping_entries(["Makefile", ".github/workflows/ci.yml"])
+    []
+    >>> escaping_entries(["Makefile", "../../etc/passwd", "/etc/shadow"])
+    ['../../etc/passwd', '/etc/shadow']
+    """
+    return [path for path in paths if escapes_root(path)]
+
+
 def unstaged_paths(porcelain: list[str]) -> list[str]:
     """Return paths from ``git status --porcelain`` that are not fully staged.
 
@@ -134,6 +158,10 @@ def wanted_paths(target: Path, lock_path: Path, deleted: set[str]) -> list[str]:
     Deduped, order-stable, and limited to paths git can actually match — on disk, or
     tracked-and-deleted. A stale lock entry that is neither would make ``git add`` fail on
     the whole batch, so one dead entry must not cost the entire sync.
+
+    ``target / path`` is safe to join because :func:`stage_synced` has already rejected the
+    whole lock if any entry escapes the root — see :func:`escaping_entries`. Calling this
+    directly with unfiltered entries does not carry that guarantee.
     """
     wanted: list[str] = []
     for path in (*_CONFIG_PATHS, *lock_files(lock_path)):
@@ -175,6 +203,19 @@ def stage_synced(target: Path) -> dict[str, Any]:
             "unstaged": [],
             "notes": ["no .rhiza/template.lock — run the sync first"],
             "exit_code": EXIT_NO_LOCK,
+        }
+
+    escaping = escaping_entries(lock_files(lock_path))
+    if escaping:
+        return {
+            "staged": [],
+            "unstaged": [],
+            "notes": [
+                f"{len(escaping)} lock entry/entries resolve outside the repository: "
+                f"{', '.join(escaping)} — nothing was staged. The lock is not trustworthy: "
+                "re-run the sync, and check what the template's file list contains."
+            ],
+            "exit_code": EXIT_UNSAFE_LOCK,
         }
 
     try:
