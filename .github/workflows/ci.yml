@@ -27,6 +27,25 @@ jobs:
     # and `uv run`; those download on every run unless uv's own cache is restored.
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    # The one thing `make lint` gives those hooks that prek-action cannot: the
+    # UV_CONSTRAINT export. It is set in exactly one place — Makefile's
+    # `export UV_CONSTRAINT := $(CURDIR)/requirements-dev.txt` — so a job that reaches
+    # the hooks without going through make ran `uvx mypy` and `uvx interrogate`
+    # against whatever release was newest at call time, while a contributor running
+    # `make lint` measured the pinned ones. Local and CI disagreed, and only CI floated.
+    #
+    # That is the precise failure requirements-dev.txt was written to prevent, and its
+    # header claims the guarantee is total ("every `uvx` call is constrained from this
+    # one file"). It held everywhere else — `make audit` below, `make test`,
+    # `make portable`, `make book`, `make e2e`, `make mutate` — and here, where make is
+    # not the entry point, it did not. Dependabot bumps the pins either way, so the
+    # review said "mypy 2.3.0" while the run installed something else.
+    #
+    # Set at job level rather than on the step: it then covers `make audit` too (make's
+    # own `:=` wins, to the same path) and any future hook or step that shells out to
+    # uvx, instead of fixing today's two by name.
+    env:
+      UV_CONSTRAINT: ${{ github.workspace }}/requirements-dev.txt
     steps:
       - name: Harden the runner (audit outbound calls)
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -63,11 +82,16 @@ jobs:
       # actions/cache skips the save when the key already matched, so the first job to
       # finish would fix the contents and the others would restore a cache missing
       # exactly the tools they need.
+      #
+      # Keyed on requirements-dev.txt as well as the hook config, now that UV_CONSTRAINT
+      # above makes that file decide which mypy and interrogate get downloaded. Without
+      # it a pin bump kept the old key, actions/cache skipped the save because the key
+      # already matched, and the newly pinned version re-downloaded on every run.
       - name: Cache uv downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-lint-${{ hashFiles('.pre-commit-config.yaml') }}
+          key: ${{ runner.os }}-uv-lint-${{ hashFiles('.pre-commit-config.yaml', 'requirements-dev.txt') }}
           restore-keys: |
             ${{ runner.os }}-uv-lint-
 
