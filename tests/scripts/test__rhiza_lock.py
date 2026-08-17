@@ -99,6 +99,28 @@ def test_previously_tracked_variants(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert rl.previously_tracked(lock) == set()
 
 
+def test_previously_tracked_drops_entries_that_escape_the_target(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The orphan cleaner *unlinks* what this returns, so containment is load-bearing here.
+
+    `clean_orphaned_files` joins each tracked path onto the target and deletes it. An entry
+    the template listed as `../../…` would therefore delete outside the repository, and
+    nothing checked — the containment held because no upstream lock has ever carried one.
+    """
+    lock = tmp_path / "template.lock"
+    lock.write_text(
+        "files:\n- kept.txt\n- ../../etc/passwd\n- /etc/shadow\n- ..\\win.ini\n", encoding="utf-8"
+    )
+
+    assert rl.previously_tracked(lock) == {Path("kept.txt")}
+
+    # Dropped loudly: a silent filter would hide a template that had started emitting them.
+    err = capsys.readouterr().err
+    assert err.count("outside the repository") == 3
+    assert "../../etc/passwd" in err
+
+
 # --- gaps that mutation testing found (`make mutate`) -------------------------
 #
 # Every assertion below kills a mutant that survived the suite while it sat at 100% line

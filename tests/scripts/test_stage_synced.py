@@ -189,6 +189,50 @@ def test_a_damaged_lock_still_stages_only_the_config(repo):
     assert summary["unstaged"] == ["src/app.py"]
 
 
+# --- containment: a lock entry that points outside the repo -------------------
+#
+# The entries come from the template repo by way of the lock, and every one of them is
+# joined onto the target — first by `(target / path).exists()`, then by `git add --`.
+# Containment used to hold because no upstream entry had ever contained `..`, which is an
+# observation about the current template rather than a property of this code.
+
+
+@pytest.mark.parametrize(
+    "entry", ["../../etc/passwd", "/etc/shadow", "docs/../../outside.md", "..\\windows.ini"]
+)
+def test_a_lock_entry_that_escapes_the_repo_stages_nothing(repo, entry):
+    """Rejected wholesale, not skipped: a lock that can point outside is not actionable."""
+    (repo / "ruff.toml").write_text("# changed\n", encoding="utf-8")
+    _write_lock(repo, ["ruff.toml", entry])
+
+    summary = st.stage_synced(repo)
+
+    assert summary["exit_code"] == st.EXIT_UNSAFE_LOCK
+    assert summary["staged"] == []
+    assert _staged(repo) == []
+    assert any(entry in note and "outside the repository" in note for note in summary["notes"])
+
+
+def test_the_escaping_entry_is_named_so_the_user_can_act_on_it(repo):
+    """A refusal a user cannot act on gets worked around, so the note names the entries."""
+    _write_lock(repo, ["../one.txt", "ruff.toml", "/two.txt"])
+
+    (note,) = st.stage_synced(repo)["notes"]
+
+    assert "../one.txt" in note and "/two.txt" in note
+    assert "ruff.toml" not in note
+
+
+def test_escaping_entries_leaves_ordinary_paths_alone():
+    assert st.escaping_entries([".rhiza/template.yml", "Makefile", "docs/guide.md"]) == []
+
+
+def test_main_returns_the_unsafe_lock_exit_code(repo, capsys):
+    _write_lock(repo, ["../../etc/passwd"])
+    assert st.main([str(repo)]) == st.EXIT_UNSAFE_LOCK
+    assert "outside the repository" in capsys.readouterr().err
+
+
 def test_missing_lock_exits_1(repo):
     (repo / ".rhiza" / "template.lock").unlink(missing_ok=True)
     summary = st.stage_synced(repo)
@@ -334,13 +378,13 @@ class TestGitFailed:
 
 
 def test_the_exit_codes_are_the_documented_literals():
-    """The module docstring promises 0/1/2, and callers switch on those numbers.
+    """The module docstring promises 0/1/2/3, and callers switch on those numbers.
 
     Every existing assertion compares against the constant, so the constants could take
     any values and the suite would stay green — while `/rhiza:update`'s prose, which reads
     "exit 1 means no lock, 2 means a git failure", quietly became wrong.
     """
-    assert (st.EXIT_OK, st.EXIT_NO_LOCK, st.EXIT_GIT_ERROR) == (0, 1, 2)
+    assert (st.EXIT_OK, st.EXIT_NO_LOCK, st.EXIT_GIT_ERROR, st.EXIT_UNSAFE_LOCK) == (0, 1, 2, 3)
 
 
 def test_the_summary_always_carries_the_same_four_keys(repo, tmp_path_factory):

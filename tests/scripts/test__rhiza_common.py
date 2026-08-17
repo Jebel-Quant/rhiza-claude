@@ -8,7 +8,7 @@ orchestrator.
 from __future__ import annotations
 
 import pytest
-from _rhiza_common import SyncError, has_drive_letter, log
+from _rhiza_common import SyncError, escapes_root, has_drive_letter, log
 
 
 class TestSyncError:
@@ -52,3 +52,30 @@ def test_log_writes_to_stderr(capsys):
 )
 def test_has_drive_letter(value, expected):
     assert has_drive_letter(value) is expected
+
+
+# `escapes_root` is the containment rule two callers share: `_rhiza_bundles` raises on a
+# bundle `dest` that fails it, `stage_synced` refuses the whole lock. Both join the value
+# onto a target directory, so a disagreement between them would be a hole in one of them.
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # The shapes that must keep working — everything a template legitimately delivers.
+        ("Makefile", False),
+        (".github/workflows/ci.yml", False),
+        ("a/./b", False),
+        ("docs/..hidden/file.md", False),  # `..hidden` is a name, not a traversal
+        ("", False),
+        # Absolute, drive-lettered, and traversing — each lands outside the project.
+        ("/etc/passwd", True),
+        ("C:/Windows/system32", True),
+        ("../secrets.env", True),
+        ("a/../../b", True),
+        ("nested/dir/../../../escape", True),
+        # A backslash separator is normalised first, so it cannot smuggle either shape past.
+        ("..\\secrets.env", True),
+        ("a\\..\\..\\b", True),
+    ],
+)
+def test_escapes_root(value, expected):
+    assert escapes_root(value) is expected

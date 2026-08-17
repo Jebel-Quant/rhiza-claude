@@ -73,10 +73,16 @@ jobs:
           echo "tag=${TARGET}" >> "$GITHUB_OUTPUT"
           echo "created=true" >> "$GITHUB_OUTPUT"
 
+      # Pinned like every other call site, and this is the one where it matters most: the
+      # next step decides whether a *release tag* gets created, so a uv release must not be
+      # able to change that answer without a commit saying so. This file carried neither the
+      # `version:` input nor the current release comment until the pin-parity hook started
+      # gating both.
       - name: Install uv
         if: steps.decide.outputs.created == 'true'
-        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v7.1.1
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
         with:
+          version: '0.12.1'
           python-version: '3.12'
 
       # The guard is the bundled checker rather than a semver comparison re-derived in

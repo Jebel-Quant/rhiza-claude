@@ -129,7 +129,9 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/stage_sy
 It reads the lock's `files` list, stages exactly that plus `template.yml`/the lock
 (deletions included), and prints anything it deliberately left behind. Relay that
 output. Exit **1** means no lock — the sync never ran; stop. Exit **2** is a git
-failure; stop.
+failure; stop. Exit **3** means the lock names a path that resolves outside the
+repository and **nothing was staged** — don't hand-stage around it; report the entries
+it named and stop, because a lock that can point outside the repo is not one to act on.
 
 - **Anything reported as `left`** stays in the working tree. Name those paths in the
   PR body and the final report so the user decides — that's the expected outcome if a

@@ -84,7 +84,7 @@ hooks unavailable, so the rules are still stated where they apply.
 make help        # list targets
 make lint        # run prek against every file
 make test        # run the script test suite (100% coverage gate)
-make mutate      # mutation-test the sync core (slow; scheduled, not a PR gate)
+make mutate      # mutation-test the sync core and prose gates (slow; not a PR gate)
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts
@@ -92,10 +92,11 @@ make clean       # remove generated caches and artifacts
 
 `make lint` runs every quality hook — mypy, interrogate (docstrings),
 `doc-examples` (the doctests inside them), the test-layout check, the manifest
-JSON/version-parity checks, and the three that gate the prose
-(`command-contracts`, `prompt-wiring`, `docs-nav`). To run a single one, use
+JSON/version-parity checks, the workflow pin-parity check, and the three that gate
+the prose (`command-contracts`, `prompt-wiring`, `docs-nav`). To run a single one, use
 `uvx prek run <hook-id> --all-files` (e.g. `mypy`, `interrogate`,
-`doc-examples`, `test-layout`, `manifest-version-parity`, `docs-nav`).
+`doc-examples`, `test-layout`, `manifest-version-parity`, `workflow-pins`,
+`docs-nav`).
 
 `interrogate` and `doc-examples` are a pair, and the split is the point:
 interrogate answers *is there a docstring?* and `doc-examples` answers *is what
@@ -124,6 +125,15 @@ both directions, so neither an undocumented command nor an orphaned page can shi
 generated from the command's frontmatter by `plugin/scripts/render_command_docs.py`, so a
 renamed argument or a widened `allowed-tools` list cannot survive in the docs. Page
 *existence* was checked; page *facts* were not.
+
+`workflow-pins` is the same idea applied to CI. A SHA pin is two halves — the SHA,
+which binds, and the `# v10.0.0` comment, which is the only half a reviewer can act on —
+and nothing checked that they agreed, so one `setup-uv` call site kept a `# v7.1.1`
+comment through a bump. It also requires every `astral-sh/setup-uv` step to pass a
+`version:` input and all of them to agree: uv is what every other pin resolves through
+(`UV_CONSTRAINT` and `UV_PYTHON` are exported for it to consume), Dependabot watches the
+action pin but cannot see the input, and one workflow floated uv entirely in the job that
+decides whether a release tag gets created.
 
 Only that block is generated — the pages are hand-written prose, and
 `docs/skills/maffay.md` is longer than the `SKILL.md` it documents. The renderer

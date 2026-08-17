@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_common import log  # noqa: E402
+from _rhiza_common import escapes_root, log  # noqa: E402
 from _rhiza_yaml import as_list  # noqa: E402
 
 # Never removed by orphan cleanup: without it the repo stops being rhiza-managed.
@@ -31,14 +31,28 @@ def lock_path(target: Path, lock_file: Path | None) -> Path:
 
 
 def previously_tracked(lock_path: Path) -> set[Path]:
-    """Return the file set recorded in an existing lock's ``files`` field."""
+    """Return the file set recorded in an existing lock's ``files`` field.
+
+    Entries that would resolve outside the target root are dropped, loudly. This is the
+    first place a lock's paths are read, and the one where they are later **unlinked** —
+    `clean_orphaned_files` joins each onto *target* and deletes it — so a `..` entry here
+    would be a delete outside the repository rather than the read-only join `stage_synced`
+    guards. Nothing upstream produces one today; the containment was implicit, exactly as
+    `_PROTECTED` was before mutation testing found that any string would do.
+    """
     if not lock_path.exists():
         return set()
     try:
         lock = load_yaml(lock_path)
     except (OSError, ValueError):
         return set()
-    return {Path(f) for f in as_list(lock.get("files"))}
+    tracked: set[Path] = set()
+    for entry in as_list(lock.get("files")):
+        if escapes_root(str(entry)):
+            log(f"Ignoring lock entry outside the repository: {entry}")
+            continue
+        tracked.add(Path(entry))
+    return tracked
 
 
 def clean_orphaned_files(
