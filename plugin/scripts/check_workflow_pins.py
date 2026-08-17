@@ -47,10 +47,13 @@ WORKFLOWS_DIR = ".github/workflows"
 UV_ACTION = "astral-sh/setup-uv"
 """The one action whose version *input* is checked, not just its own pin."""
 
-# `uses: owner/repo[/subpath]@<sha> # comment`. The comment group is optional so an
-# unannotated pin is reported by rule 1 rather than skipped as "not a pin".
+# `uses: owner/repo[/subpath]@<sha> # comment`, matched one line at a time. The comment
+# group is optional so an unannotated pin is reported by rule 1 rather than skipped as
+# "not a pin", and `indent` counts the whitespace before an optional `- ` because the rest
+# of the step is indented relative to it. A local action (`uses: ./x`) has no `owner/repo`
+# and so never matches — nothing SHA-pins it, and nothing here should ask it to.
 _USES = re.compile(
-    r"^(?P<indent>\s*)-?\s*(?:name:.*\n\s*)?uses:\s*"
+    r"^(?P<indent>\s*)-?\s*uses:\s*"
     r"(?P<action>[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+)@(?P<ref>\S+)"
     r"(?:\s*#\s*(?P<comment>\S+))?\s*$"
 )
