@@ -83,8 +83,8 @@ def test_data_home_prefers_xdg():
 
 def test_data_home_treats_an_empty_xdg_as_unset():
     """`${XDG_DATA_HOME:-…}` falls back on empty, and so must this."""
-    assert ic.data_home({"XDG_DATA_HOME": "", "HOME": "/home/ada"}).as_posix().startswith(
-        "/home/ada"
+    assert (
+        ic.data_home({"XDG_DATA_HOME": "", "HOME": "/home/ada"}).as_posix().startswith("/home/ada")
     )
 
 
