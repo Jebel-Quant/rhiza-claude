@@ -126,9 +126,9 @@ def test_two_different_actions_may_hold_different_shas(workflows):
 
 def test_flags_a_setup_uv_step_that_pins_no_uv_version(workflows):
     """#185's first half: the job that guards a release tag floated its uv."""
-    _workflow(workflows, "auto-tag.yml", _job(_uv_step(version=None)))
+    _workflow(workflows, "tag-release.yml", _job(_uv_step(version=None)))
     violations = cwp.check_workflows(workflows)
-    assert any("passes no 'version:' input" in v and "auto-tag.yml" in v for v in violations)
+    assert any("passes no 'version:' input" in v and "tag-release.yml" in v for v in violations)
 
 
 def test_flags_two_uv_versions(workflows):

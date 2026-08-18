@@ -1,29 +1,22 @@
 name: Release
 
-# Publish a GitHub release when a version tag is pushed, or when `auto-tag.yml` asks.
-# Prepare the tag with `/rhiza:release`; pushing it is what normally starts this.
+# Publish a GitHub release when a version tag is pushed. `/rhiza:release` prepares the
+# tag and pushes it; that push is the only thing that starts this.
+#
+# A pushed tag is the single entry point on purpose. This file used to be `workflow_call`
+# -able as well, so a repo-local `auto-tag.yml` could tag a merged release itself and then
+# ask this workflow to publish it. Two entry points meant two things racing to create the
+# same tag: whichever lost got `Reference already exists (HTTP 422)` and a red run on a
+# release that had in fact succeeded. The plugin's own two-phase flow is the one path now.
 
 on:
   push:
     tags:
       - 'v*'
-  # Callable so `auto-tag.yml` can publish the tag it has just created. It has to invoke
-  # this explicitly rather than rely on the push trigger above: a ref pushed with
-  # GITHUB_TOKEN deliberately does not start further workflow runs, so an auto-created tag
-  # would otherwise sit there publishing nothing — a silent half-release, which is worse
-  # than no automation at all.
-  workflow_call:
-    inputs:
-      tag:
-        description: The version tag to publish (e.g. v1.2.0).
-        required: true
-        type: string
 
-# A release must never be interrupted mid-publish. Keyed on the tag rather than the ref,
-# so a push-triggered run and a called run for the same version cannot overlap — under
-# `github.ref` they would land in different groups and both publish.
+# A release must never be interrupted mid-publish.
 concurrency:
-  group: release-${{ inputs.tag || github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -54,14 +47,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # `inputs.tag` when called by auto-tag.yml, the pushed ref otherwise. Everything
-      # below reads `steps.tag.outputs.tag`, so the two entry points converge here and
-      # the guards that follow apply identically to both.
+      # Everything below reads `steps.tag.outputs.tag` rather than the ref directly, so
+      # the guards that follow have one value to hold to.
       - name: Resolve tag
         id: tag
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
-        run: echo "tag=${INPUT_TAG:-${GITHUB_REF#refs/tags/}}" >> "$GITHUB_OUTPUT"
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       # `fetch-depth: 0` gets the history behind the pushed tag, not the other refs:
       # a tag-push checkout resolves one ref, so no branch is known and the earlier

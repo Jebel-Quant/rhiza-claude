@@ -61,18 +61,24 @@ not a target.
     strictly increase, or a tag that already exists, stops the run before anything is
     created.
 
-!!! tip "A repo can skip the second run entirely"
+!!! warning "A repo *can* skip the second run — this one tried, and stopped"
     If the repo owns its CI, a workflow on push-to-default can do phase B itself: when the
     declared version is ahead of the highest tag, tag the merged commit and publish. The
     condition is the same one `/release` uses to tell its phases apart, and it is
     self-limiting — after tagging, declared equals highest, so every ordinary merge that
-    follows is a no-op. This repo does exactly that in `.github/workflows/auto-tag.yml`,
-    which reduces a release to **run `/release`, merge**.
+    follows is a no-op. This repo ran exactly that, and removed it.
 
-    One trap if you copy it: a ref pushed with `GITHUB_TOKEN` does **not** trigger further
-    workflow runs, so the auto-created tag will publish nothing unless the publishing
-    workflow is invoked explicitly (`workflow_call`) rather than left to its tag-push
-    trigger.
+    The reason is worth having before you copy it: **it does not replace phase B, it races
+    it.** Nothing stops a maintainer from doing what the command documents, and when they
+    do, one of the two loses — `Reference already exists (HTTP 422)`, a failed run, and a
+    release that actually succeeded now sitting under a red check. A second entry point to
+    a step that must happen exactly once buys one saved command and costs a flow with two
+    correct paths that contradict each other.
+
+    Two further traps if you still want it: a ref pushed with `GITHUB_TOKEN` does **not**
+    trigger further workflow runs, so the auto-created tag publishes nothing unless the
+    publishing workflow is invoked explicitly (`workflow_call`) rather than left to its
+    tag-push trigger — and that second entry point then has to be maintained too.
 
 ## Why it takes two runs
 
