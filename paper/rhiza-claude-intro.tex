@@ -96,7 +96,7 @@
 \noindent
 \textbf{rhiza-claude} is a Claude Code plugin for repositories that share their
 scaffolding with a template repository instead of each carrying a private copy of it.
-This document is the part the reference pages cannot be: not a catalogue of the nine
+This document is the part the reference pages cannot be: not a catalogue of the ten
 skills under \file{skills/}, but an account of the problem they exist to
 solve --- the two-repository boundary a sync respects, what ``rhiza-managed'' actually
 means on disk, the order the commands are meant to be run in, and why a plugin whose
@@ -244,7 +244,7 @@ two lines, typed inside Claude Code:
 The first line registers the \emph{marketplace} --- this repository, read straight from
 git; the second installs the \emph{plugin} it publishes. From a shell, \texttt{make
 install} runs the equivalent \texttt{claude plugin} commands, which is the form to
-prefer in a setup script. Either way the nine commands then appear namespaced under
+prefer in a setup script. Either way the ten commands then appear namespaced under
 \texttt{/rhiza:}, and typing \texttt{/rhiza} is enough for Claude Code to autocomplete
 them.
 
@@ -430,7 +430,7 @@ The plugin ships two kinds of markdown, and the distinction is enforced rather t
 conventional:
 
 \begin{itemize}[leftmargin=1.4em, itemsep=0.3em]
-  \item \file{skills/<name>/SKILL.md} are \textbf{slash commands} you invoke: nine of
+  \item \file{skills/<name>/SKILL.md} are \textbf{slash commands} you invoke: ten of
         them, each with a reference page. The \emph{directory} carries the name, so the
         file that answers \cmd{init} is \file{skills/init/SKILL.md}.
   \item \file{prompts/*.md} are \textbf{internal procedures}: eight shared steps a
@@ -471,14 +471,14 @@ that explains itself by arguing against a directory which no longer exists, and 
 argument from an absent constraint reads, to a later human or model, as a constraint that
 no longer binds.
 
-\section{The nine commands, and what each writes}
+\section{The ten commands, and what each writes}
 
 An introduction should say which of these change your repository, because that is the
 first thing anyone actually wants to know.
 
 \begin{center}
 \small
-\begin{tabular}{@{}p{0.20\linewidth}p{0.40\linewidth}p{0.32\linewidth}@{}}
+\begin{tabular}{@{}p{0.23\linewidth}p{0.37\linewidth}p{0.32\linewidth}@{}}
 \toprule
 \textbf{command} & \textbf{what it does} & \textbf{what it writes} \\
 \midrule
@@ -498,6 +498,8 @@ commits on the request's own branch; never the default one \\[0.35em]
 nothing --- read-only \\[0.35em]
 \cmd{maffay} & print one bonmot from a random Peter Maffay song &
 nothing --- needs no repository at all \\[0.35em]
+\cmd{completions} & install shell tab-completion for \texttt{make} targets &
+files in your data directory, never in the repository \\[0.35em]
 \cmd{detach} & delete every file the lock records, prune empty dirs &
 removes files; confirms first \\
 \bottomrule
@@ -516,7 +518,7 @@ on a repository you have just inherited and do not yet understand.
 
 \medskip
 \noindent
-Three commands sit outside the sequence entirely, and it is worth saying why they are
+Four commands sit outside the sequence entirely, and it is worth saying why they are
 here. \cmd{release} needs no \file{.rhiza/} at all --- it reads the repository's own
 \texttt{[tool.bumpversion]} configuration, so it works on any git repository, this plugin
 included. \cmd{remote} needs none either: it asks the forge what continuous integration
@@ -529,7 +531,10 @@ line from a Peter Maffay song and prints it, which is the whole command. It earn
 place because the song is drawn by a \emph{script} rather than by the model --- asked to
 choose at random, a model reaches for the same few favourites --- and that makes it the
 smallest complete illustration of this plugin's central split: even picking at random is
-deterministic work, so it belongs in tested code.
+deterministic work, so it belongs in tested code. \cmd{completions} is outside for a
+different reason: it installs \texttt{make} tab-completion into your shell's data
+directory, so it needs no \file{.rhiza/}, works in any \texttt{make} project, and is the
+only command that writes outside the repository it is run in.
 
 \subsection*{Common confusions}
 
@@ -668,7 +673,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 \texttt{rhiza} CLI to install}, which is the most common point of confusion about what
 this actually requires.
 
-Honest scope, at v0.11.0: nine user-facing commands, eight internal procedures. It is
+Honest scope, at v0.11.0: ten user-facing commands, eight internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command
