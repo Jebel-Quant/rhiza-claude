@@ -109,7 +109,7 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 
 | Path | What it is |
 | --- | --- |
-| `plugin/skills/<name>/SKILL.md` | The nine slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
+| `plugin/skills/<name>/SKILL.md` | The ten slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
@@ -133,6 +133,18 @@ six of them fail *open*. Bundling a script inside a skill directory to make that
 self-contained would therefore drop it out of the bar rather than move it — which is why
 every script lives in `plugin/scripts/`, `maffay.py` included, however self-contained its
 skill looks. Changing that means widening all eight scopes deliberately, in its own PR.
+
+**The tree also holds the non-Python assets those scripts copy out**, one directory per
+kind: `plugin/scripts/licenses/*.txt` behind `set_license.py`, and
+`plugin/scripts/completions/rhiza-completion.{bash,zsh}` behind
+`install_completions.py`. Every gate above keys off `\.py$`, so an asset directory adds
+nothing to check and drops nothing out of the bar — the point is only that a script and
+what it writes stay together, resolved as `Path(__file__).parent / "<kind>"`. The two
+shell scripts are worth one caveat: being shell, they fall outside every gate that keys
+off `.py`, and being *copied* rather than run they fail silently — the install succeeds
+and completion simply never works. `test_install_completions.py` parses each of them with
+`bash -n` / `zsh -n`, which is the only thing standing in for the eight gates the Python
+beside them gets. Keep that test if you touch them.
 
 **Skills vs `prompts/` is the load-bearing distinction.** Procedures live outside every
 discovery location specifically so they cannot be invoked as slash commands — that's the
@@ -196,8 +208,8 @@ it will report what that exemption covers, and the numbers are not small:
 
 | Tree | Blocks | Average | C-or-worse |
 | --- | --- | --- | --- |
-| `plugin/scripts` | 439 | A (4.08) | **0** |
-| `tests` | 1387 | A (2.85) | **6** |
+| `plugin/scripts` | 451 | A (4.05) | **0** |
+| `tests` | 1427 | A (2.85) | **6** |
 
 **Both rows are `make complexity` output — regenerate them there rather than editing them
 here.** The target prints exactly these four figures per tree, which it did not always do:

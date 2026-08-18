@@ -39,7 +39,7 @@ performs the first sync; `/quality` needs that content for its *full* assessment
 run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
-the nine slash commands you invoke; `prompts/` holds eight **internal procedures** they
+the ten slash commands you invoke; `prompts/` holds eight **internal procedures** they
 `Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.
@@ -272,6 +272,18 @@ anything.
   only, attributed — no lyric bodies — and the `Für uns:` gloss beside it is ours, not
   Maffay's. Needs no repo, no git and no network.
 
+### Machine setup
+
+- **`/rhiza:completions`** — install make tab-completion for bash, zsh or both, so
+  `make <TAB>` lists a project's targets. **The one command that writes outside a repo**:
+  the destinations are under `${XDG_DATA_HOME:-$HOME/.local/share}`, which is also why it
+  isn't model-invocable — you have to name it. The completion is generic (it parses the
+  make database in the current directory), so **install it once per machine**, not once per
+  repo; this is the plugin taking over a job the template used to do by syncing four
+  identical files into every managed repo. The installed names are the shells' generic
+  `make` / `_make`, so a completion this plugin didn't write is reported and left alone
+  rather than overwritten — `--force` is opt-in.
+
 ### Destructive
 
 - **`/rhiza:detach`** — detach the repo from rhiza: delete every rhiza-managed file
@@ -322,7 +334,7 @@ components by those names at the plugin root, so they cannot be renamed. `prompt
 *because* it is not a discovery location, so a procedure kept there cannot be invoked as a
 slash command.
 
-All nine commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
+All ten commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
 names the command, so `skills/init/SKILL.md` is what answers `/rhiza:init`. Check the
 [plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before
 assuming what the spec requires.
@@ -332,10 +344,10 @@ assuming what the spec requires.
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
 | `plugin/` | **The plugin as shipped.** Everything below is inside it. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/skills/` | The plugin's nine slash commands (`<name>/SKILL.md`, the directory naming the command). |
+| `plugin/skills/` | The plugin's ten slash commands (`<name>/SKILL.md`, the directory naming the command). |
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
-| `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive. |
+| `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive, plus the non-Python assets they copy out (`licenses/`, `completions/`). |
 | `tests/scripts/` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
 | `docs/` | The MkDocs site. Not shipped. |
 | `paper/` | A LaTeX introduction — the long form of the framing above, with figures captured from real command output (`render_figures.py`). `make paper` builds it; CI rebuilds it on every commit and [publishes the PDF with the docs site](https://jebel-quant.github.io/rhiza-claude/paper/rhiza-claude-intro.pdf). |

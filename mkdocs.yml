@@ -20,6 +20,8 @@ nav:
   - Repo utilities:
       - status: skills/status.md
       - maffay: skills/maffay.md
+  - Machine setup:
+      - completions: skills/completions.md
   - Destructive:
       - detach: skills/detach.md
   - Internals:
