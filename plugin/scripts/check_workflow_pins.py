@@ -9,8 +9,8 @@ to v10.0.0, so an auditor asking "which release is this" got two answers from on
 The uv *version input* is the same failure one level down, and it matters more. Everything
 this repo pins flows through uv — `UV_CONSTRAINT` and `UV_PYTHON` are exported for it to
 consume, so 14 pinned tools resolve however uv decides to resolve them. That input is
-duplicated at every call site, and `auto-tag.yml` simply did not have it: the job that
-decides whether a release tag is created floated its uv. Dependabot watches the action pin
+duplicated at every call site, and one workflow simply did not have it: the job that
+decided whether a release tag is created floated its uv. Dependabot watches the action pin
 above the input and cannot see the input, so nothing would have said so.
 
 Three rules, over `.github/workflows/*.yml` and any composite action beside them:
