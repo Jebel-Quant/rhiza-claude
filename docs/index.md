@@ -87,7 +87,7 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`skills/<name>/SKILL.md` → slash commands** you invoke: nine of them, each with a
+- **`skills/<name>/SKILL.md` → slash commands** you invoke: ten of them, each with a
   page here. The *directory* carries the command name, so `skills/init/SKILL.md` is the
   file that answers `/rhiza:init`.
 - **`prompts/*.md` → internal procedures**: eight shared steps a command reaches with
@@ -285,6 +285,15 @@ Thin, **read-only**, stdlib-only commands backed by bundled scripts — they rea
 | --- | --- |
 | [`/rhiza:status`](skills/status.md) | Report both halves of the repo's rhiza state: is `template.yml` valid, and what did the last sync record. `--files` lists managed files as a tree; `--check` compares the pinned ref against the latest release. |
 | [`/rhiza:maffay`](skills/maffay.md) | Return a bonmot from a random Peter Maffay song. Takes an optional theme keyword. Needs no repo at all. |
+
+## Machine setup
+
+The one command that writes **outside** a repo, and so the one to run once per machine
+rather than once per project.
+
+| Command | What it does |
+| --- | --- |
+| [`/rhiza:completions`](skills/completions.md) | Install make tab-completion for bash, zsh or both, into `${XDG_DATA_HOME:-$HOME/.local/share}`. Generic make completion, so it works in every project on the machine; refuses to overwrite a completion it did not write unless `--force` is passed. |
 
 ## Destructive
 

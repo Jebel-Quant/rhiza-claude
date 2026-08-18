@@ -66,12 +66,14 @@ from _rhiza_layout import PLUGIN_DIR, PROMPTS_DIR, SCRIPTS_DIR, command_files
 _FRONTMATTER_KEYS = ("description", "argument-hint", "allowed-tools")
 # Commands the model may not invoke off a description match — the user has to name them.
 # The line is drawn at side effects that are not a reviewable proposal: `detach`
-# deletes every managed file, `release` commits and tags. Everything else stays
-# invocable on purpose — `init` and `update` open a PR but never push to the default
-# branch, `docs` only writes files, and `quality` files issues solely from an explicit
-# menu selection. Adding a command here is a deliberate change to the plugin's surface,
-# which is why the set lives in code and is reviewed rather than inferred per file.
-_MODEL_INVOCATION_OPT_OUT = frozenset({"detach", "release"})
+# deletes every managed file, `release` commits and tags, and `completions` writes into
+# the user's home directory, where no diff, PR or `git checkout` can show or undo it.
+# Everything else stays invocable on purpose — `init` and `update` open a PR but never
+# push to the default branch, `docs` only writes files, and `quality` files issues solely
+# from an explicit menu selection. Adding a command here is a deliberate change to the
+# plugin's surface, which is why the set lives in code and is reviewed rather than
+# inferred per file.
+_MODEL_INVOCATION_OPT_OUT = frozenset({"completions", "detach", "release"})
 _OPT_OUT_KEY = "disable-model-invocation"
 _BASH_BLOCK = re.compile(r"```bash\n(.*?)```", re.S)
 # The script path is usually quoted — `"${CLAUDE_PLUGIN_ROOT}/scripts/x.py" --flag` —

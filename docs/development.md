@@ -13,7 +13,7 @@ points inward with `"source": "./plugin"`.
 | --- | --- |
 | `.claude-plugin/marketplace.json` | Marketplace manifest. Root, because that's where `marketplace add` looks. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/skills/` | The plugin's nine slash commands (`<name>/SKILL.md`). |
+| `plugin/skills/` | The plugin's ten slash commands (`<name>/SKILL.md`). |
 | `plugin/prompts/` | Internal procedures the commands `Read`. |
 | `plugin/hooks/` | `hooks.json` — the `PreToolUse` hook that guards Bash calls at runtime. |
 | `plugin/scripts/` | Bundled stdlib-only Python scripts backing the commands. |
@@ -114,8 +114,9 @@ the template, so the plugin's own prose about other people's repos still says
 
 The prose hooks are the unusual ones. `command-contracts` treats each command as
 a contract — its frontmatter parses, its bash blocks are valid shell, the scripts
-and flags it names exist, and exactly the destructive commands
-(`detach`, `release`) declare `disable-model-invocation: true`. `prompt-wiring`
+and flags it names exist, and exactly the commands whose
+side effects are not a reviewable proposal (`completions`, `detach`, `release`) declare
+`disable-model-invocation: true`. `prompt-wiring`
 keeps the `prompts/` procedures referenced and un-invocable — and, since a procedure's
 *reason* for being un-invocable is as load-bearing as its wiring, fails the build when
 shipped prose names a discovery location the plugin doesn't have. `docs-nav` requires a

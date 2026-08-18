@@ -116,6 +116,7 @@ def test_command_files_finds_every_shipped_command(repo_root: Path):
     names = [name for name, _ in layout.command_files(repo_root)]
     assert names == sorted(names)
     assert set(names) == {
+        "completions",
         "detach",
         "docs",
         "init",
