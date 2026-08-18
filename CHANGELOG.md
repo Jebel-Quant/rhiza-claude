@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.11.0] - 2026-08-18
+
+### New Features
+- Own shell completions in the plugin (#192) (#193)
+
+### Bug Fixes
+- Close the three open quality findings (#176, #177, #178) (#179)
+- Close the four open quality findings (#182, #183, #184, #185) (#187)
+- Close the three quality findings (#188, #189, #190) (#191)
+
+### Other Changes
+- Verify the suite off Linux, and make more of the docs executable (#186)
+
 ## [0.10.0] - 2026-08-16
 
 ### New Features
