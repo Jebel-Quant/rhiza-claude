@@ -39,6 +39,7 @@ performs the first sync; `/quality` needs that content for its *full* assessment
 run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
+<!-- rhiza-count: commands procedures -->
 the ten slash commands you invoke; `prompts/` holds eight **internal procedures** they
 `Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
@@ -334,6 +335,7 @@ components by those names at the plugin root, so they cannot be renamed. `prompt
 *because* it is not a discovery location, so a procedure kept there cannot be invoked as a
 slash command.
 
+<!-- rhiza-count: commands -->
 All ten commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
 names the command, so `skills/init/SKILL.md` is what answers `/rhiza:init`. Check the
 [plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before

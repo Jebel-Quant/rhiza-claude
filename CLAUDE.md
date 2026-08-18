@@ -50,7 +50,7 @@ interrogate` invocation measures something else. CI runs these same targets.
 
 To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
 (`mypy`, `interrogate`, `doc-examples`, `test-layout`, `command-contracts`,
-`prompt-wiring`, `manifest-version-parity`, `workflow-pins`).
+`prompt-wiring`, `prose-counts`, `manifest-version-parity`, `workflow-pins`).
 
 **The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
 config file keeps its `.pre-commit-config.yaml` name and schema — prek reads that format
@@ -260,6 +260,20 @@ pass `bash -n`, every `scripts/<name>.py` referenced exists, every `--flag` pass
 one that script's `argparse` accepts, every `/rhiza:<name>` resolves, and
 `allowed-tools` covers the binaries the blocks run. A renamed flag breaks the build
 rather than breaking in front of a user mid-task.
+
+**`check_prose_counts.py` gates the other half of a prose claim: its arithmetic.** A
+sentence saying how many commands, procedures or workflows there are is checked against
+the tree — but only where an author marked it, with `rhiza-count: <subject>` in whatever
+comment syntax the file speaks. The marker carries no number of its own, so there is
+nothing to drift; it says only "this count is a total". That is deliberate and the design
+was arrived at the hard way: reading every number followed by "commands" flags
+"`pr-base` is read by three commands", which is correct English, and a gate that fails on
+correct prose gets switched off. The trade is that an unmarked count is unchecked.
+
+It exists because `paper/` had no gate at all, and `paper/` is what the release stamps
+"true of release vX.Y.Z" — it claimed nine user-facing commands against ten for the whole
+of v0.10.0. `Makefile` had the same drift ("the nine workflows" against ten). Both are
+now marked.
 
 **When adding or changing a command:**
 

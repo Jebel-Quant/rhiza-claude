@@ -96,6 +96,7 @@
 \noindent
 \textbf{rhiza-claude} is a Claude Code plugin for repositories that share their
 scaffolding with a template repository instead of each carrying a private copy of it.
+% rhiza-count: commands
 This document is the part the reference pages cannot be: not a catalogue of the ten
 skills under \file{skills/}, but an account of the problem they exist to
 solve --- the two-repository boundary a sync respects, what ``rhiza-managed'' actually
@@ -244,6 +245,7 @@ two lines, typed inside Claude Code:
 The first line registers the \emph{marketplace} --- this repository, read straight from
 git; the second installs the \emph{plugin} it publishes. From a shell, \texttt{make
 install} runs the equivalent \texttt{claude plugin} commands, which is the form to
+% rhiza-count: commands
 prefer in a setup script. Either way the ten commands then appear namespaced under
 \texttt{/rhiza:}, and typing \texttt{/rhiza} is enough for Claude Code to autocomplete
 them.
@@ -471,6 +473,7 @@ that explains itself by arguing against a directory which no longer exists, and 
 argument from an absent constraint reads, to a later human or model, as a constraint that
 no longer binds.
 
+% rhiza-count: commands
 \section{The ten commands, and what each writes}
 
 An introduction should say which of these change your repository, because that is the
@@ -673,6 +676,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 \texttt{rhiza} CLI to install}, which is the most common point of confusion about what
 this actually requires.
 
+% rhiza-count: commands procedures
 Honest scope, at v0.11.0: ten user-facing commands, eight internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how

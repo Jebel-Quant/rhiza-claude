@@ -40,6 +40,7 @@ lint:  ## Run all prek hooks against every file
 # The absence of a dependency scan is deliberate, not an omission: `plugin/scripts/` is
 # stdlib-only by gate, so the shipped plugin declares no dependencies and `pip-audit`
 # would have an empty left-hand side. The real surface is the Python that shells out to
+# rhiza-count: workflows
 # git (bandit) and the nine workflows holding write permissions (zizmor).
 #
 # zizmor fails the build at medium and above, not on everything it prints. The two it

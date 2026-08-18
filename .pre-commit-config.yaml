@@ -162,6 +162,19 @@ repos:
         language: system
         pass_filenames: false
         files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
+      # The last ungated prose surface was `paper/`, which is also the one the release
+      # stamps "true of release vX.Y.Z" — so a stale count there is re-asserted every
+      # release, and one was: "nine user-facing commands" against ten, for all of v0.10.0.
+      #
+      # `files:` has to name what the claims are *about* as well as where they are
+      # written, or adding the tenth command leaves every count claiming nine and nothing
+      # re-reads them. That is exactly how the drift survived.
+      - id: prose-counts
+        name: counted claims in the prose still match the tree
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_prose_counts.py
+        language: system
+        pass_filenames: false
+        files: '^(paper/.*\.tex|Makefile|(README|CLAUDE)\.md|docs/.*\.md|plugin/(skills/.*/SKILL\.md|prompts/.*\.md)|\.github/workflows/.*\.ya?ml)$'
 
   # Shared hooks from the sibling repo. Selective by necessity: rhiza-claude is
   # deliberately *not* rhiza-managed, so most of what rhiza-hooks ships keys off a
