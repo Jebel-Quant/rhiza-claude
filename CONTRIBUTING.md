@@ -8,19 +8,28 @@ By participating you agree to abide by our
 
 ## What's in here
 
+**The shipped plugin is `plugin/`; everything else in this table builds or checks it.**
+The root `.claude-plugin/marketplace.json` points inward with `"source": "./plugin"`.
+
 | Path | Purpose |
 | --- | --- |
-| `skills/` | The plugin's slash commands — `<name>/SKILL.md`, the directory naming the command. |
-| `scripts/` | Bundled, stdlib-only Python backing the commands (tested). |
-| `tests/` | The pytest suite for `scripts/`. |
+| `plugin/skills/` | The plugin's slash commands — `<name>/SKILL.md`, the directory naming the command. |
+| `plugin/prompts/` | Internal procedures the commands reach with `Read`. Deliberately not a discovery location, so they cannot be invoked as slash commands. |
+| `plugin/scripts/` | Bundled, stdlib-only Python backing the commands (tested). |
+| `plugin/.claude-plugin/` | The plugin manifest. |
+| `tests/` | The pytest suite for `plugin/scripts/`, mirroring it 1:1. |
 | `docs/` | The MkDocs documentation site. |
-| `.claude-plugin/` | The plugin + marketplace manifests. |
+| `.claude-plugin/` | The marketplace catalogue. |
 
 ## Prerequisites
 
-- **Python 3.11+**
 - **[uv](https://docs.astral.sh/uv/)** — used via `uvx` for every tool (nothing
   to install globally).
+- **GNU make** — the entry point for every gate.
+
+No system Python is needed. The `Makefile` exports `UV_PYTHON` from `.python-version`,
+so uv provisions the pinned interpreter itself and every `uvx` call runs under it —
+which is the same version CI measures.
 
 ## Development workflow
 
