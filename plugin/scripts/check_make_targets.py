@@ -20,6 +20,14 @@ Two things make that hard to catch by hand, and this script addresses both:
   from the template's *tests* bundle and `fmt`/`deptry` from *core*, so a repo on a
   reduced profile legitimately lacks some. An absent target is reported as
   **unavailable**, which `/quality` scores as out-of-scope — never as a failure.
+* **Some makefiles answer everything, and then probing proves nothing.** Template v1.4
+  retired the make layer for a task runner behind a shim whose `%:` rule forwards any
+  unknown target, so `make -n <anything>` exits 0. That turned this script's one
+  instrument into a tautology and produced the *inverse* of the bug above: every gate
+  reported available, `deptry` included, on a repo whose task is called `deps` — so
+  `/quality` ran a gate that does not exist and scored the runner's "unknown task"
+  error as a FAIL. Such a repo's gates are reported **undetermined**, which is neither
+  available nor a failure, with the notes saying how to resolve them.
 
 It also **discovers** what the repo documents beyond that list. The prose names the
 Python profile's gates; a Go or Rust repo synced from a sibling template has different
@@ -36,8 +44,8 @@ Usage:
       [--require] [--json]
 
 Exit codes:
-  0  probed successfully (some targets may be unavailable — that is not an error)
-  1  no makefile to probe, or --require was given and a target is missing
+  0  probed successfully (targets may be unavailable or undetermined — neither is an error)
+  1  no makefile to probe, or --require was given and a target is missing or undetermined
   2  no gate list could be parsed from the command prose
 """
 
@@ -66,6 +74,14 @@ _INCLUDE = re.compile(r"^\s*-?include\s+(.+?)\s*$", re.MULTILINE)
 # How deep to follow includes. Makefile -> .rhiza/rhiza.mk -> .rhiza/make.d/*.mk is two,
 # so three leaves room without risking a pathological chain.
 _INCLUDE_DEPTH = 3
+# A catch-all rule: `%:` (the shim's delegation to its task runner) or `.DEFAULT:`. Both
+# require the colon to follow the name immediately, which is what keeps `%.o: %.c` — an
+# ordinary pattern rule — and `.DEFAULT_GOAL := help` out. Used only to *name* the file
+# in the notes; whether probing works at all is decided by asking make (see
+# :func:`resolves_everything`).
+_CATCH_ALL = re.compile(r"^(?:%|\.DEFAULT)[ \t]*::?[^=]", re.MULTILINE)
+# A target no repository would define, used to ask make whether it answers anything.
+_SENTINEL_TARGET = "rhiza-probe-no-such-target"
 
 EXIT_OK = 0
 EXIT_UNAVAILABLE = 1
@@ -177,6 +193,61 @@ def target_exists(target_dir: Path, target: str) -> bool:
     return result.returncode == 0
 
 
+def catch_all_source(target_dir: Path) -> Path | None:
+    """Return the makefile in the chain that defines a catch-all rule, or None.
+
+    Explanatory only — it names a file for the notes. The question of whether probing
+    can be trusted is :func:`resolves_everything`'s.
+
+    >>> import tempfile, pathlib
+    >>> d = pathlib.Path(tempfile.mkdtemp())
+    >>> _ = (d / "Makefile").write_text(".DEFAULT_GOAL := help")
+    >>> catch_all_source(d) is None
+    True
+    >>> _ = (d / "Makefile").write_text("%: ; @uvx rhiza-task $@")
+    >>> catch_all_source(d).name
+    'Makefile'
+    """
+    return next(
+        (
+            makefile
+            for makefile in makefile_chain(target_dir)
+            if _CATCH_ALL.search(makefile.read_text(encoding="utf-8", errors="ignore"))
+        ),
+        None,
+    )
+
+
+def resolves_everything(target_dir: Path) -> bool:
+    """Does this repo's make answer a target that cannot exist?
+
+    Behavioural rather than textual, and that is the point. Template v1.4's `Makefile`
+    is a shim: `%:` forwards every unresolved target to `uvx rhiza-task`, so
+    :func:`target_exists` returns True for anything at all and the whole probe becomes a
+    tautology. Asking about a target no repo would define is the one question whose
+    answer separates the two cases — and it catches a catch-all this parser cannot see,
+    whether it arrives through an `include` past the depth limit or is built from make
+    variables.
+    """
+    return target_exists(target_dir, _SENTINEL_TARGET)
+
+
+def _delegating_notes(target_dir: Path, targets: list[str]) -> list[str]:
+    """Guidance for a repo whose makefile answers every target."""
+    source = catch_all_source(target_dir)
+    where = f"a catch-all rule in {source.name}" if source else "a catch-all rule"
+    return [
+        f"this makefile resolves *every* target ({where}), so `make -n` cannot tell a "
+        f"real gate from a typo — all {len(targets)} named gate(s) are reported "
+        "undetermined rather than available, which is what they are.",
+        "enumerate the repo's real tasks with `make help`, which a shim delegates to its "
+        "task runner, and match each named gate to a task before running it — under "
+        "rhiza-task the `deptry` gate is the `deps` task.",
+        "a gate that fails with an unknown-task error was never provided: score it "
+        "out-of-scope, never FAIL.",
+    ]
+
+
 def _probe_notes(available: list[str], unavailable: list[str], undeclared: list[str]) -> list[str]:
     """Build the guidance notes for a completed probe.
 
@@ -221,6 +292,28 @@ def _probe_notes(available: list[str], unavailable: list[str], undeclared: list[
     return notes
 
 
+def _delegating_probe(target_dir: Path, targets: list[str]) -> dict[str, Any]:
+    """The summary for a repo whose makefile answers every target.
+
+    Nothing is `available`, and reporting otherwise is the worse error of the two: a
+    shim says yes to every probe, so trusting it is how `deptry` came back available on
+    a repo whose task is `deps`. What survives is `undeclared` — the `##` convention
+    still reads, and on a shim the repo-owned targets at the foot of the file are the
+    only ones anything on disk can vouch for.
+    """
+    documented = documented_targets(target_dir)
+    return {
+        "targets": targets,
+        "available": [],
+        "unavailable": [],
+        "undetermined": targets,
+        "undeclared": sorted(name for name in documented if name not in targets),
+        "documented": documented,
+        "notes": _delegating_notes(target_dir, targets),
+        "exit_code": EXIT_OK,
+    }
+
+
 def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
     """Probe every gate target named in *command_file*; return a summary dict."""
     targets = gate_targets(command_file)
@@ -229,6 +322,7 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
             "targets": [],
             "available": [],
             "unavailable": [],
+            "undetermined": [],
             "undeclared": [],
             "documented": {},
             "notes": [f"no `make <target>` gate list found in {command_file.name}"],
@@ -240,6 +334,7 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
             "targets": targets,
             "available": [],
             "unavailable": targets,
+            "undetermined": [],
             "undeclared": [],
             "documented": {},
             "notes": [
@@ -249,9 +344,12 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
             "exit_code": EXIT_UNAVAILABLE,
         }
 
+    if resolves_everything(target_dir):
+        return _delegating_probe(target_dir, targets)
+
+    documented = documented_targets(target_dir)
     available = [t for t in targets if target_exists(target_dir, t)]
     unavailable = [t for t in targets if t not in available]
-    documented = documented_targets(target_dir)
     # Targets the repo documents that the prose never named. On a Python repo this is
     # usually noise (`book`, `clean`); on a Go or Rust one it is where the real gates
     # are, because the prose list describes a template this repo isn't using.
@@ -261,11 +359,19 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
         "targets": targets,
         "available": available,
         "unavailable": unavailable,
+        "undetermined": [],
         "undeclared": undeclared,
         "documented": documented,
         "notes": _probe_notes(available, unavailable, undeclared),
         "exit_code": EXIT_OK,
     }
+
+
+def _state(target: str, summary: dict[str, Any]) -> str:
+    """How *target* is labelled in the text report."""
+    if target in summary["undetermined"]:
+        return "undetermined"
+    return "available" if target in summary["available"] else "unavailable"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -283,7 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require",
         action="store_true",
-        help="Exit non-zero when any target is unavailable (for a repo that expects all).",
+        help="Exit non-zero unless every target was confirmed present.",
     )
     parser.add_argument(
         "--json", dest="json_output", action="store_true", help="Emit the summary as JSON."
@@ -296,15 +402,17 @@ def main(argv: list[str] | None = None) -> int:
         else Path(__file__).resolve().parent.parent / "skills" / "quality" / "SKILL.md"
     )
     summary = probe(Path(args.target_dir).resolve(), command_file)
-    if args.require and summary["unavailable"]:
+    # `undetermined` fails `--require` too. The flag asks whether every gate is there,
+    # and a makefile that answers everything cannot say — treating "could not tell" as
+    # "yes" is the whole defect this reports.
+    if args.require and (summary["unavailable"] or summary["undetermined"]):
         summary["exit_code"] = EXIT_UNAVAILABLE
 
     if args.json_output:
         print(json.dumps(summary, indent=2))
     else:
         for target in summary["targets"]:
-            state = "available" if target in summary["available"] else "unavailable"
-            print(f"{state:<12} make {target}")
+            print(f"{_state(target, summary):<12} make {target}")
         for target in summary["undeclared"]:
             print(f"{'discovered':<12} make {target}  # {summary['documented'][target]}")
         for note in summary["notes"]:
