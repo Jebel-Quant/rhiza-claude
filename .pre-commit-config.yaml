@@ -147,12 +147,21 @@ repos:
       # `mkdocs build --strict` catches a nav entry with no page; it cannot catch a
       # command with no page, or a page missing from the nav. Those are the likely
       # directions, and CONTRIBUTING has required both since before anything checked.
+      #
+      # Both this hook and `docs-reference-blocks` below name `docs/skills` — the value
+      # `_rhiza_layout.DOCS_SKILLS_DIR` holds, which YAML cannot import, so this is the
+      # one place the layout is repeated and the one place it can drift. It did: #146
+      # renamed `docs/commands/` to `docs/skills/` and updated every URL, but not these
+      # two patterns, so from then until now neither hook matched the pages it exists to
+      # validate. It survived because `pass_filenames: false` keeps them firing under
+      # `--all-files`, which is what `make lint` and CI both run — only a staged-file
+      # run skipped them, silently and with no output to notice. Edit the two together.
       - id: docs-nav
         name: every command and procedure has a docs page, wired into the nav
         entry: uv run --python 3.12 --no-project python plugin/scripts/check_docs_nav.py
         language: system
         pass_filenames: false
-        files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(commands|internals)/.*\.md|mkdocs\.yml)$'
+        files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(skills|internals)/.*\.md|mkdocs\.yml)$'
       # docs-nav checks a page *exists*; this checks its facts are current. The
       # reference block on each page is generated from the frontmatter, so a renamed
       # argument or a widened allowed-tools list can't survive in the docs.
@@ -161,7 +170,7 @@ repos:
         entry: uv run --python 3.12 --no-project python plugin/scripts/render_command_docs.py --check
         language: system
         pass_filenames: false
-        files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(commands|internals)/.*\.md)$'
+        files: '^(plugin/(commands|skills|prompts)/.*\.md|docs/(skills|internals)/.*\.md)$'
       # The last ungated prose surface was `paper/`, which is also the one the release
       # stamps "true of release vX.Y.Z" — so a stale count there is re-asserted every
       # release, and one was: "nine user-facing commands" against ten, for all of v0.10.0.

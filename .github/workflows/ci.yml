@@ -282,9 +282,25 @@ jobs:
         run: make portable
 
   # A single required status check standing in front of the whole workflow. Branch
-  # protection names this context and nothing else, so `lint` and `tests` can be
-  # renamed, split or replaced without re-applying .github/rulesets/main-protection.json
-  # — which is a step that has to happen by hand, and so is a step that gets forgotten.
+  # protection is meant to name this context and nothing else, so `lint`, `tests` and
+  # `cross-platform` can be renamed, split or replaced without re-applying
+  # .github/rulesets/main-protection.json — which is a step that has to happen by hand,
+  # and so is a step that gets forgotten. It was: the checked-in ruleset named `ci-gate`
+  # while the live one still required `lint` and `tests` directly, so this job aggregated
+  # a `cross-platform` result that nothing consumed and a red Windows leg could not block
+  # a merge. Re-applying the file is the fix, and it is the only thing that makes the
+  # paragraph above true — verify with:
+  #   gh api repos/Jebel-Quant/rhiza-claude/rules/branches/main \
+  #     --jq '.[] | select(.type=="required_status_checks")
+  #                 | .parameters.required_status_checks[].context'
+  #
+  # Advisory by construction, not by choice: `build` (book.yml) and `install smoke test`
+  # (plugin.yml) run on every PR and cannot join `needs:` below, because a job cannot
+  # depend on one in another workflow. The same holds for codeql's `Analyze`. Requiring
+  # them would mean naming their contexts in the ruleset directly — which is the coupling
+  # this job exists to avoid, and would put merges behind `make book`, whose paper build
+  # depends on an upstream CDN that rate-limits. They stay advisory deliberately; read
+  # them, but they do not gate.
   #
   # Nothing but `success` passes. `skipped` is rejected because a job that never ran
   # has proved nothing, and `cancelled` because otherwise cancelling a run is a way to
