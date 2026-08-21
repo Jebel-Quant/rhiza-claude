@@ -535,6 +535,7 @@ def test_a_command_without_a_gate_list_still_returns_the_discovery_keys(tmp_path
     empty.write_text("# no gates here\n", encoding="utf-8")
     summary = cmt.probe(tmp_path, empty)
     assert summary["undeclared"] == [] and summary["documented"] == {}
+    assert summary["undetermined"] == []
 
 
 def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
@@ -551,6 +552,106 @@ def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
     found = cmt.documented_targets(repo_root)
     assert {"lint", "test", "book", "clean"} <= set(found)
     assert found["lint"] == "Run all prek hooks against every file"
+
+
+# --- a makefile that answers everything --------------------------------------
+#
+# Template v1.4's shim delegates through `%:`, so `make -n <anything>` exits 0 and the
+# probe's one instrument stops discriminating. The bug that reached a user is the mirror
+# image of the unsynced-repo bug at the top of this file: every gate came back
+# available, `deptry` included, on a repo whose task is named `deps` — so /quality ran a
+# gate that does not exist and scored the runner's "unknown task" error as a FAIL.
+
+
+def test_a_shim_reports_no_gate_as_available(shim_repo, quality_md):
+    """The defect, pinned: an answer of "yes to everything" is not availability."""
+    summary = cmt.probe(shim_repo, quality_md)
+    assert summary["available"] == []
+    assert summary["unavailable"] == []
+    assert summary["undetermined"] == cmt.gate_targets(quality_md)
+
+
+def test_a_shim_is_not_scored_as_a_failure(shim_repo, quality_md):
+    """Undetermined is neither available nor absent, and never an error exit."""
+    assert cmt.probe(shim_repo, quality_md)["exit_code"] == cmt.EXIT_OK
+
+
+def test_the_shim_notes_name_the_file_the_task_list_and_the_analogue(shim_repo, quality_md):
+    """Three things a model needs: why, how to enumerate, and how to score a miss."""
+    notes = cmt.probe(shim_repo, quality_md)["notes"]
+    assert any("catch-all rule in Makefile" in note for note in notes)
+    assert any("`make help`" in note and "`deps` task" in note for note in notes)
+    assert any("out-of-scope, never FAIL" in note for note in notes)
+
+
+def test_a_shim_still_discovers_its_repo_owned_targets(shim_repo, quality_md):
+    """Discovery is unaffected: the `##` convention still reads, so `e2e` comes back.
+
+    Which is the whole reason the probe stays useful here — `undeclared` is the only
+    list in the summary that a shim repo can still be scored on.
+    """
+    assert "e2e" in cmt.probe(shim_repo, quality_md)["undeclared"]
+
+
+def test_an_ordinary_makefile_does_not_resolve_everything(managed_synced_repo):
+    assert not cmt.resolves_everything(managed_synced_repo)
+
+
+def test_a_shim_resolves_a_target_that_cannot_exist(shim_repo):
+    assert cmt.resolves_everything(shim_repo)
+
+
+def test_the_default_goal_variable_is_not_a_catch_all(tmp_path):
+    """`.DEFAULT_GOAL := help` opens this repo's own Makefile — the near miss to avoid."""
+    (tmp_path / "Makefile").write_text(
+        ".DEFAULT_GOAL := help\nhelp: ; @echo help\n%.o: %.c ; @echo compile\n", encoding="utf-8"
+    )
+    assert cmt.catch_all_source(tmp_path) is None
+
+
+def test_a_default_rule_counts_as_a_catch_all(tmp_path):
+    """`.DEFAULT:` is make's other way of answering for anything undefined."""
+    (tmp_path / "Makefile").write_text(".DEFAULT:\n\t@echo $@\n", encoding="utf-8")
+    assert cmt.catch_all_source(tmp_path).name == "Makefile"
+
+
+def test_a_catch_all_is_found_in_an_included_file(tmp_path):
+    """A shim that was itself synced puts the rule one include away."""
+    (tmp_path / "Makefile").write_text("include shim.mk\n", encoding="utf-8")
+    (tmp_path / "shim.mk").write_text("%: ; @echo $@\n", encoding="utf-8")
+    assert cmt.catch_all_source(tmp_path).name == "shim.mk"
+
+
+def test_an_unnamed_catch_all_is_still_reported(tmp_path, quality_md):
+    """make follows an include this parser deliberately won't, and detection survives.
+
+    `include $(EXTRA)` is skipped by `makefile_chain` — resolving make variables is
+    guesswork it refuses — so the regex finds nothing while make answers everything.
+    Detection is behavioural for exactly this case: the notes lose the filename, not
+    the finding.
+    """
+    (tmp_path / "Makefile").write_text("EXTRA = extra.mk\ninclude $(EXTRA)\n", encoding="utf-8")
+    (tmp_path / "extra.mk").write_text("%: ; @echo $@\n", encoding="utf-8")
+    assert cmt.catch_all_source(tmp_path) is None
+    summary = cmt.probe(tmp_path, quality_md)
+    assert summary["undetermined"] == cmt.gate_targets(quality_md)
+    assert any(
+        note.startswith("this makefile resolves *every* target (a catch-all rule)")
+        for note in summary["notes"]
+    )
+
+
+def test_main_marks_a_shim_undetermined(shim_repo, capsys, quality_md):
+    cmt.main(["--target-dir", str(shim_repo), "--from", str(quality_md)])
+    assert "undetermined make deptry" in capsys.readouterr().out
+
+
+def test_main_require_fails_when_nothing_could_be_confirmed(shim_repo, quality_md):
+    """`--require` asks whether every gate is there; "cannot tell" is not a yes."""
+    assert (
+        cmt.main(["--target-dir", str(shim_repo), "--from", str(quality_md), "--require"])
+        == cmt.EXIT_UNAVAILABLE
+    )
 
 
 # --- end-to-end: discovery against a synced Rust repo -------------------------

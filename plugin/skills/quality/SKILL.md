@@ -84,8 +84,8 @@ be determined — say so and score conservatively rather than assuming Python.
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_make_targets.py"
 ```
 It reads the gate list **out of this file's numbered list below** — so the probe can
-never drift from what you're about to run — and reports each target as `available` or
-`unavailable`, using `make -n` so no recipe executes.
+never drift from what you're about to run — and reports each target as `available`,
+`unavailable` or `undetermined`, using `make -n` so no recipe executes.
 
 It also reports **`undeclared`**: targets the repo documents (`target: ## description`)
 that the list below never named. On a Python repo those are mostly noise (`book`,
@@ -98,6 +98,22 @@ unsynced-repo error wearing a different hat.
 Discovery rather than a per-language table is deliberate: this plugin has not seen the
 Go and Rust templates' makefiles, and a table of targets it guessed at would be prose
 asserting things about repos it has never run in.
+
+**`undetermined` means the probe could not tell, and that is not availability.** A repo
+whose `Makefile` is a shim — template v1.4 retired the make layer for a task runner,
+leaving a `%:` rule that forwards anything it cannot resolve — answers `make -n` with
+success for *every* target, typos included. So all the named gates come back
+undetermined, and running them off the back of the probe is how a gate that does not
+exist gets run and its "unknown task" error scored as a FAIL. In that repo:
+
+- **Enumerate the real tasks first**, with a bare `make help`. On a shim that is the
+  runner listing itself, which is the only place the task names exist — there is no
+  synced make layer left to read and nothing on disk to parse.
+- **Match each named gate to a task before running it.** The names moved: the `deptry`
+  gate is the `deps` task. Score the task you actually ran, under the concern the gate
+  names.
+- **A gate with no matching task was never provided** — out-of-scope, never FAIL, the
+  same as `unavailable`.
 
 `typecheck`, `security` and `docs-coverage` come from the template's *tests* bundle and
 `deptry`/`fmt` from *core*, so a reduced profile legitimately lacks some. **Run only the
@@ -310,7 +326,8 @@ one that is unsatisfiable rather than merely upstream.
 
 Before any scoring, report what the gates said:
 
-- a **PASS / FAIL / unavailable** line per gate;
+- a **PASS / FAIL / unavailable** line per gate — an undetermined gate you resolved to a
+  task is reported under the task you ran, and one you could not resolve is `unavailable`;
 - failures grouped by file, with the specific rule or error and the line;
 - a prioritized list of what to fix first — blocking errors before style nits.
 
