@@ -224,12 +224,12 @@ def template_ref() -> str:
 # A stand-in for the make API the template sync delivers as .rhiza/rhiza.mk. Only the
 # target names matter for probing — the recipes are never run (`make -n`).
 SYNCED_MAKEFILE = """\
-.PHONY: fmt typecheck docs-coverage deptry security rhiza-test test help
+.PHONY: fmt typecheck docs-coverage deps security rhiza-test test help
 help: ; @echo help
 fmt: ; @echo fmt
 typecheck: ; @echo typecheck
 docs-coverage: ; @echo docs-coverage
-deptry: ; @echo deptry
+deps: ; @echo deps
 security: ; @echo security
 rhiza-test: ; @echo rhiza-test
 test: ; @echo test
@@ -237,10 +237,10 @@ test: ; @echo test
 
 # A reduced profile: `core` only, so the tests-bundle gates are legitimately absent.
 PARTIAL_MAKEFILE = """\
-.PHONY: fmt deptry help
+.PHONY: fmt deps help
 help: ; @echo help
 fmt: ; @echo fmt
-deptry: ; @echo deptry
+deps: ; @echo deps
 """
 
 

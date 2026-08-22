@@ -58,7 +58,7 @@ The optional argument scopes the assessment; it defaults to the whole repo.
    from the *tests* bundle), it probes each with `make -n` first; a target that isn't
    in the profile is scored **out-of-scope**, not FAIL.
 
-    **Four gates are the exception — `fmt`, `typecheck`, `docs-coverage` and `deptry`
+    **Four gates are the exception — `fmt`, `typecheck`, `docs-coverage` and `deps`
     resolve in any repo**, because they are gated in most mature repos and reporting them
     unavailable understates coverage. Each tries its `make` target, then falls back to
     *your own* tool config: `.pre-commit-config.yaml` through its own runner,
