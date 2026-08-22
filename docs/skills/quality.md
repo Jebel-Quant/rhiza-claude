@@ -9,15 +9,17 @@ findings as issues.
 
 The optional argument scopes the assessment; it defaults to the whole repo.
 
-!!! important "Two modes, decided by what `.rhiza/` holds"
-    `/quality` checks for `.rhiza/template.yml` and `.rhiza/template.lock` before doing
-    anything, and adapts rather than refusing:
+!!! important "Three modes, decided by what `.rhiza/` holds"
+    `/quality` checks for `.rhiza/template.yml`, `.rhiza/template.lock` and
+    `.rhiza/template-bundles.yml` before doing anything, and adapts rather than refusing:
 
-    - **both present** — *full mode*: the template's gates plus the design assessment.
+    - **pointer + lock** — *full mode*: the template's gates plus the design assessment.
     - **`template.yml` only** — *degraded mode*: managed but never synced, the state
       [`/rhiza:init`](init.md) deliberately leaves behind.
       [`/rhiza:update`](update.md) performs the first sync.
-    - **neither** — *degraded mode*: the repo isn't rhiza-managed.
+    - **`template-bundles.yml`, no pointer** — *template mode*: this repo **is** the
+      template. See below.
+    - **none of them** — *degraded mode*: the repo isn't rhiza-managed.
 
     In degraded mode it skips every template-delivered gate, runs whatever targets your
     own `Makefile` provides, and scores the design work in full.
@@ -33,6 +35,19 @@ The optional argument scopes the assessment; it defaults to the whole repo.
     `.rhiza/rhiza.mk` until template v1.4 retired the make layer and stopped shipping it
     — after which every correctly and fully synced v1.4 repo answered "never synced" and
     was quietly scored in the narrower mode.
+
+!!! note "Template mode — running `/quality` on the template repository"
+    `jebel-quant/rhiza` has no pointer and no lock, because nothing is above it. Read
+    naively that is "not rhiza-managed", and the command would offer `/rhiza:init` to the
+    repository that ships the bundles `/init` points at. `.rhiza/template-bundles.yml` —
+    the bundle-and-profile manifest a sync reads *out of* the template — is what says
+    otherwise.
+
+    It runs like degraded mode, with the messaging corrected: no `/rhiza:init` or
+    `/rhiza:update` suggestion, no "no Rhiza gate ran" boilerplate (the gates that ran
+    are the ones every managed repo receives), and the infrastructure assessment is the
+    *main* result rather than a fallback — those files are what consumers inherit. The
+    "fix it upstream" escape hatch is gone too: in this repo, upstream is here.
 
 ## What it does
 

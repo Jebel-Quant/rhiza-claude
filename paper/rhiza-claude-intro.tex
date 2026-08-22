@@ -215,10 +215,9 @@ pointer somebody has since broken by hand. Reporting either one alone is mislead
   synced}.}{fig:unsynced}
 
 The same distinction is load-bearing for \cmd{quality}. Before anything else it looks
-for \emph{both} of those files. Every gate in its list is a \texttt{make} target that
-the sync delivers, so running them against a managed-but-unsynced repository would
-report it as \emph{broken} when it is merely \emph{unsynced} --- a wrong answer rather
-than a missing one.
+for \emph{both} of those files. Every gate in its list is one the sync delivers, so
+running them against a managed-but-unsynced repository would report it as \emph{broken}
+when it is merely \emph{unsynced} --- a wrong answer rather than a missing one.
 
 What it \emph{does} with that distinction is the part that has changed. It used to
 refuse outright. Now either file being absent puts it into a \emph{degraded mode}: the
@@ -230,6 +229,25 @@ with it. A degraded run says as much in its own output, since its number rests o
 narrower base and is not comparable to a managed repository's. By contrast
 \cmd{release} needs neither file: it reads \texttt{[tool.bumpversion]} from the
 repository itself, so it works on any git repository at all --- this plugin included.
+
+Which file the second probe names is itself a design decision, and the obvious choice
+was the wrong one. It used to be \file{.rhiza/rhiza.mk}: the sync delivered it, so its
+presence stood in for \emph{a sync happened}. Template v1.4 retired the make layer and
+stopped shipping the file, and the proxy inverted --- every correctly and fully synced
+repository on that template answered \emph{never synced} and was quietly given the
+narrower assessment. A probe should name what the sync itself \emph{writes}, not what
+one version of the template happened to \emph{ship}, which is \file{.rhiza/template.lock}
+at every version there has ever been.
+
+One repository fits none of the three states: the template. It has no pointer and no
+lock, because nothing is above it, so read naively it is \emph{not managed} and would
+be told to run \cmd{init} --- the command whose whole job is to point a repository at
+it. \file{.rhiza/template-bundles.yml}, the bundle-and-profile manifest a sync reads
+\emph{out of} the template, is what identifies it, and the assessment that follows is
+degraded mode's machinery with its conclusions corrected. Everything a managed
+repository excludes as template-owned is scored here, not because there is no template
+but because these files \emph{are} it; and the escape hatch of deferring a gap upstream
+does not exist, because upstream is this repository.
 
 \section{Installing the plugin}
 
