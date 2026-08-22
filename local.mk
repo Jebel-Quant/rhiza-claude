@@ -18,7 +18,7 @@
 # target that shells out to `uvx` so a machine without uv bootstraps one, rather than failing
 # with "command not found" partway through a recipe.
 
-.PHONY: install audit complexity e2e portable paper-figures clean
+.PHONY: install audit complexity e2e portable book paper-figures clean
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -129,6 +129,26 @@ portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cr
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
 # all run via `make lint` (prek). For a single one, use e.g.
 # `uvx prek run mypy --all-files`.
+
+# The book depends on the paper: docs/index.md links the PDF, and `--strict` fails on a
+# link whose target is missing. Building the paper on every book build is also what keeps
+# the .tex honest — a commit that breaks it fails CI rather than shipping a stale PDF.
+#
+# It depends on `test` for the same reason: the coverage badge and the browsable HTML
+# report are *outputs of the run*, so the only way the published badge can be wrong is
+# if the suite never ran — and then there is no book either. genbadge goes last because
+# `mkdocs build` clears the site directory first.
+#
+# **Both prerequisites now resolve through the shim's catch-all, not through this file**,
+# and that changes what they deliver. `rhiza-task test` runs without coverage here — it
+# looks for a `src/` this repo does not have — so it writes no `$(TESTS)/coverage.xml`,
+# which is exactly the file the `genbadge` line below reads. Until `test` comes back or
+# the CLI is pointed at `plugin/scripts`, that last line is the one to watch.
+book: paper test $(UVX)  ## Build the documentation site into _book/ (compiles the paper and runs the tests first)
+	mkdir -p docs/reports
+	cp -r $(TESTS)/. docs/reports/
+	uvx --with mkdocs-material mkdocs build --strict
+	uvx "genbadge[coverage]" coverage -i $(TESTS)/coverage.xml -o _book/coverage-badge.svg
 
 paper-figures: $(UVX)  ## Regenerate the paper's figures from the captured command output
 	uv run --with pillow python paper/render_figures.py
