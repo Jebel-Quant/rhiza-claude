@@ -10,7 +10,7 @@ findings as issues.
 The optional argument scopes the assessment; it defaults to the whole repo.
 
 !!! important "Two modes, decided by what `.rhiza/` holds"
-    `/quality` checks for `.rhiza/template.yml` and `.rhiza/rhiza.mk` before doing
+    `/quality` checks for `.rhiza/template.yml` and `.rhiza/template.lock` before doing
     anything, and adapts rather than refusing:
 
     - **both present** — *full mode*: the template's gates plus the design assessment.
@@ -22,11 +22,17 @@ The optional argument scopes the assessment; it defaults to the whole repo.
     In degraded mode it skips every template-delivered gate, runs whatever targets your
     own `Makefile` provides, and scores the design work in full.
 
-    What it will **not** do is run the template's gates anyway. Every one is a `make`
-    target the sync delivers, so without `.rhiza/rhiza.mk` they all fail with *"No rule
-    to make target"* — and reporting that as FAIL would describe a broken repo when the
-    truth is an unsynced one. Skipped gates are scored out-of-scope, never failures, and
-    the report names which mode produced the number.
+    What it will **not** do is run the template's gates anyway. Every one is a gate the
+    sync delivers, so in an unsynced repo they all fail with *"No rule to make target"*
+    — and reporting that as FAIL would describe a broken repo when the truth is an
+    unsynced one. Skipped gates are scored out-of-scope, never failures, and the report
+    names which mode produced the number.
+
+    The second probe is the **lock**, deliberately: it is written by every sync at every
+    template version, where a synced *file* is only ever a proxy for one. That proxy was
+    `.rhiza/rhiza.mk` until template v1.4 retired the make layer and stopped shipping it
+    — after which every correctly and fully synced v1.4 repo answered "never synced" and
+    was quietly scored in the narrower mode.
 
 ## What it does
 

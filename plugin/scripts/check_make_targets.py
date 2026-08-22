@@ -45,7 +45,9 @@ Usage:
 
 Exit codes:
   0  probed successfully (targets may be unavailable or undetermined — neither is an error)
-  1  no makefile to probe, or --require was given and a target is missing or undetermined
+  1  no makefile to probe — either an unsynced repo or a v1.4 one that kept no shim,
+     which the notes tell apart — or --require was given and a target is missing or
+     undetermined
   2  no gate list could be parsed from the command prose
 """
 
@@ -82,6 +84,10 @@ _INCLUDE_DEPTH = 3
 _CATCH_ALL = re.compile(r"^(?:%|\.DEFAULT)[ \t]*::?[^=]", re.MULTILINE)
 # A target no repository would define, used to ask make whether it answers anything.
 _SENTINEL_TARGET = "rhiza-probe-no-such-target"
+# The one artefact every sync writes, at every template version. `.rhiza/rhiza.mk` used
+# to stand in for it and stopped being written at template v1.4, so it now answers "was
+# this repo ever synced?" wrongly for every repo on the current template.
+_LOCK_REL = Path(".rhiza") / "template.lock"
 
 EXIT_OK = 0
 EXIT_UNAVAILABLE = 1
@@ -314,6 +320,56 @@ def _delegating_probe(target_dir: Path, targets: list[str]) -> dict[str, Any]:
     }
 
 
+def _no_makefile_probe(target_dir: Path, targets: list[str]) -> dict[str, Any]:
+    """The summary for a repo with no makefile at all — which is now two repos.
+
+    Until template v1.4 there was only one: an unsynced repo, whose gates genuinely do
+    not exist anywhere and whose fix is `/rhiza:update`. v1.4 retired the make layer for
+    a pinned task runner and stopped shipping a `Makefile`, so a repo that is fully
+    synced and up to date reaches this branch too — and telling *that* repo to sync is
+    both wrong and unactionable. `.rhiza/template.lock` separates them, because a sync
+    writes it at every version.
+
+    The gates of a synced repo are reported **undetermined** rather than unavailable, for
+    the same reason a shim's are: nothing here can see the task runner's catalogue, so
+    "absent" is a claim this probe cannot make. What it can do is say where to look.
+    """
+    if not (target_dir / _LOCK_REL).is_file():
+        return {
+            "targets": targets,
+            "available": [],
+            "unavailable": targets,
+            "undetermined": [],
+            "undeclared": [],
+            "documented": {},
+            "notes": [
+                "no makefile and no `.rhiza/template.lock` — the repo is not synced, so "
+                "every gate is unavailable. Run /rhiza:update before scoring."
+            ],
+            "exit_code": EXIT_UNAVAILABLE,
+        }
+    return {
+        "targets": targets,
+        "available": [],
+        "unavailable": [],
+        "undetermined": targets,
+        "undeclared": [],
+        "documented": {},
+        "notes": [
+            "no makefile, but `.rhiza/template.lock` is present: this repo *is* synced. "
+            "Template v1.4 retired the make layer for a pinned task runner and this repo "
+            "kept no shim `Makefile`, so all "
+            f"{len(targets)} named gate(s) are undetermined rather than unavailable — "
+            "they moved, they are not missing. Do not run /rhiza:update over this.",
+            "enumerate the real tasks with `uvx rhiza-task list` and run each gate as "
+            "`uvx rhiza-task <task>`, matching it to a task first — under rhiza-task the "
+            "`deptry` gate is the `deps` task.",
+            "a gate with no matching task was never provided: score it out-of-scope, never FAIL.",
+        ],
+        "exit_code": EXIT_UNAVAILABLE,
+    }
+
+
 def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
     """Probe every gate target named in *command_file*; return a summary dict."""
     targets = gate_targets(command_file)
@@ -330,19 +386,7 @@ def probe(target_dir: Path, command_file: Path) -> dict[str, Any]:
         }
 
     if find_makefile(target_dir) is None:
-        return {
-            "targets": targets,
-            "available": [],
-            "unavailable": targets,
-            "undetermined": [],
-            "undeclared": [],
-            "documented": {},
-            "notes": [
-                "no makefile — the repo is not synced, so every gate is unavailable. "
-                "Run /rhiza:update before scoring."
-            ],
-            "exit_code": EXIT_UNAVAILABLE,
-        }
+        return _no_makefile_probe(target_dir, targets)
 
     if resolves_everything(target_dir):
         return _delegating_probe(target_dir, targets)

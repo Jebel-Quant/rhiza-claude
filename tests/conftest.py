@@ -280,8 +280,10 @@ def unmanaged_repo(tmp_path: Path) -> Path:
 def managed_unsynced_repo(unmanaged_repo: Path, template_ref: str) -> Path:
     """Rhiza-managed but never synced — the state `/init` deliberately leaves behind.
 
-    There is a `template.yml` but no `rhiza.mk` and no makefile, so every gate is
+    There is a `template.yml` but no `template.lock` and no makefile, so every gate is
     unavailable. Scoring this repo as broken was the bug the probe exists to prevent.
+    The lock is the discriminator: see `makeless_synced_repo`, which differs only in
+    having one and needs the opposite advice.
     """
     write_template(unmanaged_repo, f'repository: "{TEMPLATE_REPO}"\nref: "{template_ref}"\n')
     return unmanaged_repo
@@ -305,6 +307,21 @@ def partial_profile_repo(managed_unsynced_repo: Path) -> Path:
     """A synced repo on a reduced profile, missing the tests-bundle gates."""
     (managed_unsynced_repo / ".rhiza" / "rhiza.mk").write_text(PARTIAL_MAKEFILE, encoding="utf-8")
     (managed_unsynced_repo / "Makefile").write_text("include .rhiza/rhiza.mk\n", encoding="utf-8")
+    return managed_unsynced_repo
+
+
+@pytest.fixture
+def makeless_synced_repo(managed_unsynced_repo: Path) -> Path:
+    """A repo synced to template v1.4 that kept no `Makefile` at all.
+
+    The shim is a *repo-owned* file at v1.4, so restoring it is optional and a migrated
+    repo may legitimately have none. What it does have is `.rhiza/template.lock`, which
+    every sync writes at every version — the only thing separating this repo from
+    `managed_unsynced_repo`, which needs the opposite advice.
+    """
+    (managed_unsynced_repo / ".rhiza" / "template.lock").write_text(
+        'sha: "abc123"\nstrategy: merge\nfiles:\n  - ruff.toml\n', encoding="utf-8"
+    )
     return managed_unsynced_repo
 
 

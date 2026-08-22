@@ -16,13 +16,24 @@ These two checks come **first — before any `make`, any tool, any analysis**, b
 they decide which half of this command applies:
 
 ```bash
-test -f .rhiza/template.yml   # rhiza-managed at all?
-test -f .rhiza/rhiza.mk       # ...and actually synced?
+test -f .rhiza/template.yml    # rhiza-managed at all?
+test -f .rhiza/template.lock   # ...and actually synced?
 ```
 
 | Both present | **Full mode** — the template's gates plus the design assessment. |
 | `template.yml` only | **Degraded mode** — managed but never synced, the state `/init` deliberately leaves behind. Mention `/rhiza:update` performs the first sync, then continue. |
 | Neither | **Degraded mode** — not rhiza-managed. Mention `/rhiza:init` once, as information, then continue. |
+
+**The second probe is the lock, not a synced file.** It used to be `.rhiza/rhiza.mk`,
+which was a proxy: the sync delivered it, so its presence stood in for "a sync has
+happened". Template v1.4 retired the make layer and stopped shipping it, and the proxy
+inverted — every correctly and fully synced v1.4 repo answered "never synced" and was
+quietly assessed in degraded mode, which is the *narrower* assessment and understates the
+repo. `.rhiza/template.lock` is not a proxy: every sync writes it, at every template
+version, and its `files:` block is the authoritative record of what was materialised.
+`/rhiza:init` deliberately leaves it absent, which is exactly the never-synced state the
+table's middle row describes. **Probe for an artefact the sync itself writes, never for
+one a particular template version happened to ship.**
 
 **Degraded mode is a narrower assessment, not a refusal.** Skip the template-delivered
 gates, run whatever the repo's *own* makefile provides, and score the design work in
@@ -30,9 +41,10 @@ full. Say which mode you're in before the first gate, so nothing that follows is
 as a Rhiza verdict when it isn't.
 
 **What degrading must never become is running the template's gates anyway.** Every
-numbered gate below is a `make` target the sync delivers; without `.rhiza/rhiza.mk`
-they fail with "No rule to make target", and reporting those as FAIL describes a broken
-repo when the truth is an unsynced one. That was the original reason this was a hard
+numbered gate below is a gate the sync provides — a `make` target through v1.3, a
+`rhiza-task` task from v1.4 — and in an unsynced repo it exists in neither form, so
+running it fails with "No rule to make target" and reporting that as FAIL describes a
+broken repo when the truth is an unsynced one. That was the original reason this was a hard
 stop, and it still holds — the answer is to *not run them and mark them unavailable*,
 which is exactly what the existing out-of-scope rule already does for a reduced profile.
 An unavailable gate is never a FAIL, in any mode.
@@ -115,17 +127,39 @@ exist gets run and its "unknown task" error scored as a FAIL. In that repo:
 - **A gate with no matching task was never provided** — out-of-scope, never FAIL, the
   same as `unavailable`.
 
+**Exit 1 means no makefile at all, and that is two different repos.** Read the note the
+probe prints, because they need opposite advice:
+
+- **No `.rhiza/template.lock` either** — unsynced, which step 0 already put in degraded
+  mode. Say so and move on.
+- **The lock is present** — a **fully synced v1.4 repo that kept no shim `Makefile`.**
+  The `Makefile` is repo-owned from v1.4 on, so having none is a legitimate state and not
+  a broken sync. This repo is in **full mode**; its gates moved rather than went missing,
+  so they are reported `undetermined`, and telling it to run `/rhiza:update` is telling it
+  to redo what it has already done. Enumerate the real tasks and run each gate through the
+  runner instead:
+
+  ```bash
+  uvx rhiza-task list
+  ```
+
+  Then run each gate as a bare `uvx rhiza-task <task>`, matching it to a task first —
+  the names carried over from the make layer, with `deps` for the `deptry` gate. A gate
+  with no matching task was never provided: out-of-scope, never FAIL. This is the same
+  discipline as the shim case above, minus the makefile — and the same rule holds about
+  what you must not do instead, which is supply your own thresholds.
+
 `typecheck`, `security` and `docs-coverage` come from the template's *tests* bundle and
 `deptry`/`fmt` from *core*, so a reduced profile legitimately lacks some. **Run only the
 available gates.** An unavailable one is scored **out-of-scope**, exactly like the
-Rhiza-owned rule below — never FAIL. Exit **1** means no makefile at all, which the
-preconditions above should already have caught.
+Rhiza-owned rule below — never FAIL.
 
 ## 1. Run the gates
 
-Follow the command-execution policy: always prefer `make <target>`; never invoke
-`.venv/bin/...` directly. Run them in order — cheapest checks first so fast failures
-surface before the slow test suite — and collect results:
+Follow the command-execution policy: always prefer the repo's own front door —
+`make <target>`, or `uvx rhiza-task <task>` in a v1.4 repo that kept no makefile — and
+never invoke `.venv/bin/...` directly. Run them in order — cheapest checks first so fast
+failures surface before the slow test suite — and collect results:
 
 1. `make fmt` — pre-commit hooks + linting (ruff format/check, markdownlint, bandit, actionlint, …). **This one resolves in any repo — see below.**
 2. `make typecheck` — static type checking (`ty`, and `mypy --strict` if configured) over `src/`
@@ -176,6 +210,11 @@ measures something else. For a command whose entire output is a score and a find
 list, that means inventing failures — and then filing issues for them. The `make`
 target is the same entry point CI uses, which is exactly why its verdict is the one
 worth scoring.
+
+**The rule is about the thresholds, not about `make`.** Where v1.4 moved them into a
+pinned `rhiza-task` release and the repo's `[tool.rhiza-task]` table, `uvx rhiza-task
+<task>` is that same entry point and carries that same configuration; `uvx ruff check`
+still is not.
 
 ### Why the examples are a gate of their own
 
@@ -293,7 +332,8 @@ a config exists. If there is no target and no config, the answer is rung 3.
 
 Guidelines:
 
-- Run each gate as a single, bare `make <target>` command — one Bash call per gate, no
+- Run each gate as a single, bare `make <target>` command — or a bare
+  `uvx rhiza-task <task>` where that is the front door — one Bash call per gate, no
   pipe, redirect, chain or `cd` prefix. Read the output directly from the tool result
   rather than capturing it to a file. **The plugin's `PreToolUse` hook enforces this**
   (`plugin/hooks/hooks.json` → `plugin/scripts/hook_bash_guard.py`): a compound `make` is denied with

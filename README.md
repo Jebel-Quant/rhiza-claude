@@ -27,10 +27,14 @@ can't be swept in. There is no blanket `git add --all` in the flow.
 is a *pointer* (which template, which pinned ref — what we'd sync *from*), and
 `.rhiza/template.lock` is a *record* (repo, ref, SHA, timestamp, strategy, every managed
 file — what actually arrived). They can disagree, which is why `/rhiza:status` reports
-both and `/rhiza:quality` checks for `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`
-before scoring: its gates *are* the synced `make` targets, so without them it drops to
-a **degraded mode** — template gates skipped, your own `make` targets run, design
-scored in full, and the report says so. `/rhiza:release` needs neither.
+both and `/rhiza:quality` checks for **both** before scoring: the pointer says the repo
+is managed, the record says a sync actually happened, and its gates are the ones that
+sync delivers. With no record it drops to a **degraded mode** — template gates skipped,
+your own gates run, design scored in full, and the report says so. It probes the
+*record* rather than any file the sync wrote, because which files those are is a
+property of the template version: `/quality` used to look for `.rhiza/rhiza.mk`, which
+template v1.4 stopped shipping, and every fully synced v1.4 repo was told it had never
+been synced. `/rhiza:release` needs neither.
 
 **The order still matters** — `/rhiza:init` → merge → `/rhiza:update` → merge →
 `/rhiza:quality`. `/init` writes one file of its own and **syncs nothing**; `/update`
