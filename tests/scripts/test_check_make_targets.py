@@ -99,6 +99,51 @@ def test_an_unsynced_repo_reports_every_gate_unavailable(managed_unsynced_repo, 
     assert any("not synced" in n and "/rhiza:update" in n for n in result["notes"])
 
 
+def test_a_synced_v14_repo_without_a_makefile_is_not_reported_unsynced(
+    makeless_synced_repo, quality_md
+):
+    """Issue #204: `rhiza.mk` stopped being the proof of a sync, `template.lock` is.
+
+    Template v1.4 retired the make layer and made the `Makefile` repo-owned, so a repo
+    that is fully synced to the newest template can have none. Reporting that repo as
+    unsynced sends the reader to `/rhiza:update`, which is already done.
+    """
+    result = cmt.probe(makeless_synced_repo, quality_md)
+    assert result["available"] == []
+    assert result["unavailable"] == []
+    assert result["undetermined"] == cmt.gate_targets(quality_md)
+    assert not any("not synced" in n for n in result["notes"])
+    assert any("rhiza-task list" in n for n in result["notes"])
+    assert any("out-of-scope, never FAIL" in n for n in result["notes"])
+
+
+def test_the_unsynced_note_needs_both_the_makefile_and_the_lock_absent(
+    makeless_synced_repo, quality_md
+):
+    """The same repo, minus the lock: back to the unsynced diagnosis.
+
+    Pins the discriminator itself rather than the two outcomes, so a probe that reached
+    the right answer by some other route (the `.rhiza/` directory, `template.yml`) fails
+    here instead of passing both tests above.
+    """
+    (makeless_synced_repo / ".rhiza" / "template.lock").unlink()
+    result = cmt.probe(makeless_synced_repo, quality_md)
+    assert result["unavailable"] == cmt.gate_targets(quality_md)
+    assert any("not synced" in n and "/rhiza:update" in n for n in result["notes"])
+
+
+def test_a_makeless_synced_repo_reports_undetermined_in_the_text_report(
+    makeless_synced_repo, capsys, quality_md
+):
+    """`undetermined`, not `unavailable`, is what the reader must see in the report."""
+    rc = cmt.main(["--target-dir", str(makeless_synced_repo), "--from", str(quality_md)])
+    assert rc == cmt.EXIT_UNAVAILABLE
+    out, err = capsys.readouterr()
+    assert "undetermined make fmt" in out
+    assert "unavailable" not in out
+    assert "rhiza-task" in err
+
+
 def test_a_synced_repo_finds_every_gate(managed_synced_repo, quality_md):
     result = cmt.probe(managed_synced_repo, quality_md)
     assert result["available"] == cmt.gate_targets(quality_md)

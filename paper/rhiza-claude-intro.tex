@@ -558,8 +558,8 @@ only command that writes outside the repository it is run in.
         generated badge block and corrects stale facts, but never deletes what a human
         wrote.
   \item[``\cmd{quality} scored me on almost nothing.'']
-        It found no \file{.rhiza/rhiza.mk} --- managed but never synced, or not managed
-        at all --- so it ran in degraded mode. The template's gates are skipped rather
+        It found no \file{.rhiza/template.lock} --- managed but never synced, or not
+        managed at all --- so it ran in degraded mode. The template's gates are skipped rather
         than failed, because scoring a missing gate would report it as a failure of your
         code. Run \cmd{update} first for the full assessment; the degraded score is real,
         but it rests on your own \texttt{make} targets and the design analysis alone, and
@@ -732,9 +732,10 @@ The words that carry the model, in one place. Each is used above in exactly this
         Everything not in that list is yours, and no command stages it.
   \item[rhiza-managed vs.\ synced]
         \emph{Managed} means the pointer exists. \emph{Synced} means the content
-        arrived, which is observable as \file{.rhiza/rhiza.mk}. Both are required by
-        \cmd{quality}, and the gap between the two is the state \cmd{init}
-        deliberately leaves you in.
+        arrived, which is observable as \file{.rhiza/template.lock} --- the record a
+        sync writes at every template version, rather than any one file it happened to
+        deliver. Both are required by \cmd{quality}, and the gap between the two is the
+        state \cmd{init} deliberately leaves you in.
   \item[skill --- \file{skills/<name>/SKILL.md}]
         The file behind one slash command. Claude Code discovers it by scanning
         \file{skills/} at the plugin root, and takes the command name from the

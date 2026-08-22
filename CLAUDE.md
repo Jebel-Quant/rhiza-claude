@@ -10,8 +10,8 @@ directory, no `template.yml`, no `template.lock`, and nothing here is synced fro
 anywhere. That has two consequences worth internalising before you touch anything:
 
 - **`/rhiza:quality` runs here in its degraded mode.** Its step-0 check looks for
-  `.rhiza/template.yml` **and** `.rhiza/rhiza.mk`; both are absent, so it skips every
-  template-delivered gate, runs the targets this repo's own `Makefile` documents, and
+  `.rhiza/template.yml` **and** `.rhiza/template.lock`; both are absent, so it skips
+  every template-delivered gate, runs the targets this repo's own `Makefile` documents, and
   scores the design work. It used to refuse outright. Read any score it produces as
   what it says it is — a design-led assessment on this repo's own gates, not a Rhiza
   verdict, and not comparable to a managed repo's number.

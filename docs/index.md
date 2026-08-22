@@ -53,10 +53,11 @@ Two files under `.rhiza/`, and they answer different questions:
 repo has a valid pointer and no lock at all, and a long-synced repo can have a lock
 beside a pointer someone has since broken by hand. That's why
 [`/rhiza:status`](skills/status.md) reports both halves, and why
-[`/rhiza:quality`](skills/quality.md) checks for `.rhiza/template.yml` **and**
-`.rhiza/rhiza.mk` before it runs: every gate it scores is a `make` target the sync
-delivers, so scoring an unsynced repo would report it as broken rather than as
-unsynced. (By contrast [`/rhiza:release`](skills/release.md) requires neither — it
+[`/rhiza:quality`](skills/quality.md) checks for **both** before it runs: every gate it
+scores is one the sync delivers, so scoring an unsynced repo would report it as broken
+rather than as unsynced. It asks the *record*, not any file the sync wrote — the second
+probe used to be `.rhiza/rhiza.mk`, and when template v1.4 stopped shipping it, every
+fully synced repo on that template was told it had never been synced. (By contrast [`/rhiza:release`](skills/release.md) requires neither — it
 reads the repo's own `[tool.bumpversion]` config, so it works on any git repo.)
 
 ## The intended path
