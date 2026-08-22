@@ -281,5 +281,5 @@ def test_every_setup_uv_call_site_pins_uv(repo_root: Path):
         for pin in cwp.collect_pins(path, path.name)
         if pin.repository == cwp.UV_ACTION
     ]
-    assert len(pins) >= 6, "setup-uv call sites vanished — this test is measuring nothing"
+    assert len(pins) >= 5, "setup-uv call sites vanished — this test is measuring nothing"
     assert {pin.version_input for pin in pins} == {"0.12.1"}

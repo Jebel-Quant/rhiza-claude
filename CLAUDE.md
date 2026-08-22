@@ -31,7 +31,6 @@ make complexity     # radon CC/MI — the census this file quotes; reports, neve
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
 make portable       # everything except e2e, no coverage gate (the cross-platform CI job's target)
-make mutate         # mutation-test the sync core and the prose gates (slow, scheduled)
 make book           # build the docs site into _book/ (runs paper + test first)
 make book-serve     # docs with live reload
 make paper          # build the LaTeX paper (needs tectonic or pdflatex)
@@ -295,7 +294,7 @@ step passes a `version:` input — with all of those agreeing too. Both halves o
 drift silently, and Dependabot watches only the SHA: it bumped `setup-uv` to v10.0.0 and
 left one call site commented `# v7.1.1`, and the same file passed no `version:` input at
 all, floating uv in the job that decides whether a release tag gets created. The uv
-version is duplicated at seven call sites by necessity — the action reads an input, not a
+version is duplicated at five call sites by necessity — the action reads an input, not a
 file — so this hook is what makes it one value. Bump them together; `uv self version`
 locally is how you pick it.
 

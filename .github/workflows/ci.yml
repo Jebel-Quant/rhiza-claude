@@ -37,7 +37,7 @@ jobs:
     # That is the precise failure requirements-dev.txt was written to prevent, and its
     # header claims the guarantee is total ("every `uvx` call is constrained from this
     # one file"). It held everywhere else — `make audit` below, `make test`,
-    # `make portable`, `make book`, `make e2e`, `make mutate` — and here, where make is
+    # `make portable`, `make book`, `make e2e` — and here, where make is
     # not the entry point, it did not. Dependabot bumps the pins either way, so the
     # review said "mypy 2.3.0" while the run installed something else.
     #

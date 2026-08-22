@@ -369,7 +369,7 @@ class TestGitFailed:
         assert "not a git repository" in str(exc)
 
 
-# --- gaps that mutation testing found (`make mutate`) -------------------------
+# --- gaps that mutation testing found (the retired `make mutate`) -------------
 #
 # Fourteen survivors of the run above, all at 100% line and branch coverage. They cluster
 # into three kinds, and none of them is about *which* paths get staged — the existing tests

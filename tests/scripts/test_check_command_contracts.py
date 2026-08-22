@@ -629,7 +629,7 @@ def test_this_repos_prose_test_references_all_resolve(repo_root: Path):
     assert violations == []
 
 
-# --- gaps that mutation testing found (`make mutate`) --------------------------
+# --- gaps that mutation testing found (the retired `make mutate`) --------------
 #
 # This checker *is* a gate, so a mutant that survives here is a gate silently not gating —
 # the same failure class as `_rhiza_lock`'s `_PROTECTED`, one level up. Every assertion

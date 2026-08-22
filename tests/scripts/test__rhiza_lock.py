@@ -121,10 +121,10 @@ def test_previously_tracked_drops_entries_that_escape_the_target(
     assert "../../etc/passwd" in err
 
 
-# --- gaps that mutation testing found (`make mutate`) -------------------------
+# --- gaps that mutation testing found (the retired `make mutate`) -------------
 #
 # Every assertion below kills a mutant that survived the suite while it sat at 100% line
-# and branch coverage. That is the distinction the mutation job exists to expose: these
+# and branch coverage. That is the distinction mutation testing exposed: these
 # lines all *ran*, and nothing checked what they produced.
 
 
