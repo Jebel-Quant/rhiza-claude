@@ -12,17 +12,23 @@ runtime.
 
 ## 0. Establish the mode — how much of this repo is Rhiza's
 
-These two checks come **first — before any `make`, any tool, any analysis**, because
+These three checks come **first — before any `make`, any tool, any analysis**, because
 they decide which half of this command applies:
 
 ```bash
-test -f .rhiza/template.yml    # rhiza-managed at all?
-test -f .rhiza/template.lock   # ...and actually synced?
+test -f .rhiza/template.yml            # rhiza-managed at all?
+test -f .rhiza/template.lock           # ...and actually synced?
+test -f .rhiza/template-bundles.yml    # ...or is this repo the template itself?
 ```
 
-| Both present | **Full mode** — the template's gates plus the design assessment. |
+| `template.yml` + `template.lock` | **Full mode** — the template's gates plus the design assessment. |
 | `template.yml` only | **Degraded mode** — managed but never synced, the state `/init` deliberately leaves behind. Mention `/rhiza:update` performs the first sync, then continue. |
-| Neither | **Degraded mode** — not rhiza-managed. Mention `/rhiza:init` once, as information, then continue. |
+| `template-bundles.yml`, no `template.yml` | **Template mode** — this repo *is* the template. See below; **never** suggest `/rhiza:init` or `/rhiza:update` here. |
+| None of them | **Degraded mode** — not rhiza-managed. Mention `/rhiza:init` once, as information, then continue. |
+
+**The pointer wins where both appear.** `template-bundles.yml` is decisive only when
+there is no `template.yml`: a repo with a pointer is a *consumer*, whatever else its
+`.rhiza/` holds.
 
 **The second probe is the lock, not a synced file.** It used to be `.rhiza/rhiza.mk`,
 which was a proxy: the sync delivered it, so its presence stood in for "a sync has
@@ -74,6 +80,41 @@ So in degraded mode:
   is unaffected — and in degraded mode it carries most of the assessment.
 - **Score nothing you did not measure.** A skipped gate is out-of-scope, never a 0 and
   never an assumed pass.
+
+### Template mode — when this repo *is* the template
+
+**The template repository has no pointer, no lock, and nothing above it.** Every
+managed-repo probe comes back negative, so the table used to read it as "not
+rhiza-managed" and offer `/rhiza:init` — to the repository that ships the bundles
+`/init` would point at. What identifies it instead is `.rhiza/template-bundles.yml`, the
+bundle-and-profile manifest every sync reads *out of* the template, alongside the
+`bundles/<name>/` trees it indexes.
+
+Mechanically this runs like degraded mode: the gates are the repo's own, and the design
+analysis carries its usual weight. Four things differ, and each is a **correction** to
+something degraded mode would otherwise get wrong:
+
+- **Never offer `/rhiza:init` or `/rhiza:update`.** There is nothing above this repo to
+  adopt or to sync from. Degraded mode's once-only suggestion is not merely unhelpful
+  here, it is wrong — drop it rather than soften it.
+- **Everything is in scope, for the opposite reason.** Degraded mode scores a repo's
+  infrastructure because there is no template; here it is scored because this repo *is*
+  the template. The workflows, the `Makefile`, `.pre-commit-config.yaml`, `ruff.toml` and
+  the bundle trees are its **product** — the most important thing to score, not the
+  least — so step 3 applies in full and carries more weight here than anywhere else.
+  Every consumer inherits whatever it finds.
+- **"Upstream, out of scope" does not exist here.** In a managed repo a gap in a
+  Rhiza-owned file is fixed upstream and noted rather than scored. In this repo upstream
+  *is* here: every failure is in scope and fixable in this repository, and the
+  `known-issues.md` lookup is skipped only because it is keyed by a ref in a lock file
+  that does not exist — not because failures are somebody else's.
+- **Template fidelity is not-applicable, never 0** — same as degraded mode, same reason:
+  there is nothing above to be faithful to.
+
+**And the report says template mode, not degraded.** Degraded mode's required
+boilerplate — "no Rhiza gate ran", "the number is not comparable to a full run" — is
+false here. The gates that ran *are* the Rhiza gates; this is the repository they come
+from.
 
 ### Which language is this repo?
 
@@ -133,8 +174,10 @@ probe prints, because they need opposite advice:
 - **No `.rhiza/template.lock` either** — unsynced, which step 0 already put in degraded
   mode. Say so and move on.
 - **The lock is present** — a **fully synced v1.4 repo that kept no shim `Makefile`.**
-  The `Makefile` is repo-owned from v1.4 on, so having none is a legitimate state and not
-  a broken sync. This repo is in **full mode**; its gates moved rather than went missing,
+  Having none is a legitimate state, not a broken sync: who owns the shim has moved
+  across v1.4 releases — v1.4.2 generated it per repo with `uvx rhiza-task shim`, later
+  ones sync it from the `core` bundle — and the lock, not a makefile, is what says a sync
+  happened. This repo is in **full mode**; its gates moved rather than went missing,
   so they are reported `undetermined`, and telling it to run `/rhiza:update` is telling it
   to redo what it has already done. Enumerate the real tasks and run each gate through the
   runner instead:
@@ -395,13 +438,23 @@ costs three lines and is the difference between a narrower score and a misleadin
 This matters most in degraded mode, where the number is *least* comparable and the
 temptation to read it as "the Rhiza score" is strongest.
 
-## 3. Degraded mode only — assess the infrastructure the template would have owned
+**Template mode is the one place none of that boilerplate belongs.** The base is not
+narrower — the gates that ran are the ones every managed repo receives — so say which
+mode produced the number and which gates ran, and stop. Copying "no Rhiza gate ran" onto
+the repository the gates come from is the same class of wrong answer as telling it to
+run `/rhiza:init`.
+
+## 3. Degraded and template mode only — assess the infrastructure the template would have owned
 
 **Skip this section entirely in full mode.** In a managed repo every file below is
 Rhiza-owned, and scoring it would be the exact mistake the scoping rule exists to
 prevent. In degraded mode there is no template, so all of it is the repo's own work —
 and *nothing else is checking it*. This is where degraded mode stops being a reduced
 assessment and starts being a different one.
+
+**In template mode it is not a fallback at all — it is the main event.** These files are
+what the repository ships; every consumer inherits them. Score them first and hardest,
+and read "the repo's own work" below as "the product".
 
 The gates in step 1 answer "is the code clean?". These answer **"does this repo's
 quality survive contact with a second contributor?"** — which is what a template buys
@@ -430,13 +483,16 @@ the gates" are different findings with different fixes, and only reading the wor
 tells them apart.
 
 **Score these as their own subcategories** — CI wiring, toolchain reproducibility,
-contributor onboarding — and say plainly that they are in scope *because* the repo is
-unmanaged. A reader comparing this run to a managed repo's needs to know these marks
-have no counterpart there, rather than assuming the managed repo scored 10 on them.
+contributor onboarding — and say plainly why they are in scope: *because the repo is
+unmanaged*, or, in template mode, *because the repo is the template*. A reader comparing
+this run to a managed repo's needs to know these marks have no counterpart there, rather
+than assuming the managed repo scored 10 on them.
 
 **And if the answer is "adopt the template", say it once.** `/rhiza:init` exists and
 wiring CI by hand is work; noting that is useful. Repeating it per finding turns an
-assessment into a sales pitch, and step 0 already said it once.
+assessment into a sales pitch, and step 0 already said it once. **In template mode there
+is no such answer to give** — this repository is the one being adopted, so the finding
+stands on its own and the suggestion is simply omitted.
 
 ## 4. Gather the design evidence
 

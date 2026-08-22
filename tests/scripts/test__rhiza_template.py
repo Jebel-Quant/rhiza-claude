@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import _rhiza_layout as layout
 import _rhiza_template as tmpl
 import pytest
 from _rhiza_common import SyncError
@@ -113,3 +114,19 @@ def test_is_excluded_rejects_an_unrelated_path() -> None:
 def test_is_excluded_does_not_match_a_sibling_sharing_a_prefix() -> None:
     """`docs` must not exclude `docsite/`, which a bare startswith would."""
     assert not tmpl.is_excluded("docsite/index.md", {"docs"})
+
+
+def test_quality_step_0_probes_the_bundles_path_this_module_defines(repo_root: Path) -> None:
+    """The template repo is recognised by the manifest a sync reads out of it.
+
+    `/quality`'s step 0 cannot import anything, so the one file name that identifies the
+    template repository is written out in its prose — and a prose copy of a constant is
+    how the probe it replaced went stale. Its predecessor tested for `.rhiza/rhiza.mk`,
+    which template v1.4 stopped shipping, and the check went on matching nothing in
+    silence: both halves of this assertion pin that failure shape rather than the file
+    name of the day.
+    """
+    step_0 = dict(layout.command_files(repo_root))["quality"].read_text(encoding="utf-8")
+    step_0 = step_0.split("## 1. Run the gates")[0]
+    assert f"test -f {tmpl._DEFAULT_BUNDLES_PATH}" in step_0
+    assert "test -f .rhiza/rhiza.mk" not in step_0

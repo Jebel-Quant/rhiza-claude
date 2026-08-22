@@ -48,6 +48,24 @@ Two consequences follow, and neither is a judgement call:
   If adopting the template would genuinely help, that belongs in the closing remark as
   a suggestion, at most once.
 
+**Template mode inverts the rule the same way, for the opposite reason** — see
+`/quality`'s step 0. The repo it applies to is the template itself, identified by
+`.rhiza/template-bundles.yml` with no `template.yml` above it. Everything the exclusion
+list names is *in scope* there too, but not because there is no template: because those
+files **are** the template, and shipping them is what this repo does. Three differences
+from degraded mode, all of them corrections:
+
+- **They are the product, so they carry more weight, not less.** In degraded mode the
+  infrastructure marks describe a repo doing by hand what a template would have given
+  it. Here they describe what every consumer will inherit — the highest-value marks on
+  the page rather than a consolation for the ones that could not be measured.
+- **"Upstream/out-of-scope" is not available.** That escape hatch exists because a gap
+  in a Rhiza-owned file is fixed in the template repo. In the template repo, it is fixed
+  *here* — so a real gap is a finding, and deferring it upstream defers it to itself.
+- **Never suggest adopting the template.** The one-line suggestion above is wrong here,
+  not merely redundant; omit it. Template fidelity is still not-applicable, for the
+  same reason as degraded mode.
+
 **And a check that doesn't apply to the language is out-of-scope too.** Test-layout
 parity is the clearest case: `check_test_layout.py` is built on Python module and class
 naming, so it says nothing about a Go or Rust repo. `language_profile.py` reports
