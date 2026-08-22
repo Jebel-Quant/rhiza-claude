@@ -5,7 +5,8 @@ Seven of `/quality`'s gates are `make` targets that the template sync delivers, 
 seven are what this probes. It used to run them without checking they existed, and the
 result was the worst kind of failure: in an unsynced repo all seven returned "No rule to
 make target", were scored FAIL, and the repo was reported as broken when the truth was
-that it was unsynced. Six of the seven are absent in this plugin's own repo.
+that it was unsynced. Six of the seven were absent in this plugin's own repo when that
+was found; it now carries the v1.4 shim, so all seven come back undetermined instead.
 
 Two things make that hard to catch by hand, and this script addresses both:
 

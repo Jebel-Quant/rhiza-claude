@@ -70,9 +70,9 @@ The optional argument scopes the assessment; it defaults to the whole repo.
     files issues for it. Declining to gate something is a process finding, not a failure.
 
     A target merely *named* `lint` or `format` is deliberately not accepted as a stand-in
-    either: the name doesn't tell you the scope. This repo's `make lint` also runs mypy,
-    interrogate and the contract checkers, so scoring it as `fmt` would credit formatting
-    with most of the toolchain.
+    either: the name doesn't tell you the scope. A repo's `lint` routinely runs mypy,
+    interrogate and the contract checkers too, so scoring it as `fmt` would credit
+    formatting with most of the toolchain.
     **Documentation is checked for truth, not just presence.** `plugin/scripts/check_doc_examples.py`
     runs alongside the gates in any repo: it finds the `>>>` examples in your docstrings
     and checks every fenced block in `README.md` — shell parses under `bash -n`, Python

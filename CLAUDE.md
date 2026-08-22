@@ -11,21 +11,27 @@ anywhere. That has two consequences worth internalising before you touch anythin
 
 - **`/rhiza:quality` runs here in its degraded mode.** Its step-0 check looks for
   `.rhiza/template.yml` **and** `.rhiza/template.lock`; both are absent, so it skips
-  every template-delivered gate, runs the targets this repo's own `Makefile` documents, and
+  every template-delivered gate, runs the targets this repo's own `local.mk` documents, and
   scores the design work. It used to refuse outright. Read any score it produces as
   what it says it is — a design-led assessment on this repo's own gates, not a Rhiza
   verdict, and not comparable to a managed repo's number.
 - **The "locally-owned vs Rhiza-owned" scoping rule doesn't apply.** Every file here is
   locally owned. When you read that rule in `plugin/prompts/scorecard.md`, you're reading a
   rule *this repo ships for other repos*, not one that governs it — which is also why
-  degraded mode inverts it: with no template, the `Makefile` and workflows are this
-  repo's own work and are squarely in scope.
+  degraded mode inverts it: with no template, the `Makefile`, `local.mk` and workflows
+  are this repo's own work and are squarely in scope.
 
 ## Commands
 
+**The targets live in `local.mk`, not the `Makefile`.** The `Makefile` is the shim shape
+rhiza's `core` bundle ships — front door, uv bootstrap, and a `%:` catch-all that
+delegates unknown targets to `rhiza-task`. Nothing here delegates: an explicit rule beats
+a pattern rule, so every target below is `local.mk`'s. Add a target there, never to the
+`Makefile`.
+
 ```bash
 make help           # list every target
-make lint           # all prek hooks over every file
+make fmt            # all prek hooks over every file (delegated to rhiza-task)
 make audit          # bandit over the scripts, zizmor over the workflows
 make complexity     # radon CC/MI — the census this file quotes; reports, never fails
 make test           # pytest over tests/, 100% coverage gate on scripts/
@@ -53,13 +59,13 @@ To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
 
 **The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
 config file keeps its `.pre-commit-config.yaml` name and schema — prek reads that format
-unchanged — so the only places the choice is visible are `make lint` and the CI `lint`
+unchanged — so the only places the choice is visible are `make fmt` and the CI `lint`
 job. Reach for `uvx prek update` rather than `pre-commit autoupdate` when bumping hook
 revs — as with every other tool here, `uvx` fetches it, so nothing is installed globally.
 Note that rhiza-*managed* repos are a different question: the template drives
 `pre-commit`, which is why the prose under `plugin/` still says so.
 
-`make lint && make test` green locally means a green PR. `make book` additionally needs
+`make fmt && make test` green locally means a green PR. `make book` additionally needs
 a LaTeX engine, so skip it for prose- or script-only changes.
 
 ## Architecture
@@ -271,8 +277,9 @@ correct prose gets switched off. The trade is that an unmarked count is unchecke
 
 It exists because `paper/` had no gate at all, and `paper/` is what the release stamps
 "true of release vX.Y.Z" — it claimed nine user-facing commands against ten for the whole
-of v0.10.0. `Makefile` had the same drift ("the nine workflows" against ten). Both are
-now marked.
+of v0.10.0. The make layer had the same drift ("the nine workflows" against ten). Both
+are now marked — and the make one now lives in `local.mk`, which the gate scans for
+exactly that reason.
 
 **When adding or changing a command:**
 

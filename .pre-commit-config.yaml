@@ -1,7 +1,7 @@
 # Language-agnostic hooks for this Markdown/JSON plugin marketplace.
 # Adapted from the rhiza core bundle — Python/uv hooks intentionally dropped.
 #
-# The runner is `prek` (see `make lint`), not `pre-commit`. The filename and schema
+# The runner is `prek` (see `make fmt`), not `pre-commit`. The filename and schema
 # are unchanged because prek reads this format as-is; nothing here is prek-specific,
 # so the config stays runnable by either.
 #
@@ -154,7 +154,7 @@ repos:
       # renamed `docs/commands/` to `docs/skills/` and updated every URL, but not these
       # two patterns, so from then until now neither hook matched the pages it exists to
       # validate. It survived because `pass_filenames: false` keeps them firing under
-      # `--all-files`, which is what `make lint` and CI both run — only a staged-file
+      # `--all-files`, which is what `make fmt` and CI both run — only a staged-file
       # run skipped them, silently and with no output to notice. Edit the two together.
       - id: docs-nav
         name: every command and procedure has a docs page, wired into the nav
@@ -183,7 +183,7 @@ repos:
         entry: uv run --python 3.12 --no-project python plugin/scripts/check_prose_counts.py
         language: system
         pass_filenames: false
-        files: '^(paper/.*\.tex|Makefile|(README|CLAUDE)\.md|docs/.*\.md|plugin/(skills/.*/SKILL\.md|prompts/.*\.md)|\.github/workflows/.*\.ya?ml)$'
+        files: '^(paper/.*\.tex|Makefile|local\.mk|(README|CLAUDE)\.md|docs/.*\.md|plugin/(skills/.*/SKILL\.md|prompts/.*\.md)|\.github/workflows/.*\.ya?ml)$'
 
   # Shared hooks from the sibling repo. Selective by necessity: rhiza-claude is
   # deliberately *not* rhiza-managed, so most of what rhiza-hooks ships keys off a

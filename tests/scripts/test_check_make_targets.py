@@ -7,8 +7,10 @@ three states a rhiza command really meets: unmanaged, managed-but-unsynced, and 
 The bug being pinned is concrete. `/quality` runs seven `make` targets that the sync
 delivers, and it used to run them unprobed: in an unsynced repo all seven returned
 "No rule to make target", were scored FAIL, and the repo was reported broken when it
-was merely unsynced. Six of the seven are absent in this plugin's own repo, and nothing
-caught it for however long it had been true.
+was merely unsynced. Six of the seven were absent in this plugin's own repo when that was
+found, and nothing caught it for however long it had been true. This repo has since
+adopted the v1.4 shim, so it is now a fixture for the *other* half of the problem —
+a makefile that answers everything, where probing can prove nothing either way.
 """
 
 from __future__ import annotations
@@ -191,17 +193,37 @@ def test_a_makefile_with_none_of_the_gates_is_called_out(managed_unsynced_repo, 
 # --- this repo, which is where the bug was live ------------------------------
 
 
-def test_this_plugin_repo_lacks_the_template_gates(quality_md: Path, repo_root: Path):
-    """Pins the state that made /quality unrunnable here, so a future fix is visible.
+def test_this_plugin_repo_reports_every_gate_undetermined(quality_md: Path, repo_root: Path):
+    """This repo now carries the v1.4 shim, so probing it proves nothing — by design.
 
-    The plugin repo is not rhiza-managed, so it has only its own `test` target. If this
-    ever changes — because the repo adopts the template — the assertion should be
-    updated deliberately rather than silently.
+    The previous assertion here was `available == ["test"]` and `"fmt" in unavailable`,
+    which held while the `Makefile` defined its targets directly. Adopting the shim added a
+    `%:` catch-all, so `make -n <anything>` exits 0 and the one instrument this script has
+    is a tautology. That is the exact condition the script detects and reports as
+    **undetermined** — neither available nor a failure — and this repo is now a real
+    fixture for it rather than a hypothetical.
+
+    Note `test` is undetermined too, despite `local.mk` genuinely defining it. Once a
+    catch-all exists there is no probe that can tell a real target from a typo, so the
+    honest answer is "cannot tell" for all of them. `/quality` scores undetermined
+    out-of-scope, never FAIL, which is why this costs a repo nothing but a note.
+
+    Change this deliberately, as its predecessor asked to be: it moves only if the shim or
+    the gate list does.
     """
     result = cmt.probe(repo_root, quality_md)
-    assert result["available"] == ["test"]
-    assert "fmt" in result["unavailable"]
+    assert result["available"] == []
+    assert result["unavailable"] == []
+    assert set(result["undetermined"]) == set(result["targets"])
+    assert "test" in result["undetermined"]
     assert result["exit_code"] == cmt.EXIT_OK
+    assert any("catch-all rule" in n for n in result["notes"])
+
+    # The discovery half still works, and is what a shimmed repo has instead: every
+    # `##`-documented target in `local.mk` comes back as undeclared-but-real. `lint` is
+    # absent from that set by design — it is delegated to the CLI, which has no task of
+    # that name — so this names only targets `local.mk` actually defines.
+    assert {"audit", "e2e", "install"} <= set(result["undeclared"])
 
 
 # --- probing is side-effect free ---------------------------------------------
@@ -596,10 +618,17 @@ def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
 
 
 def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
-    """rhiza-claude's own Makefile uses the convention, so this is a live check."""
+    """rhiza-claude's own `local.mk` uses the convention, so this is a live check.
+
+    `lint` used to head this list and was dropped from it deliberately: it is one of the
+    three targets (`lint`, `book-serve`, `changelog`) now left to the shim's catch-all, so
+    it is not defined anywhere `documented_targets` reads. The assertion on a description
+    moved to `test` rather than being deleted — without one, this only checks that names
+    are found and would pass with every description dropped on the floor.
+    """
     found = cmt.documented_targets(repo_root)
-    assert {"lint", "test", "book", "clean"} <= set(found)
-    assert found["lint"] == "Run all prek hooks against every file"
+    assert {"test", "book", "clean"} <= set(found)
+    assert found["test"] == "Run the script test suite with a 100% coverage gate"
 
 
 # --- a makefile that answers everything --------------------------------------

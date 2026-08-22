@@ -25,3 +25,8 @@ docs/reports/
 
 # Paper PDF staged into the docs site by `make paper` — built, not committed
 docs/paper/
+
+# The shim's uv bootstrap target: `Makefile` installs uv into ./bin when the machine
+# has none, so the binaries are a local convenience, never committed. `local.mk` beside
+# it *is* tracked — that is where this repo's own targets live.
+bin/
