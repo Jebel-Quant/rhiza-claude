@@ -171,6 +171,16 @@ Four boundaries, none of them negotiable:
 If the branch has diverged, or the fix belongs somewhere other than this request, stop
 and say so instead of improvising a merge.
 
+**If the commit is refused by `check-managed-files`, that is not a problem to work
+around.** In a rhiza-managed repo the likeliest thing a CI fix touches is
+`.github/workflows/*` or `.gitlab-ci.yml`, and those are template-owned — so the hook
+refusing the commit is it doing its job, telling you the edit would vanish at the next
+sync. Do **not** reach for `SKIP=`: that bypass belongs to the sync commit, which
+restores managed files, and using it here silently commits an edit with a known
+expiry date. Instead report which managed path the fix needs, and say that the change
+belongs upstream in the template — or under `exclude:` in `.rhiza/template.yml` if this
+repo means to own that file from now on. Both are the user's call, not this command's.
+
 ## 5. Confirm, then report
 
 Re-run step 1 for the branch you pushed to. CI takes minutes, so a `pending` report right

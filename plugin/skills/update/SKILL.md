@@ -138,7 +138,14 @@ it named and stop, because a lock that can point outside the repo is not one to 
   synced tool rewrote a repo-owned file.
 - If nothing was staged, there's nothing to sync beyond the ref bump — say "already
   up to date after the bump" and continue with just the step-4 commit.
-- Otherwise `git commit -m "chore: apply rhiza sync $TARGET"`.
+- Otherwise `SKIP=check-managed-files git commit -m "chore: apply rhiza sync $TARGET"`.
+  **Keep the `SKIP=`.** rhiza-hooks' `check-managed-files` refuses a commit that touches
+  any path in the lock's `files:` list, and `stage_synced.py` stages *exactly* that list —
+  so this is the one commit in the plugin that legitimately rewrites managed files
+  wholesale, and without the bypass it fails 100% of the time in every consumer that has
+  adopted the hook. `SKIP` is the runner's own mechanism (pre-commit and prek both honour
+  it), so it needs no cooperation from the hook, and it is scoped to this single commit.
+  The hook's `--allow PATH` is per-path and wrong for a wholesale restore.
 - `git push --set-upstream origin "$BRANCH"` (this is also what pushes the step-4
   bump commit — until now the branch was local only).
 - Open the PR/MR into `$DEFAULT`:
