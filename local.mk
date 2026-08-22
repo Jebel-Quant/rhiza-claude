@@ -18,7 +18,7 @@
 # target that shells out to `uvx` so a machine without uv bootstraps one, rather than failing
 # with "command not found" partway through a recipe.
 
-.PHONY: install lint audit complexity test e2e portable book book-serve paper paper-figures clean changelog
+.PHONY: install audit complexity e2e portable paper-figures clean
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -46,9 +46,6 @@ TESTS := _tests
 install:  ## Install the rhiza plugin via the Claude Code CLI
 	claude plugin marketplace add $(MARKETPLACE)
 	claude plugin install $(PLUGIN)
-
-lint: $(UVX)  ## Run all prek hooks against every file
-	uvx prek run --all-files
 
 # Audits this repo's *own* code and CI config, because that is what there is to audit.
 # The absence of a dependency scan is deliberate, not an omission: `plugin/scripts/` is
@@ -97,17 +94,11 @@ complexity: $(UVX)  ## Report cyclomatic complexity and maintainability index (t
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
 # with it absent, half of that module's behaviour was invisible to the coverage gate.
 #
-# One definition of the runner, shared by `test` and `e2e`. The `--with` flags are the
+# One definition of the runner, shared by `e2e` and `portable`. The `--with` flags are the
 # part that has drifted before: CI once hand-wrote this command line, the Makefile gained
 # `--with pyyaml`, and the copy in CI did not — so that arm went unmeasured on a branch
 # that was green locally. Anything that runs this suite goes through a target here.
 PYTEST := uvx --with pytest-cov --with pyyaml pytest tests/
-
-test: $(UVX)  ## Run the script test suite with a 100% coverage gate
-	$(PYTEST) --cov=plugin/scripts --cov-report=term-missing \
-		--cov-report=xml:$(TESTS)/coverage.xml \
-		--cov-report=html:$(TESTS)/html-coverage \
-		--cov-fail-under=100 $(ARGS)
 
 # The end-to-end subset on its own — the tests that clone the real template and drive the
 # command chains against a genuinely synced repo. `make test` runs these too; this target
@@ -139,50 +130,6 @@ portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cr
 # all run via `make lint` (prek). For a single one, use e.g.
 # `uvx prek run mypy --all-files`.
 
-# The book depends on the paper: docs/index.md links the PDF, and `--strict` fails on a
-# link whose target is missing. Building the paper on every book build is also what keeps
-# the .tex honest — a commit that breaks it fails CI rather than shipping a stale PDF.
-#
-# It depends on `test` for the same reason: the coverage badge and the browsable HTML
-# report are *outputs of the run*, so the only way the published badge can be wrong is
-# if the suite never ran — and then there is no book either. genbadge goes last because
-# `mkdocs build` clears the site directory first.
-book: paper test $(UVX)  ## Build the documentation site into _book/ (compiles the paper and runs the tests first)
-	mkdir -p docs/reports
-	cp -r $(TESTS)/. docs/reports/
-	uvx --with mkdocs-material mkdocs build --strict
-	uvx "genbadge[coverage]" coverage -i $(TESTS)/coverage.xml -o _book/coverage-badge.svg
-
-book-serve: paper $(UVX)  ## Serve the docs locally with live reload
-	uvx --with mkdocs-material mkdocs serve
-
-# Two passes: the first resolves the ToC and page references the second typesets.
-# tectonic reruns on its own; pdflatex does not, hence the explicit repeat.
-#
-# tectonic pulls every LaTeX file the document needs from its bundle CDN as a separate
-# request, and that CDN answers 429 often enough to redden a PR that never touched
-# paper/. Retrying is worth it *because the fetches are cached*: each attempt resumes
-# from the per-user cache rather than starting over, so a run that got halfway gets
-# further next time. Four attempts with a growing backoff turn a flaky fetch into a slow
-# one. The pdflatex fallback is guarded by `command -v` so a TeX Live machine with no
-# tectonic reaches it immediately instead of sleeping through the backoff first.
-paper:  ## Build the paper and stage it for the docs site (needs tectonic or pdflatex)
-	cd paper && ( \
-		if command -v tectonic >/dev/null 2>&1; then \
-			for attempt in 1 2 3 4; do \
-				tectonic $(PAPER).tex && exit 0; \
-				if [ $$attempt -lt 4 ]; then \
-					delay=$$((attempt * 20)); \
-					echo "tectonic failed (attempt $$attempt/4); retrying in $${delay}s" >&2; \
-					sleep $$delay; \
-				fi; \
-			done; \
-		fi; \
-		pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex \
-			&& pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex)
-	mkdir -p docs/paper
-	cp paper/$(PAPER).pdf docs/paper/$(PAPER).pdf
-
 paper-figures: $(UVX)  ## Regenerate the paper's figures from the captured command output
 	uv run --with pillow python paper/render_figures.py
 
@@ -190,6 +137,3 @@ clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, _book
 	rm -rf .ruff_cache _book $(TESTS) docs/reports docs/paper
 	rm -f paper/*.aux paper/*.log paper/*.out paper/*.pdf
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
-
-changelog: $(UVX)  ## Regenerate CHANGELOG.md from conventional commits
-	uvx git-cliff --output CHANGELOG.md
