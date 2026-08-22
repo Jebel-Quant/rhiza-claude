@@ -119,7 +119,7 @@ rhiza repos) the **locally-owned vs. Rhiza-owned** split that `/quality`'s scori
 depends on.
 
 - **Missing** ⇒ scaffold with: **Commands** (the canonical `make` targets — `fmt`,
-  `typecheck`, `docs-coverage`, `deptry`, `security`, `validate`, `test`, `sync` — one
+  `typecheck`, `docs-coverage`, `deps`, `security`, `validate`, `test`, `sync` — one
   line each, plus the policy: prefer bare `make <target>`, never call `.venv/bin/…`);
   **Architecture** (the `src/` layout, read from the actual tree — don't invent);
   **Rhiza template split** (the `files:` block of `.rhiza/template.lock` is fixed

@@ -61,7 +61,7 @@ So in degraded mode:
   `make rhiza-test` (there is no `.rhiza/tests/`), template fidelity, and the
   `known-issues.md` lookup (it is keyed by the template ref in `.rhiza/template.lock`,
   which does not exist).
-- **Except `fmt`, `typecheck`, `docs-coverage` and `deptry`, which resolve in any repo.**
+- **Except `fmt`, `typecheck`, `docs-coverage` and `deps`, which resolve in any repo.**
   Each falls back to the repo's **own** tool config — see step 1 for the ladder and its
   one hard limit: no config means out-of-scope, never the template's flags. These four are
   gated in most mature repos, so skipping them reported gaps that usually are not there.
@@ -159,12 +159,13 @@ success for *every* target, typos included. So all the named gates come back
 undetermined, and running them off the back of the probe is how a gate that does not
 exist gets run and its "unknown task" error scored as a FAIL. In that repo:
 
-- **Enumerate the real tasks first**, with a bare `make help`. On a shim that is the
-  runner listing itself, which is the only place the task names exist — there is no
-  synced make layer left to read and nothing on disk to parse.
-- **Match each named gate to a task before running it.** The names moved: the `deptry`
-  gate is the `deps` task. Score the task you actually ran, under the concern the gate
-  names.
+- **Enumerate the real tasks first**, from the runner rather than from make. The probe
+  reads the pin out of the makefile and prints the exact command — `uvx
+  rhiza-task@<version> list` — and that pin matters: `uvx rhiza-task list` answers for
+  whatever release is current, not necessarily the one this repo's gates run under. A
+  bare `make help` shows the same catalogue plus any `local.mk` targets.
+- **Match each named gate to a task before running it.** Score the task you actually
+  ran, under the concern the gate names.
 - **A gate with no matching task was never provided** — out-of-scope, never FAIL, the
   same as `unavailable`.
 
@@ -187,13 +188,13 @@ probe prints, because they need opposite advice:
   ```
 
   Then run each gate as a bare `uvx rhiza-task <task>`, matching it to a task first —
-  the names carried over from the make layer, with `deps` for the `deptry` gate. A gate
+  the names carried over from the make layer unchanged. A gate
   with no matching task was never provided: out-of-scope, never FAIL. This is the same
   discipline as the shim case above, minus the makefile — and the same rule holds about
   what you must not do instead, which is supply your own thresholds.
 
 `typecheck`, `security` and `docs-coverage` come from the template's *tests* bundle and
-`deptry`/`fmt` from *core*, so a reduced profile legitimately lacks some. **Run only the
+`deps`/`fmt` from *core*, so a reduced profile legitimately lacks some. **Run only the
 available gates.** An unavailable one is scored **out-of-scope**, exactly like the
 Rhiza-owned rule below — never FAIL.
 
@@ -207,7 +208,7 @@ failures surface before the slow test suite — and collect results:
 1. `make fmt` — pre-commit hooks + linting (ruff format/check, markdownlint, bandit, actionlint, …). **This one resolves in any repo — see below.**
 2. `make typecheck` — static type checking (`ty`, and `mypy --strict` if configured) over `src/`
 3. `make docs-coverage` — docstring coverage (interrogate) over `src/`
-4. `make deptry` — unused/missing/misplaced dependency analysis
+4. `make deps` — unused/missing/misplaced dependency analysis (the `deptry` tool). **The gate is `deps`, not `deptry`** — see below.
 5. `make security` — pip-audit + bandit scans
 6. `make rhiza-test` — run the template's own bundled tests under `.rhiza/tests/` (pyproject structure, docstrings, README)
 7. `make test` — full test suite **with** its coverage gate (slowest, run last)
@@ -241,6 +242,14 @@ failures surface before the slow test suite — and collect results:
    means an example is broken; exit **2** means there was nothing to check (no source
    root, no README), which is out-of-scope in the usual way, never FAIL. Read the next
    section before passing `--run`.
+
+**The dependency gate is `deps`; `deptry` is a deprecated alias.** `deptry` names the
+*tool*, which is not what the Rust and Go layers ever called the *target*, so the
+template converged on `deps` for all three languages and kept `deptry` as a Python-only
+alias that prints a deprecation warning and is scheduled for removal. v1.4's task runner
+ships `deps` alone. This list named the alias until now — so `/quality` ran the one name
+already gone on a current repo and on borrowed time everywhere else. A pre-v1.4 Python
+repo answers to both; score it as `deps` either way.
 
 **Why `make` and not the tools directly.** It's tempting to replace these with
 `uvx ruff check`, `uvx interrogate`, `uvx bandit` and so on, which would let
@@ -314,7 +323,7 @@ order, so a fast failure still surfaces before the slow ones:
 | `fmt` | `make fmt` | `.pre-commit-config.yaml` via `uvx prek run --all-files` (or `pre-commit`, if that is what CI names) | — |
 | `typecheck` | `make typecheck` | `[tool.mypy]` in `pyproject.toml`, or `mypy.ini` / `setup.cfg` → `uvx mypy <source_root>` | a source root |
 | `docs-coverage` | `make docs-coverage` | `[tool.interrogate]` in `pyproject.toml` → `uvx interrogate <source_root>` | a source root |
-| `deptry` | `make deptry` | `[tool.deptry]`, or a dependency manifest to read → `uvx deptry <source_root>` | a source root **and a manifest** |
+| `deps` | `make deps` | `[tool.deptry]`, or a dependency manifest to read → `uvx deptry <source_root>` | a source root **and a manifest** |
 
 **Rung 2 is not the forbidden case**: every argument, threshold and exclusion still comes
 from the repo's committed config, which is the whole thing the rule protects. The runner
@@ -343,7 +352,7 @@ manifest-less repo the census reports `.`, which sweeps in `tests/` and anything
 the root — so say which root was used, because `mypy .` and `mypy src` are different
 measurements and only one of them is what CI would run.
 
-**`deptry` additionally needs a manifest, not just a source root.** It works by comparing
+**`deps` additionally needs a manifest, not just a source root.** It works by comparing
 *declared* dependencies against *imported* ones, so with nothing declaring them it has no
 left-hand side. `language_profile.py` reports `manifest_present` for exactly this kind of
 question: false means rung 3, and the honest finding is "dependencies are not declared

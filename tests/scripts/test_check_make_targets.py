@@ -49,7 +49,7 @@ def test_gate_targets_are_parsed_from_the_command(quality_md: Path):
         "fmt",
         "typecheck",
         "docs-coverage",
-        "deptry",
+        "deps",
         "security",
         "rhiza-test",
         "test",
@@ -155,7 +155,7 @@ def test_a_synced_repo_finds_every_gate(managed_synced_repo, quality_md):
 def test_a_reduced_profile_reports_only_its_missing_gates(partial_profile_repo, quality_md):
     """Profile variation is legitimate — the tests-bundle gates are simply absent."""
     result = cmt.probe(partial_profile_repo, quality_md)
-    assert set(result["available"]) == {"fmt", "deptry"}
+    assert set(result["available"]) == {"fmt", "deps"}
     assert set(result["unavailable"]) == {
         "typecheck",
         "docs-coverage",
@@ -304,7 +304,7 @@ def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo, q
 # `make test` is executed by tests/test_init_scaffold.py, which owns the coverage-gate
 # assertion; `make rhiza-test` has its own test below because it is the one gate that
 # does not pass. Everything else in /quality's list runs here.
-_RUNNABLE_GATES = ("fmt", "typecheck", "security", "deptry", "docs-coverage")
+_RUNNABLE_GATES = ("fmt", "typecheck", "security", "deps", "docs-coverage")
 
 
 @pytest.mark.parametrize("gate", _RUNNABLE_GATES)
@@ -558,20 +558,23 @@ def test_makefile_chain_without_a_makefile_is_empty(tmp_path):
 
 
 def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo, quality_md):
-    """A Rust repo resolves most named gates; the one it doesn't has `deps` in its place.
+    """Most named gates resolve; the one that doesn't has an analogue under another name.
 
-    Scoring `deptry` out-of-scope and stopping there skips a concern the repo does cover.
+    Scoring the absent one out-of-scope and stopping there skips a concern the repo does
+    cover. `deptry`/`deps` was the case that motivated this and is no longer one — the
+    prose names `deps`, which every language layer agrees on — so the fixture renames a
+    different gate rather than re-enacting a rename that has since happened.
     """
     _synced_layout(managed_unsynced_repo)
     (managed_unsynced_repo / ".rhiza" / "make.d" / "quality.mk").write_text(
         "fmt:  ## format\n\ttrue\ntypecheck:  ## clippy\n\ttrue\n"
-        "docs-coverage:  ## missing_docs\n\ttrue\nsecurity:  ## advisories\n\ttrue\n"
-        "rhiza-test:  ## template tests\n\ttrue\n",
+        "security:  ## advisories\n\ttrue\nrhiza-test:  ## template tests\n\ttrue\n"
+        "docs:  ## docstring coverage, under this template's name for it\n\ttrue\n",
         encoding="utf-8",
     )
     summary = cmt.probe(managed_unsynced_repo, quality_md)
-    assert summary["unavailable"] == ["deptry"]
-    assert "deps" in summary["undeclared"]
+    assert summary["unavailable"] == ["docs-coverage"]
+    assert "docs" in summary["undeclared"]
     assert any("under a different name" in note for note in summary["notes"])
 
 
@@ -604,8 +607,9 @@ def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
 # Template v1.4's shim delegates through `%:`, so `make -n <anything>` exits 0 and the
 # probe's one instrument stops discriminating. The bug that reached a user is the mirror
 # image of the unsynced-repo bug at the top of this file: every gate came back
-# available, `deptry` included, on a repo whose task is named `deps` — so /quality ran a
-# gate that does not exist and scored the runner's "unknown task" error as a FAIL.
+# available, the retired `deptry` alias included, on a repo whose only task is `deps` —
+# so /quality ran a gate that does not exist and scored the runner's "unknown task"
+# error as a FAIL.
 
 
 def test_a_shim_reports_no_gate_as_available(shim_repo, quality_md):
@@ -621,12 +625,47 @@ def test_a_shim_is_not_scored_as_a_failure(shim_repo, quality_md):
     assert cmt.probe(shim_repo, quality_md)["exit_code"] == cmt.EXIT_OK
 
 
-def test_the_shim_notes_name_the_file_the_task_list_and_the_analogue(shim_repo, quality_md):
+def test_the_shim_notes_name_the_file_the_task_list_and_how_to_score_a_miss(shim_repo, quality_md):
     """Three things a model needs: why, how to enumerate, and how to score a miss."""
     notes = cmt.probe(shim_repo, quality_md)["notes"]
     assert any("catch-all rule in Makefile" in note for note in notes)
-    assert any("`make help`" in note and "`deps` task" in note for note in notes)
+    assert any("`uvx rhiza-task@0.3.1 list`" in note and "`make help`" in note for note in notes)
     assert any("out-of-scope, never FAIL" in note for note in notes)
+
+
+def test_the_shim_note_enumerates_at_the_pin_the_makefile_carries(shim_repo, quality_md):
+    """The version is the point, not decoration.
+
+    `uvx rhiza-task list` answers for whatever release is current; the gates this repo
+    actually runs are the ones its pin names. Enumerating against the wrong catalogue is
+    the same class of error as probing a file the template stopped shipping — plausible
+    output, silently about a different thing.
+    """
+    (shim_repo / "Makefile").write_text(
+        (shim_repo / "Makefile").read_text(encoding="utf-8").replace("0.3.1", "9.9.9"),
+        encoding="utf-8",
+    )
+    notes = cmt.probe(shim_repo, quality_md)["notes"]
+    assert any("`uvx rhiza-task@9.9.9 list`" in note for note in notes)
+
+
+def test_a_shim_without_a_pin_names_the_unpinned_runner(managed_unsynced_repo, quality_md):
+    """A catch-all with no `RHIZA_TASK` line: still enumerable, just not at a version."""
+    (managed_unsynced_repo / "Makefile").write_text("%: ; @uvx rhiza-task $@\n", encoding="utf-8")
+    notes = cmt.probe(managed_unsynced_repo, quality_md)["notes"]
+    assert any("`uvx rhiza-task list`" in note for note in notes)
+    assert not any("@" in note and "rhiza-task@" in note for note in notes)
+
+
+def test_pinned_task_runner_reads_the_chain_not_just_the_root(tmp_path):
+    """The pin can arrive through an include, the same as any other make variable."""
+    (tmp_path / "Makefile").write_text("include shared.mk\n%: ; @uvx $(RHIZA_TASK) $@\n")
+    (tmp_path / "shared.mk").write_text("RHIZA_TASK ?= rhiza-task@1.1.0\n")
+    assert cmt.pinned_task_runner(tmp_path) == "rhiza-task@1.1.0"
+
+
+def test_pinned_task_runner_is_none_without_a_makefile(tmp_path):
+    assert cmt.pinned_task_runner(tmp_path) is None
 
 
 def test_a_shim_still_discovers_its_repo_owned_targets(shim_repo, quality_md):
@@ -688,7 +727,7 @@ def test_an_unnamed_catch_all_is_still_reported(tmp_path, quality_md):
 
 def test_main_marks_a_shim_undetermined(shim_repo, capsys, quality_md):
     cmt.main(["--target-dir", str(shim_repo), "--from", str(quality_md)])
-    assert "undetermined make deptry" in capsys.readouterr().out
+    assert "undetermined make deps" in capsys.readouterr().out
 
 
 def test_main_require_fails_when_nothing_could_be_confirmed(shim_repo, quality_md):
@@ -702,9 +741,8 @@ def test_main_require_fails_when_nothing_could_be_confirmed(shim_repo, quality_m
 # --- end-to-end: discovery against a synced Rust repo -------------------------
 #
 # The first genuine test of the decision #94 made — discover the targets, never table
-# them. Everything asserted here is read out of the repo the sync produced; the only
-# literal is `deptry`, and that is named as *the Python gate this repo legitimately
-# lacks*, not as a Rust expectation.
+# them. Everything asserted here is read out of the repo the sync produced; nothing is
+# named as a Rust expectation.
 
 
 def _rust_make_targets(repo: Path) -> set[str]:
@@ -737,16 +775,13 @@ def test_e2e_a_rust_repo_is_never_reported_as_having_nothing_to_check(rust_synce
     """The failure `/quality`'s probe exists to prevent, on the language it was added for.
 
     Before discovery followed the include chain this repo reported six available gates and
-    *zero* discovered ones, so `deps`, `license` and `coverage` were invisible: /quality
-    would score `deptry` out-of-scope and never learn a Rust analogue was sitting there.
+    *zero* discovered ones, so `license` and `coverage` were invisible: /quality would
+    score their concerns out-of-scope and never learn the analogues were sitting there.
     """
     summary = cmt.probe(rust_synced_repo, quality_md)
     assert summary["undeclared"], "a synced Rust repo documents targets beyond the prose's list"
     assert summary["available"], summary["notes"]
-    # The Python-only gate is absent, and that is out-of-scope rather than a failure.
-    assert "deptry" in summary["unavailable"]
-    assert summary["exit_code"] == cmt.EXIT_OK
-    assert any("different name" in note for note in summary["notes"]), summary["notes"]
+    assert summary["exit_code"] == cmt.EXIT_OK, summary["notes"]
 
 
 def test_e2e_the_rust_repo_reuses_the_shared_gate_names(rust_synced_repo, quality_md):
@@ -788,8 +823,7 @@ def test_e2e_a_go_repo_is_never_reported_as_having_nothing_to_check(go_synced_re
     summary = cmt.probe(go_synced_repo, quality_md)
     assert summary["undeclared"], "a synced Go repo documents targets beyond the prose's list"
     assert summary["available"], summary["notes"]
-    assert "deptry" in summary["unavailable"], "deptry is Python's; Go's analogue is `deps`"
-    assert "deps" in summary["undeclared"]
+    assert "deps" in summary["available"], "`deps` is the dependency gate in every layer"
     assert summary["exit_code"] == cmt.EXIT_OK
 
 
