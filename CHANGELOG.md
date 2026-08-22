@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.12.0] - 2026-08-22
+
+### New Features
+- Gate the counted claims in the prose (#198)
+
+### Bug Fixes
+- Stop reporting every gate available on a v1.4 shim Makefile (#200)
+- Re-point two docs hooks at docs/skills, and branch protection at ci-gate (#201)
+- Probe the lock, not rhiza.mk, when /quality picks its mode (#205)
+- Give /quality a template mode, so the mother repo isn't told to /init (#206)
+- Name the dependency gate `deps`, and enumerate a shim's tasks at its pin (#207)
+
+### Maintenance
+- Remove the auto-tag workflow (#195)
+
 ## [0.11.0] - 2026-08-18
 
 ### New Features
