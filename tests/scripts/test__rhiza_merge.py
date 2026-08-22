@@ -461,7 +461,7 @@ def test_a_merge_file_refusal_is_classified_as_unmergeable(tmp_path, monkeypatch
     assert outcome.conflicted == []
 
 
-# --- gaps that mutation testing found (`make mutate`) -------------------------
+# --- gaps that mutation testing found (the retired `make mutate`) -------------
 #
 # Seven survivors of the run above, all at 100% line and branch coverage. The property
 # tests are strong on *merged content* — which is why only nine mutants survived at all —

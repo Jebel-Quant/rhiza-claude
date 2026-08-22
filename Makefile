@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint audit complexity test e2e portable mutate book book-serve paper paper-figures clean changelog
+.PHONY: help install lint audit complexity test e2e portable book book-serve paper paper-figures clean changelog
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -41,7 +41,7 @@ lint:  ## Run all prek hooks against every file
 # stdlib-only by gate, so the shipped plugin declares no dependencies and `pip-audit`
 # would have an empty left-hand side. The real surface is the Python that shells out to
 # rhiza-count: workflows
-# git (bandit) and the nine workflows holding write permissions (zizmor).
+# git (bandit) and the eight workflows holding write permissions (zizmor).
 #
 # zizmor fails the build at medium and above, not on everything it prints. The two it
 # reports here are advisory and both are deliberate: `npm install -g` in plugin.yml is
@@ -120,166 +120,6 @@ e2e:  ## Run only the end-to-end tests, without the coverage gate
 # for exactly one caller.
 portable:  ## Run the unit tests without e2e or the coverage gate (the cross-platform CI subset)
 	$(PYTEST) -k "not e2e" --no-cov $(ARGS)
-
-# --------------------------------------------------------------------------- #
-# Mutation testing — deliberately NOT part of `make test`
-# --------------------------------------------------------------------------- #
-#
-# 100% branch coverage says every arm *ran*; it says nothing about whether any assertion
-# would notice if an arm were wrong. That gap is the whole reason this target exists, and
-# its first real run found one: `build_lock`'s `strategy = "merge"` can be changed to
-# `None` and `tests/scripts/test__rhiza_lock.py` still passes — only `test_sync.py`
-# catches it.
-#
-# Scoped, still — a full-tree run over fifty modules is slow enough to get switched off,
-# which is worse than not having it — but scoped to two kinds of module rather than one:
-#
-#   * the three that decide what lands in a *user's* repository during `/rhiza:update`
-#     (`_rhiza_merge`, `_rhiza_lock`, `stage_synced`), where a surviving mutant is the
-#     costliest kind: a wrong merge or a wrong staged file set shipping green;
-#   * the two prose gates (`check_command_contracts`, `check_prompt_wiring`), where a
-#     surviving mutant means **a gate silently not gating** — the same failure as the
-#     `_PROTECTED` finding below, one level up. A checker that stops checking reports
-#     success, so nothing else in the repo can notice.
-#
-# The second group was added on the evidence of the first: everything the technique found
-# in the sync core was invisible to a 100% line-*and*-branch gate, and there is no reason
-# code that guards the build should be exempt from the same question.
-#
-# **The threshold is "no surviving mutant that changes behaviour", not zero survivors.**
-# Five categories are accepted, and each is a deliberate judgement rather than a shrug:
-#
-#   log text        `log(f"[DEL] {rel}")` → `log(f"XX[DEL] {rel}XX")`. Asserting log
-#                   strings, argparse help or a `--json` indent would pin wording that is
-#                   meant to be edited freely.
-#   `.get` defaults `lock.get("sha", "")` → `lock.get("sha", "XX")`. Reachable only from a
-#                   lock missing that field entirely, which the writer cannot produce.
-#   equivalent      `sys.path.insert(0, …)` → `insert(1, …)`, or `_BATCH = 100` → `101`.
-#                   Same effect for every input that can occur.
-#   pragma'd        the `except OSError` arms marked `# pragma: no cover`, e.g. an
-#                   unreadable snapshot file. Excluded from coverage for the same reason.
-#   module guard    `if __name__ == "__main__":`. Not reachable from an import.
-#
-# Everything else is a test worth adding. All five modules have now been triaged, and the
-# split is recorded because the *ratio* is the useful number — a module that suddenly grows
-# real survivors is the signal:
-#
-#   module                        survivors  real gaps  accepted
-#   _rhiza_lock.py                    24          8         16
-#   stage_synced.py                   33         14         19
-#   _rhiza_merge.py                    9          7          2
-#   check_command_contracts.py        70         31         39
-#   check_prompt_wiring.py            22          8         14
-#
-# `_rhiza_merge` is the instructive row: its property tests over generated edit triples
-# assert the merged *result*, so only nine mutants survived at all — the fewest of the
-# three sync-core modules, from the most intricate code. Its two accepted survivors are
-# both pragma'd arms.
-#
-# What the real gaps were, in every case, was code with 100% line *and* branch coverage
-# whose output nothing checked:
-#
-#   * `_PROTECTED` could be changed to any string — deleting `.rhiza/template.yml`, and
-#     with it the repo's rhiza-managed status.
-#   * Three `continue`s could become `break`s: skipping an unchanged template file ended
-#     the whole scan, and a duplicate lock entry truncated the staged set.
-#   * `is_binary(target) or is_binary(upstream) or is_binary(base)` could become `and`,
-#     so a text file locally replaced by a binary one would be merged and corrupted.
-#   * Every documented exit code, and every key in the summary dicts callers index.
-#
-# The checkers' 39 came out the same shape, and one class dominated: **a constant listing
-# what to check could be corrupted entry by entry.** Four of the six discovery-location
-# names rule 6 gates, ten of the twelve exempt shell builtins, and two of the four
-# top-of-repo prose files could each be changed to nonsense with the suite green — because
-# every test that covered them iterated the constant under test, which cannot detect an
-# entry missing from it. Those tests now spell the names out. The rest were five more
-# `continue`→`break`s, both `--root` defaults (a broken one makes the hook check an empty
-# tree and report success), and the accumulators — `violations = …` for `violations += …`
-# in three places, so only the last file's findings survived.
-#
-# **Two accepted rows in the checkers need their reasoning stated, because "equivalent"
-# is doing more work than usual there.** `script_flags` truncates each `add_argument`
-# window at the next call; five mutants of that truncation survive, and provably must —
-# the flags are unioned across all windows, so text the truncation removes is scanned by
-# the *next* window anyway. And the three `replace("\\\n", " ")` joins survive mutation of
-# the *replacement* string: what matters is that the newline goes, not what replaces it.
-#
-# **Bytecode caching makes mutmut over-report survivors, so this target disables it.**
-# CPython invalidates a `.pyc` on (source mtime-seconds, source size), and mutmut's
-# mutants are almost all exactly four bytes longer than the original (`x` → `XXxXX`), so
-# two consecutive same-length mutants written inside one clock second can run against the
-# *previous* mutant's cached bytecode. Three mutants here were reported as survivors while
-# provably failing the suite on their own — including `_MODEL_INVOCATION_OPT_OUT = None`,
-# which cannot even be collected. `PYTHONDONTWRITEBYTECODE=1` in the recipe removes the
-# whole class; without it the numbers in the table above are noise at the margin.
-# Comma-separated: mutmut takes one `--paths-to-mutate` value and splits it itself.
-# Override to narrow a local run to one module, e.g.
-#   make mutate MUTATE_MODULES=plugin/scripts/_rhiza_lock.py
-MUTATE_MODULES := plugin/scripts/_rhiza_merge.py,plugin/scripts/_rhiza_lock.py,plugin/scripts/stage_synced.py,plugin/scripts/check_command_contracts.py,plugin/scripts/check_prompt_wiring.py
-
-# The tests that actually exercise those modules — not just each one's mirrored file.
-# Scoping the runner to the mirror alone over-reports survivors, since much of the sync core
-# is driven through `sync.py`: `build_lock`'s `strategy = "merge"` can be mutated to `None`
-# and `test__rhiza_lock.py` still passes, while `test_sync.py` catches it. The two checkers
-# are the opposite case — nothing else in the suite imports them, so their mirrors are the
-# whole story, which is worth knowing before reading a survivor as under-tested.
-#
-# **Ordered cheapest-first, and that ordering is load-bearing.** mutmut runs the suite with
-# `-x`, so a mutant dies at the first failing test and pays for nothing after it. Measured
-# on this machine: check_prompt_wiring 0.1s, check_command_contracts 0.4s, resolve_conflicts
-# 0.8s, _rhiza_lock 0.9s, stage_synced 1.0s, sync 5.8s, _rhiza_merge 11.3s. Fastest-first
-# turns most kills into a one-second run; the previous order billed every mutant for the
-# slowest file. `-k 'not e2e'` drops the network-bound tests, which are far too slow to run
-# once per mutant.
-MUTATE_TESTS := tests/scripts/test_check_prompt_wiring.py \
-                tests/scripts/test_check_command_contracts.py \
-                tests/scripts/test_resolve_conflicts.py \
-                tests/scripts/test__rhiza_lock.py \
-                tests/scripts/test_stage_synced.py \
-                tests/scripts/test_sync.py \
-                tests/scripts/test__rhiza_merge.py
-
-# Pinned to 3.12: mutmut 2.5.1 crashes on 3.14 (`cannot pickle 'itertools.count'`), and
-# the whole plugin is run under `--python 3.12` everywhere else anyway.
-MUTMUT := uvx --python 3.12 --with pytest --with pyyaml mutmut@2.5.1
-
-# **mutmut rewrites the files it mutates, in place.** An interrupted run therefore leaves a
-# live mutant in the working tree — which is exactly how this target's own development
-# produced a "failing test" that was really a mutated `_rhiza_lock.py`. So the run happens
-# in a throwaway git worktree and the developer's tree is never touched. The trap is worth
-# stating out loud because the symptom (a test failing for no reason you can see) is
-# thoroughly misleading.
-# The worktree is checked out at **HEAD**, so this measures the last commit and not the
-# working tree — commit before you read the numbers. That is the right default for the
-# scheduled job, and the isolation is worth more than the convenience either way.
-MUTATE_WORKTREE := $(TESTS)/mutate
-
-# mutmut exits 2 when mutants survive, which is information rather than breakage: survivors
-# are the output of this target, not a malfunction. The exit code is passed through so a
-# caller can act on it, and the worktree is removed either way.
-mutate:  ## Mutation-test the sync core and the prose gates in an isolated worktree (slow)
-	@rm -rf $(MUTATE_WORKTREE)
-	@git worktree prune
-	@git worktree add --detach -q $(MUTATE_WORKTREE) HEAD
-	@mkdir -p $(TESTS)
-	@status=0; \
-	( cd $(MUTATE_WORKTREE) \
-	  && PYTHONDONTWRITEBYTECODE=1 $(MUTMUT) run \
-	       --paths-to-mutate "$(MUTATE_MODULES)" \
-	       --tests-dir tests/scripts \
-	       --runner "python -m pytest -x -q --no-header -p no:cacheprovider -k 'not e2e' $(MUTATE_TESTS)" \
-	       --simple-output --no-progress \
-	  ; run=$$?; echo; $(MUTMUT) results; \
-	    echo "$(MUTATE_MODULES)" | tr ',' '\n' \
-	      | while read -r m; do [ -n "$$m" ] && $(MUTMUT) show "$$m"; done \
-	      > survivors.diff 2>&1 || true; \
-	    exit $$run \
-	) || status=$$?; \
-	cp $(MUTATE_WORKTREE)/survivors.diff $(TESTS)/mutation-survivors.diff 2>/dev/null || true; \
-	git worktree remove --force $(MUTATE_WORKTREE) 2>/dev/null || true; \
-	echo "survivor diffs: $(TESTS)/mutation-survivors.diff"; \
-	echo "mutmut exit status: $$status (0 = every mutant killed, 2 = some survived)"; \
-	exit $$status
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
 # all run via `make lint` (prek). For a single one, use e.g.
