@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Named for the gate, not the runner: this job is `make lint`'s CI half, and the
+  # Named for the gate, not the runner: this job is `make fmt`'s CI half, and the
   # tool underneath it has changed once already (pre-commit → prek). Renaming it is
   # now cheap — `ci-gate` below is the only context .github/rulesets/main-protection.json
   # requires, so the ruleset no longer names this job at all.
@@ -27,12 +27,12 @@ jobs:
     # and `uv run`; those download on every run unless uv's own cache is restored.
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    # The one thing `make lint` gives those hooks that prek-action cannot: the
+    # The one thing `make fmt` gives those hooks that prek-action cannot: the
     # UV_CONSTRAINT export. It is set in exactly one place — Makefile's
     # `export UV_CONSTRAINT := $(CURDIR)/requirements-dev.txt` — so a job that reaches
     # the hooks without going through make ran `uvx mypy` and `uvx interrogate`
     # against whatever release was newest at call time, while a contributor running
-    # `make lint` measured the pinned ones. Local and CI disagreed, and only CI floated.
+    # `make fmt` measured the pinned ones. Local and CI disagreed, and only CI floated.
     #
     # That is the precise failure requirements-dev.txt was written to prevent, and its
     # header claims the guarantee is total ("every `uvx` call is constrained from this
@@ -96,7 +96,7 @@ jobs:
             ${{ runner.os }}-uv-lint-
 
       # Runs `prek run --show-diff-on-failure --color=always --all-files`, i.e. the same
-      # hook set as `make lint`. prek-action stopped publishing major/minor aliases at
+      # hook set as `make fmt`. prek-action stopped publishing major/minor aliases at
       # v3, so the comment names an exact release like every other pin here.
       - name: Run prek
         uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0

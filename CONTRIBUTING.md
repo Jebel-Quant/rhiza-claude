@@ -40,7 +40,7 @@ Everything is driven by `make` (run `make help` for the full list):
 ```bash
 make help           # show this list
 make install        # install the rhiza plugin via the Claude Code CLI
-make lint           # run all prek hooks against every file
+make fmt            # run all prek hooks over every file (delegated to rhiza-task)
 make test           # run the script test suite with a 100% coverage gate
 make e2e            # run only the end-to-end tests, without the coverage gate
 make portable       # run everything except them, without the coverage gate
@@ -52,16 +52,19 @@ make clean          # remove generated caches and artifacts
 make changelog      # regenerate CHANGELOG.md from conventional commits
 ```
 
-`make lint` runs every quality hook (mypy, interrogate, the test-layout check,
-and the manifest JSON/version-parity checks included). To run just one, use
-`uvx prek run <hook-id> --all-files`.
+`make fmt` runs every quality hook (mypy, interrogate, the test-layout check,
+and the manifest JSON/version-parity checks included). It is not defined in
+`local.mk`: it falls through the `Makefile` shim to `rhiza-task`'s `fmt` task, which
+runs the same prek invocation over the same `.pre-commit-config.yaml`. To run just
+one hook, use `uvx prek run <hook-id> --all-files` — that reaches prek outside make,
+so the pinned tool versions do not bind.
 
 The runner is [`prek`](https://prek.j178.dev/) — a drop-in reimplementation of
 `pre-commit`. The config keeps the `.pre-commit-config.yaml` name and schema, so you
 need nothing installed beyond `uv`; `uvx` fetches prek on first use. Bump hook
 revisions with `uvx prek update`.
 
-The two you need before opening a PR are `make lint` and `make test` — a green
+The two you need before opening a PR are `make fmt` and `make test` — a green
 pair locally means a green PR on everything you can reproduce locally.
 
 The one CI gate you *can't* reproduce is `cross-platform`, which runs `make
@@ -74,7 +77,7 @@ checkout without [`tectonic`](https://tectonic-typesetting.github.io/) or
 `pdflatex` fails there rather than in the docs build. That dependency is
 deliberate — `docs/index.md` links the PDF and `mkdocs build --strict` fails on a
 missing target, so the paper cannot go stale unnoticed. If you're only changing
-prose or scripts, `make lint && make test` is enough.
+prose or scripts, `make fmt && make test` is enough.
 
 ### Adding or changing a command
 

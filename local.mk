@@ -133,8 +133,17 @@ portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cr
 	$(PYTEST) -k "not e2e" --no-cov $(ARGS)
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
-# all run via `make lint` (prek). For a single one, use e.g.
-# `uvx prek run mypy --all-files`.
+# all run via `make fmt`, which is **not** in this file: it is one of the three targets
+# left to the shim's catch-all, so it resolves to `rhiza-task`'s `fmt` task. That task
+# runs `uvx prek run --all-files --config .pre-commit-config.yaml` — the same runner and
+# the same 25 hooks the retired `lint` target ran.
+#
+# The pin survives the delegation, which is the part worth knowing: `UV_CONSTRAINT` is
+# exported above, make exports it into every recipe including the catch-all's, and
+# `rhiza-task` passes it to `uvx`. Verified by pointing it at an impossible pin and
+# watching `make fmt` fail to resolve. For a single hook, use e.g.
+# `uvx prek run mypy --all-files` — but note that reaches prek *outside* make, so the
+# constraint does not bind and the tool version is whatever is newest.
 
 # The book depends on the paper: docs/index.md links the PDF, and `--strict` fails on a
 # link whose target is missing. Building the paper on every book build is also what keeps

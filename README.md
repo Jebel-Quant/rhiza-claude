@@ -365,7 +365,7 @@ Inside a command, `${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`, so
 ## Contributing
 
 Branch off `main`, make the change, and open a PR — CI runs the same
-`make lint && make test` you can run locally, so a green pair means a green PR.
+`make fmt && make test` you can run locally, so a green pair means a green PR.
 [CONTRIBUTING.md](./CONTRIBUTING.md) has the details: the prerequisites, the
 checklist for adding or changing a command, and the commit conventions the
 changelog is generated from.

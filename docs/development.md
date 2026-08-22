@@ -86,14 +86,14 @@ where an explicit rule beats the catch-all.
 
 ```bash
 make help        # list targets
-make lint        # run prek against every file
+make fmt         # run prek against every file (delegated to rhiza-task)
 make test        # run the script test suite (100% coverage gate)
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts
 ```
 
-`make lint` runs every quality hook — mypy, interrogate (docstrings),
+`make fmt` runs every quality hook — mypy, interrogate (docstrings),
 `doc-examples` (the doctests inside them), the test-layout check, the manifest
 JSON/version-parity checks, the workflow pin-parity check, and the three that gate
 the prose (`command-contracts`, `prompt-wiring`, `docs-nav`). To run a single one, use
@@ -110,7 +110,7 @@ nothing anyone can run, which is what the second hook exists to notice.
 The runner is [`prek`](https://prek.j178.dev/), a drop-in reimplementation of
 `pre-commit` in Rust. The config file keeps the `.pre-commit-config.yaml` name and
 schema — prek reads it unchanged, and nothing in it is prek-specific — so the switch
-shows up only in `make lint`, the CI `lint` job, and `uvx prek update` in place of
+shows up only in `make fmt`, the CI `lint` job, and `uvx prek update` in place of
 `pre-commit autoupdate`. Note the boundary: rhiza-*managed* repos get `pre-commit` from
 the template, so the plugin's own prose about other people's repos still says
 `pre-commit`, and that is not a leftover.

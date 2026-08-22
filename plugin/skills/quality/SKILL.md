@@ -365,8 +365,8 @@ bandit is commonly a pre-commit hook already — so in most repos it is *already
 Check whether the hook run included it before reporting a security gap.
 
 **A discovered target is deliberately not a rung.** It is tempting to let a `lint`,
-`format` or `check` target stand in, but the name does not tell you the scope: this
-repo's `make lint` runs mypy, interrogate, test-layout parity and the contract checkers
+`format` or `check` target stand in, but the name does not tell you the scope: a repo's
+`lint` routinely runs mypy, interrogate, test-layout parity and contract checkers
 alongside ruff, so scoring it as `fmt` would credit formatting with most of the
 toolchain. Matching on a target name is inference about what a target does, and that is
 the same class of mistake as supplying your own thresholds — just wearing a `make`
