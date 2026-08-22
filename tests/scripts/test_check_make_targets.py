@@ -220,8 +220,10 @@ def test_this_plugin_repo_reports_every_gate_undetermined(quality_md: Path, repo
     assert any("catch-all rule" in n for n in result["notes"])
 
     # The discovery half still works, and is what a shimmed repo has instead: every
-    # `##`-documented target in `local.mk` comes back as undeclared-but-real.
-    assert {"lint", "audit", "e2e", "install"} <= set(result["undeclared"])
+    # `##`-documented target in `local.mk` comes back as undeclared-but-real. `lint` is
+    # absent from that set by design — it is delegated to the CLI, which has no task of
+    # that name — so this names only targets `local.mk` actually defines.
+    assert {"audit", "e2e", "install"} <= set(result["undeclared"])
 
 
 # --- probing is side-effect free ---------------------------------------------
@@ -616,10 +618,17 @@ def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
 
 
 def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
-    """rhiza-claude's own Makefile uses the convention, so this is a live check."""
+    """rhiza-claude's own `local.mk` uses the convention, so this is a live check.
+
+    `lint` used to head this list and was dropped from it deliberately: it is one of the
+    three targets (`lint`, `book-serve`, `changelog`) now left to the shim's catch-all, so
+    it is not defined anywhere `documented_targets` reads. The assertion on a description
+    moved to `test` rather than being deleted — without one, this only checks that names
+    are found and would pass with every description dropped on the floor.
+    """
     found = cmt.documented_targets(repo_root)
-    assert {"lint", "test", "book", "clean"} <= set(found)
-    assert found["lint"] == "Run all prek hooks against every file"
+    assert {"test", "book", "clean"} <= set(found)
+    assert found["test"] == "Run the script test suite with a 100% coverage gate"
 
 
 # --- a makefile that answers everything --------------------------------------

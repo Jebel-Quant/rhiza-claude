@@ -18,7 +18,7 @@
 # target that shells out to `uvx` so a machine without uv bootstraps one, rather than failing
 # with "command not found" partway through a recipe.
 
-.PHONY: install audit complexity e2e portable book paper-figures clean
+.PHONY: install audit complexity test e2e portable book paper paper-figures clean
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -94,11 +94,17 @@ complexity: $(UVX)  ## Report cyclomatic complexity and maintainability index (t
 # It is here so the PyYAML arm of `_rhiza_yaml.load_yaml` is exercised and measured:
 # with it absent, half of that module's behaviour was invisible to the coverage gate.
 #
-# One definition of the runner, shared by `e2e` and `portable`. The `--with` flags are the
+# One definition of the runner, shared by `test` and `e2e`. The `--with` flags are the
 # part that has drifted before: CI once hand-wrote this command line, the Makefile gained
 # `--with pyyaml`, and the copy in CI did not — so that arm went unmeasured on a branch
 # that was green locally. Anything that runs this suite goes through a target here.
 PYTEST := uvx --with pytest-cov --with pyyaml pytest tests/
+
+test: $(UVX)  ## Run the script test suite with a 100% coverage gate
+	$(PYTEST) --cov=plugin/scripts --cov-report=term-missing \
+		--cov-report=xml:$(TESTS)/coverage.xml \
+		--cov-report=html:$(TESTS)/html-coverage \
+		--cov-fail-under=100 $(ARGS)
 
 # The end-to-end subset on its own — the tests that clone the real template and drive the
 # command chains against a genuinely synced repo. `make test` runs these too; this target
@@ -138,17 +144,38 @@ portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cr
 # report are *outputs of the run*, so the only way the published badge can be wrong is
 # if the suite never ran — and then there is no book either. genbadge goes last because
 # `mkdocs build` clears the site directory first.
-#
-# **Both prerequisites now resolve through the shim's catch-all, not through this file**,
-# and that changes what they deliver. `rhiza-task test` runs without coverage here — it
-# looks for a `src/` this repo does not have — so it writes no `$(TESTS)/coverage.xml`,
-# which is exactly the file the `genbadge` line below reads. Until `test` comes back or
-# the CLI is pointed at `plugin/scripts`, that last line is the one to watch.
 book: paper test $(UVX)  ## Build the documentation site into _book/ (compiles the paper and runs the tests first)
 	mkdir -p docs/reports
 	cp -r $(TESTS)/. docs/reports/
 	uvx --with mkdocs-material mkdocs build --strict
 	uvx "genbadge[coverage]" coverage -i $(TESTS)/coverage.xml -o _book/coverage-badge.svg
+
+# Two passes: the first resolves the ToC and page references the second typesets.
+# tectonic reruns on its own; pdflatex does not, hence the explicit repeat.
+#
+# tectonic pulls every LaTeX file the document needs from its bundle CDN as a separate
+# request, and that CDN answers 429 often enough to redden a PR that never touched
+# paper/. Retrying is worth it *because the fetches are cached*: each attempt resumes
+# from the per-user cache rather than starting over, so a run that got halfway gets
+# further next time. Four attempts with a growing backoff turn a flaky fetch into a slow
+# one. The pdflatex fallback is guarded by `command -v` so a TeX Live machine with no
+# tectonic reaches it immediately instead of sleeping through the backoff first.
+paper:  ## Build the paper and stage it for the docs site (needs tectonic or pdflatex)
+	cd paper && ( \
+		if command -v tectonic >/dev/null 2>&1; then \
+			for attempt in 1 2 3 4; do \
+				tectonic $(PAPER).tex && exit 0; \
+				if [ $$attempt -lt 4 ]; then \
+					delay=$$((attempt * 20)); \
+					echo "tectonic failed (attempt $$attempt/4); retrying in $${delay}s" >&2; \
+					sleep $$delay; \
+				fi; \
+			done; \
+		fi; \
+		pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex \
+			&& pdflatex -interaction=nonstopmode -halt-on-error $(PAPER).tex)
+	mkdir -p docs/paper
+	cp paper/$(PAPER).pdf docs/paper/$(PAPER).pdf
 
 paper-figures: $(UVX)  ## Regenerate the paper's figures from the captured command output
 	uv run --with pillow python paper/render_figures.py
