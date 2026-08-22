@@ -16,9 +16,12 @@ and entries are generated from [Conventional Commits](https://www.conventionalco
 - Probe the lock, not rhiza.mk, when /quality picks its mode (#205)
 - Give /quality a template mode, so the mother repo isn't told to /init (#206)
 - Name the dependency gate `deps`, and enumerate a shim's tasks at its pin (#207)
+- Bypass check-managed-files on the sync commit, and say what to do when it fires (#211)
 
 ### Maintenance
 - Remove the auto-tag workflow (#195)
+- Remove mutation testing (#209)
+- Adopt rhiza's shim Makefile, move the targets to local.mk (#210)
 
 ## [0.11.0] - 2026-08-18
 
