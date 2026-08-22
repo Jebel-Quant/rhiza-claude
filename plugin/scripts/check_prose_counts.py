@@ -37,7 +37,7 @@ speaks::
 
     <!-- rhiza-count: commands -->    a Markdown file
     % rhiza-count: commands           the paper
-    # rhiza-count: workflows          the Makefile
+    # rhiza-count: workflows          the Makefile, or local.mk beside it
 
 The number itself stays in the prose and is stated **once** — the marker carries no count
 of its own to drift. Every subject named must then appear as a counted claim in the three
@@ -71,12 +71,26 @@ from _rhiza_layout import PROMPTS_DIR, command_files
 WORKFLOWS_DIR = ".github/workflows"
 """Where the workflows live, relative to the repository root."""
 
-SCANNED = ("paper/*.tex", "Makefile", "README.md", "CLAUDE.md", "docs/*.md", "docs/*/*.md")
+SCANNED = (
+    "paper/*.tex",
+    "Makefile",
+    "local.mk",
+    "README.md",
+    "CLAUDE.md",
+    "docs/*.md",
+    "docs/*/*.md",
+)
 """The prose this gate reads, as globs relative to the repository root.
 
 Build outputs are absent by construction rather than by exclusion: ``docs/paper/`` holds a
 PDF and ``docs/reports/`` holds HTML and XML, so neither is reachable through a ``*.md``
 glob.
+
+``local.mk`` is here for the same reason ``Makefile`` is, and naming only the latter was a
+real hole: rhiza's v1.4 shim makes the ``Makefile`` template-owned, so a repo's own targets
+— and the comments explaining them — move to ``local.mk``. rhiza-claude's own
+"the eight workflows holding write permissions" claim made exactly that trip. A count does
+not stop being a count because the target it documents changed file.
 """
 
 WINDOW = 3

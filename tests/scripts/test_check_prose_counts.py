@@ -184,6 +184,19 @@ def test_a_marker_whose_sentence_was_rewritten_away_fails(repo):
     ]
 
 
+def test_local_mk_is_scanned_beside_the_makefile(repo):
+    """A shimmed repo's own targets live in `local.mk`, and so do the claims about them.
+
+    rhiza's v1.4 `Makefile` is template-owned, so a repo moving its targets out of it also
+    moves the counted comments. Scanning only `Makefile` would have let this repo's own
+    "eight workflows" claim leave the gate without failing anything.
+    """
+    write(repo, "local.mk", "# rhiza-count: workflows\n# the nine workflows (zizmor).\n")
+    violations, checked = cpc.check_prose_counts(repo)
+    assert checked == 1
+    assert violations == ["local.mk:2 claims 9 workflows, but the tree holds 3"]
+
+
 def test_a_marker_naming_something_uncounted_fails_and_is_not_counted_as_checked(repo):
     write(repo, "README.md", "<!-- rhiza-count: sprockets -->\nthree sprockets\n")
     violations, checked = cpc.check_prose_counts(repo)

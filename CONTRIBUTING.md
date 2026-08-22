@@ -25,9 +25,11 @@ The root `.claude-plugin/marketplace.json` points inward with `"source": "./plug
 
 - **[uv](https://docs.astral.sh/uv/)** — used via `uvx` for every tool (nothing
   to install globally).
-- **GNU make** — the entry point for every gate.
+- **GNU make** — the entry point for every gate. The `Makefile` is a thin shim; the
+  targets themselves live in `local.mk` beside it, and it will install `uv` into
+  `./bin` if the machine has none.
 
-No system Python is needed. The `Makefile` exports `UV_PYTHON` from `.python-version`,
+No system Python is needed. `local.mk` exports `UV_PYTHON` from `.python-version`,
 so uv provisions the pinned interpreter itself and every `uvx` call runs under it —
 which is the same version CI measures.
 

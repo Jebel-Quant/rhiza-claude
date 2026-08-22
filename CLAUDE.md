@@ -11,17 +11,23 @@ anywhere. That has two consequences worth internalising before you touch anythin
 
 - **`/rhiza:quality` runs here in its degraded mode.** Its step-0 check looks for
   `.rhiza/template.yml` **and** `.rhiza/template.lock`; both are absent, so it skips
-  every template-delivered gate, runs the targets this repo's own `Makefile` documents, and
+  every template-delivered gate, runs the targets this repo's own `local.mk` documents, and
   scores the design work. It used to refuse outright. Read any score it produces as
   what it says it is — a design-led assessment on this repo's own gates, not a Rhiza
   verdict, and not comparable to a managed repo's number.
 - **The "locally-owned vs Rhiza-owned" scoping rule doesn't apply.** Every file here is
   locally owned. When you read that rule in `plugin/prompts/scorecard.md`, you're reading a
   rule *this repo ships for other repos*, not one that governs it — which is also why
-  degraded mode inverts it: with no template, the `Makefile` and workflows are this
-  repo's own work and are squarely in scope.
+  degraded mode inverts it: with no template, the `Makefile`, `local.mk` and workflows
+  are this repo's own work and are squarely in scope.
 
 ## Commands
+
+**The targets live in `local.mk`, not the `Makefile`.** The `Makefile` is the shim shape
+rhiza's `core` bundle ships — front door, uv bootstrap, and a `%:` catch-all that
+delegates unknown targets to `rhiza-task`. Nothing here delegates: an explicit rule beats
+a pattern rule, so every target below is `local.mk`'s. Add a target there, never to the
+`Makefile`.
 
 ```bash
 make help           # list every target
@@ -271,8 +277,9 @@ correct prose gets switched off. The trade is that an unmarked count is unchecke
 
 It exists because `paper/` had no gate at all, and `paper/` is what the release stamps
 "true of release vX.Y.Z" — it claimed nine user-facing commands against ten for the whole
-of v0.10.0. `Makefile` had the same drift ("the nine workflows" against ten). Both are
-now marked.
+of v0.10.0. The make layer had the same drift ("the nine workflows" against ten). Both
+are now marked — and the make one now lives in `local.mk`, which the gate scans for
+exactly that reason.
 
 **When adding or changing a command:**
 

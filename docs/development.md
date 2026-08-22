@@ -80,6 +80,10 @@ hooks unavailable, so the rules are still stated where they apply.
 
 ## Make targets
 
+The `Makefile` is the shim shape rhiza's `core` bundle ships: front door, uv
+bootstrap, and a `%:` catch-all. Every target below lives in `local.mk` beside it,
+where an explicit rule beats the catch-all.
+
 ```bash
 make help        # list targets
 make lint        # run prek against every file
