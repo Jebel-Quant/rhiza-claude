@@ -144,7 +144,7 @@ template's to overwrite and which are yours to keep.
 & \textbf{owns} & \textbf{who changes it} \\
 \midrule
 \textbf{the template} &
-CI stubs, \file{Makefile}, \file{.rhiza/rhiza.mk}, the docs base &
+CI stubs, \file{Makefile}, the docs base &
 upstream --- you receive it \\[0.4em]
 \textbf{your repository} &
 source, tests, \file{pyproject.toml}, README prose &
@@ -169,7 +169,7 @@ deliberate design constraint rather than an implementation detail.
   yours/.style={box, fill=slate!6},
   arrow/.style={-{Stealth[length=2.4mm]}, draw=leaf, thick},
 ]
-\node[owned] (tpl) {\textbf{template repo}\\[0.15em]\footnotesize CI \textperiodcentered\ Makefile \textperiodcentered\ rhiza.mk \textperiodcentered\ docs base};
+\node[owned] (tpl) {\textbf{template repo}\\[0.15em]\footnotesize CI \textperiodcentered\ Makefile \textperiodcentered\ docs base};
 \node[owned, right=26mm of tpl] (managed) {\textbf{template-owned}\\[0.15em]\footnotesize listed in \file{template.lock}};
 \node[yours, below=7mm of managed] (mine) {\textbf{yours}\\[0.15em]\footnotesize src/ \textperiodcentered\ tests/ \textperiodcentered\ pyproject \textperiodcentered\ prose};
 \begin{scope}[on background layer]
@@ -399,7 +399,7 @@ Merge the pull request.
 It bumps the \texttt{ref} in \file{template.yml} to the newest template release, syncs,
 resolves any conflict by taking the upstream side, and opens a second pull request
 carrying the template-owned files --- \file{.github/workflows/}, \file{Makefile},
-\file{.rhiza/rhiza.mk}, the docs base --- together with \file{.rhiza/template.lock}
+the docs base --- together with \file{.rhiza/template.lock}
 recording exactly what was delivered. Only paths the lock names are staged, so nothing
 of yours is included even if it changed in your working tree. Merge that too.
 

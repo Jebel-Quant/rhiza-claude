@@ -58,10 +58,11 @@ def has_help_target(makefile: Path) -> bool:
     """Can make resolve a ``help`` target from *makefile*'s directory?
 
     Asks **make**, via ``make -n help``, rather than reading the file. That matters
-    because a rhiza-managed repo's root Makefile is essentially just
-    ``include .rhiza/rhiza.mk`` — the ``help`` target lives in the *included* file. A
-    text scan of the root therefore answers "no" for every repo this is meant to serve,
-    which silently disabled the whole sync there.
+    because a rhiza-managed repo's root Makefile rarely defines ``help`` itself: up to
+    template v1.3 it was essentially ``include .rhiza/rhiza.mk`` and the target lived in
+    the *included* file, and from v1.4 it is a shim whose ``help`` shells out to the
+    pinned `rhiza-task`. A text scan of the root therefore answers "no" for every repo
+    this is meant to serve, which silently disabled the whole sync there.
 
     ``-n`` expands the recipe without running it, so the probe has no side effects.
     """

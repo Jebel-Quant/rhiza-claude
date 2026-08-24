@@ -32,7 +32,7 @@ Two repositories, and the boundary between them is the whole idea:
 
 | | owns | who changes it |
 | --- | --- | --- |
-| **the template** | CI stubs, `Makefile`, `.rhiza/rhiza.mk`, the docs base | upstream — you receive it |
+| **the template** | CI stubs, `Makefile`, the docs base | upstream — you receive it |
 | **your repo** | source, tests, `pyproject.toml`, README prose | you — the sync never touches it |
 
 A sync is therefore not a copy of the template over your repo. `/rhiza:update` writes
@@ -212,7 +212,7 @@ pin, and opens a PR on a `rhiza_init_<date>` branch containing:
 | the skeleton procedure | `pyproject.toml` (via `uv init --lib`), `src/`, `.python-version` |
 | the license procedure | `LICENSE` + the SPDX metadata in `pyproject.toml` |
 
-**No CI, no `Makefile`, no `rhiza.mk`, no `.rhiza/template.lock`.** `/init` runs no sync
+**No CI, no `Makefile`, no `.rhiza/template.lock`.** `/init` runs no sync
 and no gates by design — the template content is a *separate* PR, so the two are
 reviewable apart. If you expected workflows to appear here, nothing has gone wrong.
 
@@ -227,7 +227,7 @@ Merge that PR.
 This is the step that brings the template in. It bumps the `ref` in `template.yml` to
 the newest template release, syncs, resolves any conflict by **taking the upstream
 side**, and opens a second PR containing the template-owned files —
-`.github/workflows/`, `Makefile`, `.rhiza/rhiza.mk`, the docs base — plus
+`.github/workflows/`, `Makefile`, the docs base — plus
 `.rhiza/template.lock` recording exactly what was delivered.
 
 Only paths the lock names are staged, so nothing of yours is included even if it changed

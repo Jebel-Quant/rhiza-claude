@@ -30,7 +30,7 @@ The two sound similar and are unrelated. Neither substitutes for the other:
 | `/rhiza:detach` | Files rhiza synced *into a repo* | A codebase, as a commit |
 
 Uninstalling the plugin leaves every synced file sitting in each managed repo — the CI
-workflows, `Makefile`, `rhiza.mk`, the docs base, `.rhiza/template.lock`. They keep
+workflows, `Makefile`, the docs base, `.rhiza/template.lock`. They keep
 working; there is simply nothing left that maintains them. Conversely `/rhiza:detach`
 strips one repo clean and leaves the plugin installed, which is what you want when you
 are releasing a single project from template management but still using rhiza elsewhere.

@@ -122,14 +122,20 @@ def find_makefile(target_dir: Path) -> Path | None:
 def makefile_chain(target_dir: Path, *, depth: int = _INCLUDE_DEPTH) -> list[Path]:
     """Return the repo's makefile plus the files it ``include``s, in reading order.
 
-    **Reading only the root makefile finds nothing on a real repo.** A rhiza-synced
-    repo's `Makefile` is a stub — a few variables and `include .rhiza/rhiza.mk` — which
-    in turn ends with `-include .rhiza/make.d/*.mk`, and *that* is where every gate
-    lives. Probing was unaffected (``make -n`` follows includes itself), but discovery
-    read one file where make reads a dozen, so a synced Rust repo reported zero
-    discovered targets while `.rhiza/make.d/rust.mk` was sitting there defining `deps`,
-    `license` and `coverage`. The mechanism that exists to stop `/quality` reporting
-    "nothing could be checked" was doing exactly that.
+    **Reading only the root makefile finds nothing on a pre-v1.4 repo.** Up to template
+    v1.3 a synced repo's `Makefile` was a stub — a few variables and
+    `include .rhiza/rhiza.mk` — which in turn ended with `-include .rhiza/make.d/*.mk`,
+    and *that* is where every gate lived. Probing was unaffected (``make -n`` follows
+    includes itself), but discovery read one file where make reads a dozen, so a synced
+    Rust repo reported zero discovered targets while `.rhiza/make.d/rust.mk` was sitting
+    there defining `deps`, `license` and `coverage`. The mechanism that exists to stop
+    `/quality` reporting "nothing could be checked" was doing exactly that.
+
+    Template v1.4 retired that layer: neither file is shipped any more, the gates are
+    `rhiza-task` tasks, and the `Makefile` is a shim that forwards to the pinned CLI.
+    Following includes is kept because a repo may pin any ref, so both shapes are live —
+    and on a current one the chain is simply the root makefile plus whatever `local.mk`
+    the repo added itself.
 
     Globs are expanded and each file is visited once. An operand containing `$` is
     skipped: it is a make variable this parser cannot resolve, and guessing is worse

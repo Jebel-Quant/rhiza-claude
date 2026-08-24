@@ -156,8 +156,9 @@ compdef _rhiza_make m                  # zsh
    database is slow on a large `Makefile`.
 4. **Invalidation** — the cache is stale as soon as `Makefile`, `local.mk`,
    `.rhiza/rhiza.mk` or any `.rhiza/make.d/*.mk` is newer than it, so only the first Tab
-   after a makefile change pays the parse. Outside a rhiza repo those last two globs
-   simply match nothing.
+   after a makefile change pays the parse. Those last two are the retired make layer,
+   kept because a repo pinned to a pre-v1.4 template still has them; on a current
+   template — and outside a rhiza repo entirely — they match nothing.
 
 Force a refresh by deleting the cache:
 

@@ -6,7 +6,7 @@
 > `OWNER`, `NAME`, and the host from `/init`'s step 2, so don't re-ask for them.
 
 **Why this procedure exists.** The rhiza template never ships a project manifest —
-the sync delivers `Makefile`, `.rhiza/rhiza.mk`, `ruff.toml`, `pytest.ini`, CI and
+the sync delivers `Makefile`, `ruff.toml`, `pytest.ini`, CI and
 the rest, but the project metadata is always the repo's own. So `/update`'s gates
 can't run at all without one: `make test` depends on `install` (a `uv sync`), and
 the synced `.rhiza/tests/test_pyproject.py` asserts a specific `[project]` shape.
