@@ -15,7 +15,7 @@
 % Every transcript in those figures was captured from the plugin's own scripts;
 % see the header of render_figures.py for the command behind each one.
 %
-% Every claim here is true of release v0.12.0. When the plugin changes, this file is
+% Every claim here is true of release v0.13.0. When the plugin changes, this file is
 % part of the change — a stale introduction is worse than none.
 %
 % One figure is a screenshot rather than generated output (images/plugin-cropped.png),
@@ -78,7 +78,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{slate}An introduction to rhiza-claude}
-\fancyhead[R]{\small\color{slate}v0.12.0}
+\fancyhead[R]{\small\color{slate}v0.13.0}
 \fancyfoot[C]{\small\color{slate}\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 \renewcommand{\headrule}{\hbox to\headwidth{\color{slate!30}\leaders\hrule height \headrulewidth\hfill}}
@@ -86,7 +86,7 @@
 \title{\vspace{-1.4cm}\textbf{An introduction to rhiza-claude}\\[0.3em]
 \large\color{slate} What the plugin is for, before what it contains}
 \author{\normalsize Jebel Quant}
-\date{\normalsize Release v0.12.0}
+\date{\normalsize Release v0.13.0}
 
 \begin{document}
 \maketitle
@@ -295,7 +295,7 @@ rather than per plugin --- append the version's git tag as a \texttt{\#<ref>} su
 adding the marketplace:
 
 \begin{lstlisting}
-/plugin marketplace add Jebel-Quant/rhiza-claude#v0.12.0
+/plugin marketplace add Jebel-Quant/rhiza-claude#v0.13.0
 /plugin install rhiza@rhiza-claude
 \end{lstlisting}
 
@@ -695,7 +695,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 this actually requires.
 
 % rhiza-count: commands procedures
-Honest scope, at v0.12.0: ten user-facing commands, eight internal procedures. It is
+Honest scope, at v0.13.0: ten user-facing commands, eight internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command
