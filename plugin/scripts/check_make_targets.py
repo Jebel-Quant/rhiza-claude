@@ -13,10 +13,9 @@ Two things make that hard to catch by hand, and this script addresses both:
 * **The target list is derived from the command's prose**, not duplicated here. It is
   parsed out of the numbered gate list in `skills/quality/SKILL.md`, so the probe and the
   command cannot drift — add a `make` gate to the prose and it gets probed automatically.
-  The gate list is longer than the target list: the entries backed by a bundled checker
-  rather than a `make` target (test-layout parity, the example checker) are shipped with
-  the plugin and resolve without a sync, so there is nothing to probe and the regex passes
-  over them.
+  The gate list is longer than the target list: the one entry backed by a bundled
+  checker rather than a `make` target (the example checker) is shipped with the plugin and
+  resolves without a sync, so there is nothing to probe and the regex passes over it.
 * **Availability varies by profile.** `typecheck`, `security` and `docs-coverage` come
   from the template's *tests* bundle and `fmt`/`deps` from *core*, so a repo on a
   reduced profile legitimately lacks some. An absent target is reported as

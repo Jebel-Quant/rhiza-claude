@@ -65,9 +65,8 @@ So in degraded mode:
   Each falls back to the repo's **own** tool config — see step 1 for the ladder and its
   one hard limit: no config means out-of-scope, never the template's flags. These four are
   gated in most mature repos, so skipping them reported gaps that usually are not there.
-- **Run the bundled checkers, which need no template at all** — test-layout parity
-  (gate 8, where `test_layout_applies`) and the example checker (gate 9). Both are
-  stdlib-only Python this plugin ships, so neither depends on a sync. Gate 9's README half
+- **Run the bundled example checker, which needs no template at all** — gate 8. It is
+  stdlib-only Python this plugin ships, so it does not depend on a sync. Its README half
   is language-neutral and runs on a Rust or Go repo too; only its docstring half is
   Python's. It matters most here: the docstring and README checks a managed repo gets from
   `make rhiza-test` have **no counterpart** in an unmanaged one, so without it nothing at
@@ -119,7 +118,7 @@ from.
 ### Which language is this repo?
 
 **Ask before assuming.** The gate list below, `src/`, `pyproject.toml` and the
-test-layout rule are all the **Python** profile. `/rhiza:init` supports Python, Go and
+`src/` layout are all the **Python** profile. `/rhiza:init` supports Python, Go and
 Rust, so a synced repo may legitimately be none of those things (**keep the quotes**;
 in a source checkout use the repo-relative path):
 
@@ -128,7 +127,7 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/language
 ```
 
 It returns the language and how it was determined, plus the **source root**, the
-**manifest**, and whether `test_layout_applies`. Feed those to `design-analysis.md` and
+and the **manifest**. Feed those to `design-analysis.md` and
 `scorecard.md` instead of the Python defaults. Exit **1** means the language could not
 be determined — say so and score conservatively rather than assuming Python.
 
@@ -212,21 +211,7 @@ failures surface before the slow test suite — and collect results:
 5. `make security` — pip-audit + bandit scans
 6. `make rhiza-test` — run the template's own bundled tests under `.rhiza/tests/` (pyproject structure, docstrings, README)
 7. `make test` — full test suite **with** its coverage gate (slowest, run last)
-8. **Test-layout parity** — run the bundled checker
-   `uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_test_layout.py"` (fall back to
-   `uv run --python 3.12 --no-project python plugin/scripts/check_test_layout.py` in a source checkout). It fails when a
-   source module has no mirrored `test_<name>.py`, a source `class A` has no
-   `TestA`, or a test file/`Test*` class has no source counterpart. Test files
-   listed in `.rhiza/template.lock` are skipped — a synced repo is not marked
-   down for a file its template wrote and it cannot move (the same principle as
-   the scorecard's "never mark a repo down for its own template"), which is what
-   `tests/test_rhiza_packaging.py` hit from rhiza v1.3.2 on. A repo that
-   deliberately organises tests by behaviour (and guarantees per-module
-   coverage another way, e.g. a 100% coverage gate) can opt out with a
-   documented `[tool.check_test_layout]` table in `pyproject.toml`
-   (`enforce = false` + a required `reason`); score this subcategory 10 when the
-   checker exits 0, whether by mirroring or a documented opt-out.
-9. **Docstring examples and README fences** — run the bundled checker
+8. **Docstring examples and README fences** — run the bundled checker
    (**keep the quotes**; in a source checkout use `plugin/scripts/check_doc_examples.py`):
 
    ```bash
@@ -242,6 +227,20 @@ failures surface before the slow test suite — and collect results:
    means an example is broken; exit **2** means there was nothing to check (no source
    root, no README), which is out-of-scope in the usual way, never FAIL. Read the next
    section before passing `--run`.
+
+**Test-layout parity is deliberately not a gate, and must not be added back as one.**
+`check_test_layout.py` still ships and a repo is free to enforce it locally, but
+`/quality` neither runs it nor scores it. The rule it checks — one `test_<name>.py` per
+module, one `Test<Class>` per class — describes how tests are *filed*, not whether they
+are any good, and the two answers come apart in both directions: a suite can mirror every
+module perfectly while asserting almost nothing, and a suite organised by behaviour can
+cover more while failing the mirror outright. So the mark it produced was a proxy for
+test quality that rewarded shape over substance, and the subcategories that measure the
+thing itself — *test coverage & depth* and *test design quality* — were already carrying
+it. It was also the assessment's most language-bound check, out-of-scope on every Go and
+Rust repo, which made it a subcategory that could only ever lower a Python repo's score
+relative to the others. A repo that does want the rule enforced should run the checker
+from its own hook config, where a violation is a build failure rather than a deduction.
 
 **The dependency gate is `deps`; `deptry` is a deprecated alias.** `deptry` names the
 *tool*, which is not what the Rust and Go layers ever called the *target*, so the
@@ -366,7 +365,7 @@ Check whether the hook run included it before reporting a security gap.
 
 **A discovered target is deliberately not a rung.** It is tempting to let a `lint`,
 `format` or `check` target stand in, but the name does not tell you the scope: a repo's
-`lint` routinely runs mypy, interrogate, test-layout parity and contract checkers
+`lint` routinely runs mypy, interrogate, the example checker and contract checkers
 alongside ruff, so scoring it as `fmt` would credit formatting with most of the
 toolchain. Matching on a target name is inference about what a target does, and that is
 the same class of mistake as supplying your own thresholds — just wearing a `make`
@@ -429,8 +428,9 @@ produce that, and they compound:
 - **A Rust or Go repo.** The numbered gate list above is the **Python** profile — the
   one this plugin has actually run against. On another language most of those targets
   are unavailable, the marks come from the targets `check_make_targets.py`
-  *discovered*, and language-specific subcategories (test-layout parity above all) are
-  out-of-scope rather than measured.
+  *discovered*, and language-specific subcategories — gate 8's docstring half above
+  all, which is Python's even though its README half is not — are out-of-scope rather
+  than measured.
 - **Degraded mode** (step 0). No template gate ran at all; every mark rests on the
   repo's own discovered targets plus the design analysis.
 

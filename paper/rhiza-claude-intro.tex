@@ -427,7 +427,7 @@ been initialised.
 \subsection*{4. \cmd{quality} --- get scored}
 
 Now that the gates exist, this runs them --- lint, types, documentation, dependencies,
-security, tests, test layout, complexity, architecture --- and produces a 1--10
+security, tests, complexity, architecture --- and produces a 1--10
 scorecard with findings and an optional menu to file them as issues. It proposes fixes
 and applies none.
 
@@ -764,7 +764,7 @@ The words that carry the model, in one place. Each is used above in exactly this
         one cannot be invoked as a slash command.
   \item[gate]
         A \texttt{make} target delivered by the sync that either passes or fails: lint,
-        types, docstring coverage, tests, dependency and security checks, test layout.
+        types, docstring coverage, tests, dependency and security checks.
   \item[scorecard]
         What \cmd{quality} produces: a 1--10 mark per category with findings, plus an
         optional menu to file them as issues. Assessment only --- it applies no fixes.

@@ -250,7 +250,7 @@ tree. This is how you tell "managed and synced" from "managed but never synced".
 ```
 
 Now the gates exist as real `make` targets, so this works: lint, types, docs, deps,
-security, tests, test layout, complexity, architecture → a 1–10 scorecard with findings,
+security, tests, complexity, architecture → a 1–10 scorecard with findings,
 and an optional menu to file them as issues. It proposes fixes but applies none.
 
 ### Afterwards
