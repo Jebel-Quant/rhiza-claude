@@ -159,10 +159,17 @@ undetermined, and running them off the back of the probe is how a gate that does
 exist gets run and its "unknown task" error scored as a FAIL. In that repo:
 
 - **Enumerate the real tasks first**, from the runner rather than from make. The probe
-  reads the pin out of the makefile and prints the exact command — `uvx
-  rhiza-task@<version> list` — and that pin matters: `uvx rhiza-task list` answers for
-  whatever release is current, not necessarily the one this repo's gates run under. A
-  bare `make help` shows the same catalogue plus any `local.mk` targets.
+  does it for you (**keep the quotes**; in a source checkout use the repo-relative path):
+
+  ```bash
+  uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_make_targets.py" --tasks
+  ```
+
+  One task name per line, read from the pin the makefile carries — and that pin matters:
+  a bare `uvx rhiza-task list` answers for whatever release is current, not necessarily
+  the one this repo's gates run under. Exit **1** means the question could not be asked
+  (no pin, no `uvx`, or the runner failed), which is *unmeasured* — never "this repo has
+  no gates". A bare `make help` shows the same catalogue plus any `local.mk` targets.
 - **Match each named gate to a task before running it.** Score the task you actually
   ran, under the concern the gate names.
 - **A gate with no matching task was never provided** — out-of-scope, never FAIL, the

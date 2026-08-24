@@ -223,7 +223,7 @@ def test_e2e_detach_removes_the_synced_files_and_spares_the_repos_own(synced_rep
 
     managed = load_yaml(repo / ".rhiza" / "template.lock")["files"]
     assert len(managed) > 20, f"expected the real template's file list, got {managed}"
-    assert (repo / "Makefile").is_file() and (repo / ".rhiza" / "rhiza.mk").is_file()
+    assert (repo / "Makefile").is_file() and (repo / ".pre-commit-config.yaml").is_file()
 
     assert detach.detach(repo, force=True) == 0
 

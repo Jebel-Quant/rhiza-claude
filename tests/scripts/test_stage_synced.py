@@ -356,7 +356,7 @@ def test_e2e_the_lock_covers_what_the_template_delivered(synced_repo_copy):
     assert len(files) > 20, f"expected the real template's file list, got {files}"
     # Files the template is known to own, and one it never does.
     assert "Makefile" in files
-    assert ".rhiza/rhiza.mk" in files
+    assert ".pre-commit-config.yaml" in files
     assert not any(f.startswith("src/") for f in files), "src/ is the repo's own"
 
 

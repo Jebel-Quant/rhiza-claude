@@ -160,11 +160,49 @@ TEMPLATE_REPO = "jebel-quant/rhiza"
 # v1.3.0 was the first release carrying the language layers (`python-core`, `rust-core`,
 # `go-core`) and the `rust-local`/`go-local` profiles. Pinning at or above it is what lets
 # the Rust and Go end-to-end syncs run on every PR instead of skipping for want of a
-# released profile. v1.3.2 carries the two patches these fixtures exercise most directly:
+# released profile. It also carries the two patches these fixtures exercise most directly:
 # `go-core` ships `internal/version/version_test.go` and `python-core` ships
 # `tests/test_rhiza_packaging.py`, so a fresh repo's test gate is vacuous in no language
-# now — which is what retired the strict `xfail` in `test_check_make_targets.py`.
-PINNED_TEMPLATE_REF = "v1.3.2"
+# — which is what retired the strict `xfail` in `test_check_make_targets.py`.
+#
+# **v1.5.2 is the first pin past the make layer, and that changes what a synced repo is.**
+# The pin sat at v1.3.2 while upstream reached v1.5.2, which meant every e2e fixture
+# asserted the *pre-v1.4* shape: `.rhiza/rhiza.mk`, `.rhiza/make.d/*.mk`, and gates as
+# make targets. Template v1.4 retired all of it for `rhiza-task`, so those assertions were
+# testing a repo shape no new user can get — the suite was green about the wrong world.
+# What a sync delivers now is a shim `Makefile` pinning `RHIZA_TASK` and forwarding
+# unmatched targets to that CLI, plus `local.mk` for repo-owned ones.
+#
+# The synthetic fixtures below still model the old shape on purpose: a repo may pin any
+# ref, so `/status`, `/quality` and `sync_readme_help` must keep handling an included
+# make layer. Only the fixtures that sync the *real* template follow the pin.
+PINNED_TEMPLATE_REF = "v1.5.2"
+
+
+def commit_sync(repo: Path) -> None:
+    """Commit whatever the sync just wrote, the way `/rhiza:update` does.
+
+    **Not cosmetic.** A sync leaves every managed file differing from HEAD, and from
+    template v1.5.2 the synced `.pre-commit-config.yaml` carries `check-managed-files`,
+    which reports exactly that — so on an uncommitted tree `make fmt` fails with sixty
+    "owned by jebel-quant/rhiza" errors and the fixture tests a state no real repo is
+    ever in. `/update` commits the sync and opens a PR; these fixtures now do the same.
+
+    ``SKIP=`` waives that one hook rather than ``--no-verify`` waiving all of them:
+    rewriting managed files wholesale is the sync's job, and the hook's own error text
+    names this as the supported bypass. Everything else still runs.
+    """
+    assert_ok(run_cmd(["git", "add", "-A"], repo), "git add (sync)")
+    env = {**os.environ, "SKIP": "check-managed-files"}
+    result = subprocess.run(  # nosec B603 B607
+        ["git", "commit", "-qm", "chore: sync template"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0, f"commit of the sync failed:\n{result.stdout}\n{result.stderr}"
 
 
 def resolve_template_ref() -> str:
@@ -447,10 +485,11 @@ def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     assert_ok(run_cmd(["git", "add", "-A"], repo), "git add")
     assert_ok(run_cmd(["git", "commit", "-qm", "feat: initial"], repo), "git commit")
 
-    # The first sync: what /update runs, and what delivers the Makefile and rhiza.mk.
+    # The first sync: what /update runs, and what delivers the shim Makefile and CI.
     sync = run_cmd([*PY, str(scripts / "sync.py"), "."], repo)
     assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
     assert (repo / ".rhiza" / "template.lock").is_file(), "sync wrote no lock"
+    commit_sync(repo)
     return repo
 
 
@@ -502,6 +541,7 @@ def gitlab_synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
     sync = run_cmd([*PY, str(scripts / "sync.py"), "."], repo)
     assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
+    commit_sync(repo)
     return repo
 
 
@@ -686,6 +726,7 @@ def _build_synced(factory: pytest.TempPathFactory, language: str) -> Path:
     sync = run_cmd([*PY, str(scripts / "sync.py"), "."], repo)
     assert sync.returncode in (0, 1), f"sync failed hard:\n{sync.stdout}\n{sync.stderr}"
     assert (repo / ".rhiza" / "template.lock").is_file(), "sync wrote no lock"
+    commit_sync(repo)
     return repo
 
 

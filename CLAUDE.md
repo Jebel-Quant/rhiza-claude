@@ -188,7 +188,7 @@ random song — those are scripts. Reading a repo and scoring it is prose.
 
 **An underscore prefix means "not an entry point".** A command invokes
 `scripts/<name>.py`; everything a script leans on lives in a `_`-prefixed sibling that no
-command ever names. Four families, plus the sync core:
+command ever names. Five families, plus the sync core:
 
 | Prefix | Owns |
 | --- | --- |
@@ -196,6 +196,7 @@ command ever names. Four families, plus the sync core:
 | `_skeleton_*` | one module per language behind `init_skeleton.py`, which is only the dispatcher and the CLI — each language's gap differs in kind, not degree |
 | `_validate_*` | `validate.py`'s three halves: the `Log` sink, the language structure checks, the `template.yml` field checks |
 | `_doc_examples_*` | `check_doc_examples.py`'s two halves: the doctests under a source root, and the README's fenced blocks. They share only a verdict, so the dispatcher runs each independently — a repo with no source root still gets its README checked |
+| `_make_targets_*` | `check_make_targets.py`'s **delegation** half — is this makefile a shim, what does it pin, what does the pinned `rhiza-task` offer, and what to advise a caller who finds one. Split by concern rather than by size: probing an ordinary `make` target and asking a CLI for its catalogue are different instruments with different failure modes. It never walks the include chain — the caller passes the chain in, so the helper never imports its own orchestrator |
 
 Two consequences worth knowing before you move code. **The size and complexity bars are
 measured, not taste** — no module over 500 lines, no block above cyclomatic C(12), every
@@ -213,8 +214,8 @@ it will report what that exemption covers, and the numbers are not small:
 
 | Tree | Blocks | Average | C-or-worse |
 | --- | --- | --- | --- |
-| `plugin/scripts` | 467 | A (4.01) | **0** |
-| `tests` | 1479 | A (2.84) | **6** |
+| `plugin/scripts` | 473 | A (4.00) | **0** |
+| `tests` | 1495 | A (2.83) | **6** |
 
 **Both rows are `make complexity` output — regenerate them there rather than editing them
 here.** The target prints exactly these four figures per tree, which it did not always do:
@@ -338,14 +339,22 @@ off `main` and open a PR — never push to the default branch.
   the fix is deleting the entry, never the assertion. Note the fixture pairing the test
   rests on — `python_synced_repo` is unseeded, `synced_repo` hand-writes a module and
   would hide it.
-- **The pinned template ref decides which profiles the suite can exercise.**
-  `rust-local` and `go-local` arrived in rhiza **v1.3.0**, so `PINNED_TEMPLATE_REF` names
-  that release or later (**v1.3.2** today) — which is why both syncs run on every PR
-  instead of skipping for want of a released profile. Before bumping it, check
-  the new ref still defines what `/init` writes: `plugin/scripts/check_template_profile.py
-  rust-local go-local github-project gitlab-project --template-repo jebel-quant/rhiza
-  --ref <tag>`. A ref that doesn't now **fails** those fixtures rather than skipping them
-  — see `require_language_profile`.
+- **The pinned template ref decides which profiles the suite can exercise, and which
+  *shape* of repo it tests.** `rust-local` and `go-local` arrived in rhiza **v1.3.0**, so
+  `PINNED_TEMPLATE_REF` names that release or later (**v1.5.2** today) — which is why both
+  syncs run on every PR instead of skipping for want of a released profile. Before bumping
+  it, check the new ref still defines what `/init` writes:
+  `plugin/scripts/check_template_profile.py rust-local go-local github-project
+  gitlab-project --template-repo jebel-quant/rhiza --ref <tag>`. A ref that doesn't now
+  **fails** those fixtures rather than skipping them — see `require_language_profile`.
+
+  **A bump across a template major is not a one-line change, and a pin sitting still is
+  not free.** It stayed at v1.3.2 while upstream reached v1.5.2, so every e2e fixture went
+  on asserting the pre-v1.4 shape — `.rhiza/rhiza.mk`, `.rhiza/make.d/*.mk`, gates as
+  `make` targets — a repo no new user can get. The suite was green about the wrong world,
+  which is the failure a pin exists to prevent wearing the opposite face. When you bump,
+  read the diff for what a synced repo *is* now, not only for whether the profiles
+  resolve.
 - **One template, three languages.** `jebel-quant/rhiza` is the default for python, rust
   and go alike; the language selects the *profile* (`github-project`, `rust-local`,
   `go-local`), never a different repository.
