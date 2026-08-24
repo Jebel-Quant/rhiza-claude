@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.13.0] - 2026-08-24
+
+### New Features
+- Drop test-layout from /quality, fix the rhiza.mk drift, bump the template ref to v1.5.2 (#218)
+
 ## [0.12.0] - 2026-08-22
 
 ### New Features
