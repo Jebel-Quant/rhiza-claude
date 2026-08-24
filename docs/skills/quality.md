@@ -52,7 +52,7 @@ The optional argument scopes the assessment; it defaults to the whole repo.
 ## What it does
 
 1. **Runs the quality gates** (cheapest first) — lint, types, docs, deps, security,
-   template drift, tests, test-layout parity, and the executable-documentation check.
+   template drift, tests, and the executable-documentation check.
    Because the available targets depend
    on the profile in `template.yml` (`typecheck`, `security` and `docs-coverage` come
    from the *tests* bundle), it probes each with `make -n` first; a target that isn't
@@ -105,7 +105,7 @@ The optional argument scopes the assessment; it defaults to the whole repo.
     The numbered gate list above is the **Python** profile — the one this plugin has
     actually run against. On a Rust or Go repo most of those targets are unavailable,
     so `/quality` probes the Makefile with `check_make_targets.py`, scores the targets
-    it **discovers**, and marks language-specific subcategories (test-layout parity
+    it **discovers**, and marks language-specific subcategories (gate 8's docstring half
     above all) out-of-scope rather than measuring them.
 
     That is deliberate — a hand-written table of targets for templates the plugin has

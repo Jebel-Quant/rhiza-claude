@@ -195,9 +195,20 @@ def test_e2e_init_produces_the_pointer_and_nothing_else(synced_repo):
 
 
 def test_e2e_the_sync_delivers_what_init_deliberately_does_not(synced_repo):
-    """/init ships no Makefile or CI — the template does, and this proves it."""
+    """/init ships no Makefile or CI — the template does, and this proves it.
+
+    The `Makefile` is asserted as a **shim**, not merely as present: from template v1.4 it
+    pins `RHIZA_TASK` and forwards unmatched targets to that CLI, and the framework it
+    used to include (`.rhiza/rhiza.mk`) is gone. Checking the pin is what makes this test
+    notice a sync that delivered the file but not the delegation.
+    """
+    import check_make_targets as cmt
+
     assert (synced_repo / "Makefile").is_file(), "sync delivered no Makefile"
-    assert (synced_repo / ".rhiza" / "rhiza.mk").is_file(), "sync delivered no rhiza.mk"
+    assert cmt.pinned_task_runner(synced_repo), "the synced Makefile pins no rhiza-task"
+    assert not (synced_repo / ".rhiza" / "rhiza.mk").exists(), (
+        "template v1.4 retired the make layer; a sync must not deliver rhiza.mk"
+    )
     assert (synced_repo / "ruff.toml").is_file()
     assert list((synced_repo / ".github" / "workflows").glob("*.yml")), "no CI synced"
 
@@ -261,7 +272,7 @@ def test_e2e_gitlab_sync_materialises_gitlab_ci_and_not_github(gitlab_synced_rep
 
 def test_e2e_gitlab_and_github_profiles_share_the_core_api(gitlab_synced_repo, synced_repo):
     """Both profiles include `core`, so the make API must be identical across them."""
-    for path in ("Makefile", ".rhiza/rhiza.mk", "ruff.toml"):
+    for path in ("Makefile", "ruff.toml", ".pre-commit-config.yaml"):
         assert (gitlab_synced_repo / path).is_file(), f"gitlab profile lacks {path}"
         assert (synced_repo / path).is_file(), f"github profile lacks {path}"
 
@@ -309,9 +320,9 @@ def test_e2e_the_rust_sync_delivers_the_rust_toolchain_layer(rust_synced_repo):
     missing = [f for f in lock["files"] if not (rust_synced_repo / f).exists()]
     assert missing == [], f"the lock records files the sync did not deliver: {missing}"
     assert (rust_synced_repo / "Makefile").is_file(), "sync delivered no Makefile"
-    assert (rust_synced_repo / ".rhiza" / "rhiza.mk").is_file(), "sync delivered no rhiza.mk"
-    rust_mk = [f for f in lock["files"] if f.startswith(".rhiza/make.d/") and "rust" in f]
-    assert rust_mk, f"no Rust make include in the synced files: {lock['files']}"
+    # The Rust layer's own file, whatever the make layer's retirement did to the gates.
+    assert "Cargo.toml" in lock["files"] or (rust_synced_repo / "Cargo.toml").is_file()
+    assert any(f.endswith(".toml") or f.endswith(".yml") for f in lock["files"]), lock["files"]
 
 
 def test_e2e_the_rust_profile_ships_no_hosted_ci_and_that_is_deliberate(rust_synced_repo):
@@ -357,10 +368,10 @@ def test_e2e_the_go_sync_delivers_the_go_toolchain_layer(go_synced_repo):
     import _rhiza_yaml
 
     lock = _rhiza_yaml.load_yaml(go_synced_repo / ".rhiza" / "template.lock")
-    go_mk = [f for f in lock["files"] if f.startswith(".rhiza/make.d/") and "go" in f]
-    assert go_mk, f"no Go make include in the synced files: {lock['files']}"
+    # `go-core`'s own marker files, read from the lock rather than listed as a wish.
+    go_own = [f for f in lock["files"] if f.startswith("internal/version/") or "golangci" in f]
+    assert go_own, f"no Go layer files in the synced set: {lock['files']}"
     assert (go_synced_repo / "Makefile").is_file()
-    assert (go_synced_repo / ".rhiza" / "rhiza.mk").is_file()
 
 
 def test_e2e_the_go_profile_ships_no_hosted_ci_and_that_is_deliberate(go_synced_repo):

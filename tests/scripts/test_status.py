@@ -279,7 +279,7 @@ def test_e2e_status_files_lists_what_the_template_delivered(synced_repo, capsys)
     out = capsys.readouterr().out
     assert rc == 0
     assert "files managed by Rhiza" in out
-    assert "rhiza.mk" in out
+    assert "Makefile" in out
 
 
 def test_e2e_the_config_half_validates(synced_repo, plugin_scripts: Path):

@@ -318,9 +318,16 @@ def test_e2e_every_gate_quality_names_is_provided_by_the_template(synced_repo, q
     from the real template — so a gate the template stops providing, or one added to the
     prose that it never provided, fails in CI instead of in front of a user.
     """
+    gates = cmt.gate_targets(quality_md)
     result = cmt.probe(synced_repo, quality_md)
     assert result["unavailable"] == [], f"the template does not provide: {result['unavailable']}"
-    assert result["available"] == cmt.gate_targets(quality_md)
+    # From template v1.4 the shim's `%:` rule answers every name, so `make -n` cannot tell
+    # a gate from a typo and the probe says so rather than guessing. Asserting
+    # `available` here is what would make this test vacuous.
+    assert result["undetermined"] == gates, result["notes"]
+    # The answer moved to the runner, so that is where it is now checked.
+    missing = sorted(set(gates) - _runner_tasks(synced_repo))
+    assert missing == [], f"the pinned runner does not provide: {missing}"
 
 
 # `make test` is executed by tests/test_init_scaffold.py, which owns the coverage-gate
@@ -697,163 +704,154 @@ def test_pinned_task_runner_is_none_without_a_makefile(tmp_path):
     assert cmt.pinned_task_runner(tmp_path) is None
 
 
-def test_a_shim_still_discovers_its_repo_owned_targets(shim_repo, quality_md):
-    """Discovery is unaffected: the `##` convention still reads, so `e2e` comes back.
-
-    Which is the whole reason the probe stays useful here — `undeclared` is the only
-    list in the summary that a shim repo can still be scored on.
-    """
-    assert "e2e" in cmt.probe(shim_repo, quality_md)["undeclared"]
-
-
-def test_an_ordinary_makefile_does_not_resolve_everything(managed_synced_repo):
-    assert not cmt.resolves_everything(managed_synced_repo)
-
-
-def test_a_shim_resolves_a_target_that_cannot_exist(shim_repo):
-    assert cmt.resolves_everything(shim_repo)
-
-
-def test_the_default_goal_variable_is_not_a_catch_all(tmp_path):
-    """`.DEFAULT_GOAL := help` opens this repo's own Makefile — the near miss to avoid."""
-    (tmp_path / "Makefile").write_text(
-        ".DEFAULT_GOAL := help\nhelp: ; @echo help\n%.o: %.c ; @echo compile\n", encoding="utf-8"
-    )
-    assert cmt.catch_all_source(tmp_path) is None
-
-
-def test_a_default_rule_counts_as_a_catch_all(tmp_path):
-    """`.DEFAULT:` is make's other way of answering for anything undefined."""
-    (tmp_path / "Makefile").write_text(".DEFAULT:\n\t@echo $@\n", encoding="utf-8")
-    assert cmt.catch_all_source(tmp_path).name == "Makefile"
-
-
-def test_a_catch_all_is_found_in_an_included_file(tmp_path):
-    """A shim that was itself synced puts the rule one include away."""
-    (tmp_path / "Makefile").write_text("include shim.mk\n", encoding="utf-8")
-    (tmp_path / "shim.mk").write_text("%: ; @echo $@\n", encoding="utf-8")
-    assert cmt.catch_all_source(tmp_path).name == "shim.mk"
-
-
-def test_an_unnamed_catch_all_is_still_reported(tmp_path, quality_md):
-    """make follows an include this parser deliberately won't, and detection survives.
-
-    `include $(EXTRA)` is skipped by `makefile_chain` — resolving make variables is
-    guesswork it refuses — so the regex finds nothing while make answers everything.
-    Detection is behavioural for exactly this case: the notes lose the filename, not
-    the finding.
-    """
-    (tmp_path / "Makefile").write_text("EXTRA = extra.mk\ninclude $(EXTRA)\n", encoding="utf-8")
-    (tmp_path / "extra.mk").write_text("%: ; @echo $@\n", encoding="utf-8")
-    assert cmt.catch_all_source(tmp_path) is None
-    summary = cmt.probe(tmp_path, quality_md)
-    assert summary["undetermined"] == cmt.gate_targets(quality_md)
-    assert any(
-        note.startswith("this makefile resolves *every* target (a catch-all rule)")
-        for note in summary["notes"]
-    )
-
-
-def test_main_marks_a_shim_undetermined(shim_repo, capsys, quality_md):
-    cmt.main(["--target-dir", str(shim_repo), "--from", str(quality_md)])
-    assert "undetermined make deps" in capsys.readouterr().out
-
-
-def test_main_require_fails_when_nothing_could_be_confirmed(shim_repo, quality_md):
-    """`--require` asks whether every gate is there; "cannot tell" is not a yes."""
-    assert (
-        cmt.main(["--target-dir", str(shim_repo), "--from", str(quality_md), "--require"])
-        == cmt.EXIT_UNAVAILABLE
-    )
-
-
-# --- end-to-end: discovery against a synced Rust repo -------------------------
+# --- the seam to the task runner --------------------------------------------------
 #
-# The first genuine test of the decision #94 made — discover the targets, never table
-# them. Everything asserted here is read out of the repo the sync produced; nothing is
-# named as a Rust expectation.
+# `_make_targets_runner` owns the pin pattern, the table parse and the subprocess, and
+# `test__make_targets_runner.py` tests them. What is this module's is the *seam*: that the
+# chain walk feeds the pin reader, that the pin and the repo reach the runner, and that
+# `--tasks` reports both outcomes.
 
 
-def _rust_make_targets(repo: Path) -> set[str]:
-    """Return the documented targets the synced Rust make include really defines."""
-    includes = [p for p in (repo / ".rhiza" / "make.d").glob("*.mk") if "rust" in p.name]
-    assert includes, "no Rust make include in the synced repo"
-    documented = re.compile(r"^([a-z][a-z0-9_-]*)::?.*?##\s*(.+)$", re.MULTILINE)
-    return {m[0] for p in includes for m in documented.findall(p.read_text(encoding="utf-8"))}
+def test_runner_tasks_hands_the_chains_pin_and_the_repo_to_the_runner(tmp_path, monkeypatch):
+    """The wrapper's whole job, asserted as the two arguments it composes.
 
-
-def test_e2e_the_rust_templates_own_targets_are_all_discovered(rust_synced_repo):
-    """Discovery must find what `rust-core` ships — whatever that turns out to be.
-
-    Read from `.rhiza/make.d/rust.mk` rather than listed here on purpose: the template
-    owns its gate names, and a list in this file would fail on the day upstream renames
-    one, reporting a plugin bug where there is a template change.
+    The pin has to come from the *chain* rather than the root file, and the repo has to be
+    passed through — a bare `uvx rhiza-task list` answers for the current release and the
+    wrong language layer. Both were separately wrong at some point in the make layer's
+    retirement, so both are named here.
     """
-    discovered = cmt.documented_targets(rust_synced_repo)
-    missing = sorted(_rust_make_targets(rust_synced_repo) - set(discovered))
-    assert missing == [], f"the Rust layer defines targets discovery missed: {missing}"
+    (tmp_path / "Makefile").write_text("-include local.mk\n%: ; @uvx $@\n", encoding="utf-8")
+    (tmp_path / "local.mk").write_text("RHIZA_TASK ?= rhiza-task@9.9.9\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def fake_tasks(pin, cwd):
+        seen["pin"], seen["cwd"] = pin, cwd
+        return ["fmt", "test"]
+
+    monkeypatch.setattr(cmt._runner, "tasks", fake_tasks)
+    assert cmt.runner_tasks(tmp_path) == ["fmt", "test"]
+    assert seen == {"pin": "rhiza-task@9.9.9", "cwd": tmp_path}
 
 
-def test_e2e_the_rust_gates_resolve_for_make(rust_synced_repo):
-    """Discovered is not the same as runnable — `make -n` has to resolve them too."""
-    for target in sorted(_rust_make_targets(rust_synced_repo)):
-        assert cmt.target_exists(rust_synced_repo, target), f"make cannot resolve {target}"
+def test_runner_tasks_is_none_when_the_repo_does_not_delegate(tmp_path):
+    """No pin, no runner to ask — and that is not the same as having no gates."""
+    (tmp_path / "Makefile").write_text("test: ; @pytest\n", encoding="utf-8")
+    assert cmt.runner_tasks(tmp_path) is None
 
 
-def test_e2e_a_rust_repo_is_never_reported_as_having_nothing_to_check(rust_synced_repo, quality_md):
-    """The failure `/quality`'s probe exists to prevent, on the language it was added for.
+def test_delegating_notes_reads_the_catch_all_file_and_the_pin_off_disk(tmp_path):
+    """The two facts this module contributes to the runner's wording.
 
-    Before discovery followed the include chain this repo reported six available gates and
-    *zero* discovered ones, so `license` and `coverage` were invisible: /quality would
-    score their concerns out-of-scope and never learn the analogues were sitting there.
+    The note names the file the catch-all is in, which only a makefile read can supply, so
+    a shim whose delegation moved into an include still gets named correctly.
     """
-    summary = cmt.probe(rust_synced_repo, quality_md)
-    assert summary["undeclared"], "a synced Rust repo documents targets beyond the prose's list"
-    assert summary["available"], summary["notes"]
+    (tmp_path / "Makefile").write_text(
+        "RHIZA_TASK ?= rhiza-task@1.1.0\n%: ; @uvx $@\n", encoding="utf-8"
+    )
+    notes = cmt._delegating_notes(tmp_path, ["fmt", "test"])
+    assert "a catch-all rule in Makefile" in notes[0]
+    assert "uvx rhiza-task@1.1.0 list" in notes[1]
+
+
+def test_main_tasks_prints_one_task_per_line(tmp_path, monkeypatch, capsys):
+    """`--tasks` is the supported way to get the list without parsing the runner."""
+    monkeypatch.setattr(cmt, "runner_tasks", lambda _d: ["fmt", "test"])
+    assert cmt.main(["--target-dir", str(tmp_path), "--tasks"]) == cmt.EXIT_OK
+    assert capsys.readouterr().out.split() == ["fmt", "test"]
+
+
+def test_main_tasks_says_so_when_it_cannot_enumerate(tmp_path, monkeypatch, capsys):
+    """Exit 1 with a reason, rather than printing nothing and exiting 0.
+
+    Silence at exit 0 reads as "this repo has no tasks", which is the misreading the None
+    return exists to prevent — so the CLI must not launder it into an empty list.
+    """
+    monkeypatch.setattr(cmt, "runner_tasks", lambda _d: None)
+    assert cmt.main(["--target-dir", str(tmp_path), "--tasks"]) == cmt.EXIT_UNAVAILABLE
+    assert "could not enumerate tasks" in capsys.readouterr().err
+
+
+# --- end-to-end: gate discovery on a synced Rust and Go repo -------------------
+#
+# The decision #94 made was: discover the gates, never table them. That still holds, but
+# *where* they are discovered moved. Through template v1.3 each language shipped a
+# `.rhiza/make.d/<lang>.mk` and these tests read the names out of it. v1.4 retired the
+# make layer, so there is no include to read and — because the shim answers every target
+# — nothing make can be asked either. The catalogue is the pinned `rhiza-task`'s, and
+# `cmt.runner_tasks` is how it is read. Nothing below names a gate as a language
+# expectation; every name is either read from the runner or read from `/quality`'s prose.
+
+
+def _runner_tasks(repo: Path) -> set[str]:
+    """The task names the repo's own pinned runner provides.
+
+    Asserted non-empty rather than returned raw: an empty set would let every membership
+    check below pass trivially, which is the shape of the bug these tests exist to catch.
+    """
+    tasks = cmt.runner_tasks(repo)
+    assert tasks, f"could not enumerate the pinned runner's tasks in {repo}"
+    return set(tasks)
+
+
+@pytest.mark.parametrize("fixture", ["rust_synced_repo", "go_synced_repo"])
+def test_e2e_a_non_python_repo_is_never_reported_as_having_nothing_to_check(
+    fixture, request, quality_md
+):
+    """The failure `/quality`'s probe exists to prevent, on the languages it was added for.
+
+    Before discovery followed the include chain, a synced Rust repo reported zero
+    discoverable gates and `/quality` scored their concerns out-of-scope while the
+    analogues sat there. The include chain is gone; the guarantee is not, so it is now
+    measured against the runner.
+    """
+    repo = request.getfixturevalue(fixture)
+    summary = cmt.probe(repo, quality_md)
     assert summary["exit_code"] == cmt.EXIT_OK, summary["notes"]
+    assert summary["unavailable"] == [], summary["notes"]
+    assert summary["undetermined"] == cmt.gate_targets(quality_md), summary["notes"]
+    assert cmt.pinned_task_runner(repo), "a synced repo carries no rhiza-task pin"
+    assert _runner_tasks(repo), "the runner enumerates no tasks at all"
 
 
-def test_e2e_the_rust_repo_reuses_the_shared_gate_names(rust_synced_repo, quality_md):
+@pytest.mark.parametrize("fixture", ["rust_synced_repo", "go_synced_repo"])
+def test_e2e_every_gate_the_prose_names_is_provided_in_every_language(fixture, request, quality_md):
+    """`/quality`'s gate list is language-neutral, and now that is true rather than hoped.
+
+    Under the make layer most of the seven were simply absent outside Python, which is why
+    the prose carries a whole section on scoring an unavailable gate out-of-scope. The
+    runner ships them in every layer, so a language that stops providing one is a real
+    regression in `/quality`'s reach and fails here.
+    """
+    repo = request.getfixturevalue(fixture)
+    missing = sorted(set(cmt.gate_targets(quality_md)) - _runner_tasks(repo))
+    assert missing == [], f"{fixture} does not provide: {missing}"
+
+
+@pytest.mark.parametrize("fixture", ["rust_synced_repo", "go_synced_repo"])
+def test_e2e_the_language_layers_reuse_the_shared_gate_names(fixture, request):
     """A language layer owns `install`/`all`/`test` so the rest of the template needn't.
 
     Worth asserting because it is what lets `/quality`'s prose stay language-neutral: if
-    a Rust repo stopped defining `test`, the shared gate list would silently measure less.
+    a layer stopped defining `test`, the shared gate list would silently measure less.
     """
-    summary = cmt.probe(rust_synced_repo, quality_md)
-    assert "test" in summary["available"]
-    assert {"install", "all"} <= set(summary["undeclared"] + summary["available"])
+    shared = {"install", "all", "test"}
+    repo = request.getfixturevalue(fixture)
+    assert shared <= _runner_tasks(repo), sorted(shared - _runner_tasks(repo))
 
 
-# --- end-to-end: discovery against a synced Go repo ---------------------------
+def test_e2e_each_language_layer_contributes_something_of_its_own(rust_synced_repo, go_synced_repo):
+    """The layers are not one catalogue wearing three hats.
 
-
-def _go_make_targets(repo: Path) -> set[str]:
-    """Return the documented targets the synced Go make include really defines."""
-    includes = [p for p in (repo / ".rhiza" / "make.d").glob("*.mk") if "go" in p.name]
-    assert includes, "no Go make include in the synced repo"
-    documented = re.compile(r"^([a-z][a-z0-9_-]*)::?.*?##\s*(.+)$", re.MULTILINE)
-    return {m[0] for p in includes for m in documented.findall(p.read_text(encoding="utf-8"))}
-
-
-def test_e2e_the_go_templates_own_targets_are_all_discovered(go_synced_repo):
-    """Read from `.rhiza/make.d/go.mk`, not listed here: the template owns its gate names."""
-    discovered = cmt.documented_targets(go_synced_repo)
-    missing = sorted(_go_make_targets(go_synced_repo) - set(discovered))
-    assert missing == [], f"the Go layer defines targets discovery missed: {missing}"
-
-
-def test_e2e_the_go_gates_resolve_for_make(go_synced_repo):
-    for target in sorted(_go_make_targets(go_synced_repo)):
-        assert cmt.target_exists(go_synced_repo, target), f"make cannot resolve {target}"
-
-
-def test_e2e_a_go_repo_is_never_reported_as_having_nothing_to_check(go_synced_repo, quality_md):
-    """The same guarantee as for Rust, on the language the discovery hint names."""
-    summary = cmt.probe(go_synced_repo, quality_md)
-    assert summary["undeclared"], "a synced Go repo documents targets beyond the prose's list"
-    assert summary["available"], summary["notes"]
-    assert "deps" in summary["available"], "`deps` is the dependency gate in every layer"
-    assert summary["exit_code"] == cmt.EXIT_OK
+    Deliberately stated as a *difference* rather than by naming the Rust and Go tasks:
+    naming them would be the tabling #94 rejected, and would fail the day upstream renames
+    one. That the two sets differ at all is what proves a language layer is being
+    resolved, which is the property `/quality` depends on when it says the gates are the
+    repo's own.
+    """
+    rust, go = _runner_tasks(rust_synced_repo), _runner_tasks(go_synced_repo)
+    assert rust != go, "the Rust and Go layers resolve to an identical task set"
+    assert rust - go, "the Rust layer contributes no task the Go layer lacks"
+    assert go - rust, "the Go layer contributes no task the Rust layer lacks"
 
 
 # --- end-to-end: a `test` gate that resolves but measures nothing --------------

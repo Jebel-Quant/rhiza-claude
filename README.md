@@ -18,8 +18,8 @@ drifts. [**rhiza**](https://github.com/jebel-quant/rhiza) is that scaffolding ke
 in a **template repository**. **rhiza-claude** is how a repo adopts it: sync from a
 pinned template release, then get scored on the result.
 
-**Two repos, one boundary.** The template owns CI, the `Makefile`, `.rhiza/rhiza.mk` and
-the docs base; your repo owns source, tests, `pyproject.toml` and README prose. A sync
+**Two repos, one boundary.** The template owns CI, the `Makefile` and the docs base;
+your repo owns source, tests, `pyproject.toml` and README prose. A sync
 writes **only template-owned paths** — the ones the last sync recorded — so your code
 can't be swept in. There is no blanket `git add --all` in the flow.
 
@@ -143,7 +143,7 @@ the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI requi
   unsatisfiable pointer merges cleanly and then fails the *first* `/rhiza:update` — and
   opens a PR on a `rhiza_init_<date>` branch — never pushing to the
   default branch (a brand-new repo's base branch is created by you). It runs **no
-  sync and no gates**: the template content (CI, `Makefile`, `rhiza.mk`, docs base)
+  sync and no gates**: the template content (CI, `Makefile`, docs base)
   arrives when you run `/rhiza:update` after the PR merges — a second PR.
 - **`/rhiza:update`** — sync the repo to the latest (or a given) template release:
   bump the `ref` in `.rhiza/template.yml`, run the bundled sync, resolve conflicts by

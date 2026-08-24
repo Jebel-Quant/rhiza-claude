@@ -21,7 +21,7 @@ and it runs no gates, tests, or sync:
 | skeleton + the `pyproject.toml` shape the gates need | [skeleton](../internals/skeleton.md) *(internal)* |
 | `requires-python` + classifiers | [python-version](../internals/python-version.md) *(internal)* |
 | SPDX metadata + the `LICENSE` file | [license](../internals/license.md) *(internal)* |
-| template content (CI, `.rhiza/rhiza.mk`, `Makefile`, docs base) | [`/rhiza:update`](update.md)'s sync |
+| template content (CI, `Makefile`, docs base) | [`/rhiza:update`](update.md)'s sync |
 | first real module + test | you |
 | `README.md`, `CLAUDE.md`, `mkdocs.yml` | [`/rhiza:docs`](docs.md) |
 

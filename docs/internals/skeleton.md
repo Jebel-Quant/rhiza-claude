@@ -10,7 +10,7 @@ finish it into the shape the template's gates require.
 ## Why it exists
 
 **The rhiza template never ships a `pyproject.toml`.** The sync delivers the
-`Makefile`, `.rhiza/rhiza.mk`, `ruff.toml`, `pytest.ini`, `.python-version` and CI —
+`Makefile`, `ruff.toml`, `pytest.ini`, `.python-version` and CI —
 but the project metadata is always the repo's own. So without one,
 [`/rhiza:update`](../skills/update.md)'s gates can't run at all: `make test` depends on
 `install` (a `uv sync`), and the synced `.rhiza/tests/test_pyproject.py` asserts a

@@ -13,10 +13,9 @@ Two things make that hard to catch by hand, and this script addresses both:
 * **The target list is derived from the command's prose**, not duplicated here. It is
   parsed out of the numbered gate list in `skills/quality/SKILL.md`, so the probe and the
   command cannot drift — add a `make` gate to the prose and it gets probed automatically.
-  The gate list is longer than the target list: the entries backed by a bundled checker
-  rather than a `make` target (test-layout parity, the example checker) are shipped with
-  the plugin and resolve without a sync, so there is nothing to probe and the regex passes
-  over them.
+  The gate list is longer than the target list: the one entry backed by a bundled
+  checker rather than a `make` target (the example checker) is shipped with the plugin and
+  resolves without a sync, so there is nothing to probe and the regex passes over it.
 * **Availability varies by profile.** `typecheck`, `security` and `docs-coverage` come
   from the template's *tests* bundle and `fmt`/`deps` from *core*, so a repo on a
   reduced profile legitimately lacks some. An absent target is reported as
@@ -26,10 +25,10 @@ Two things make that hard to catch by hand, and this script addresses both:
   unknown target, so `make -n <anything>` exits 0. That turned this script's one
   instrument into a tautology and produced the *inverse* of the bug above: every gate
   reported available, the retired `deptry` alias included, on a repo whose task is
-  called `deps` — so
-  `/quality` ran a gate that does not exist and scored the runner's "unknown task"
-  error as a FAIL. Such a repo's gates are reported **undetermined**, which is neither
-  available nor a failure, with the notes saying how to resolve them.
+  called `deps`, so `/quality` ran a gate that does not exist and scored the runner's
+  "unknown task" error as a FAIL. Such a repo's gates are reported **undetermined** —
+  neither available nor a failure — and `_make_targets_runner` is what answers them,
+  reachable here as `runner_tasks` and on the CLI as `--tasks`.
 
 It also **discovers** what the repo documents beyond that list. The prose names the
 Python profile's gates; a Go or Rust repo synced from a sibling template has different
@@ -43,7 +42,7 @@ Probing uses `make -n`, which resolves the target without running any recipe.
 Usage:
   uv run --python 3.12 --no-project python \
       scripts/check_make_targets.py [--target-dir DIR] [--from FILE] \
-      [--require] [--json]
+      [--require] [--json] [--tasks]
 
 Exit codes:
   0  probed successfully (targets may be unavailable or undetermined — neither is an error)
@@ -65,6 +64,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import _make_targets_runner as _runner
+
 # The numbered gate list in skills/quality/SKILL.md: "1. `make fmt` — …".
 _GATE = re.compile(r"^\s*\d+\.\s+`make ([a-z][a-z0-9-]*)`", re.MULTILINE)
 _MAKEFILES = ("Makefile", "makefile", "GNUmakefile")
@@ -78,18 +79,8 @@ _INCLUDE = re.compile(r"^\s*-?include\s+(.+?)\s*$", re.MULTILINE)
 # How deep to follow includes. Makefile -> .rhiza/rhiza.mk -> .rhiza/make.d/*.mk is two,
 # so three leaves room without risking a pathological chain.
 _INCLUDE_DEPTH = 3
-# A catch-all rule: `%:` (the shim's delegation to its task runner) or `.DEFAULT:`. Both
-# require the colon to follow the name immediately, which is what keeps `%.o: %.c` — an
-# ordinary pattern rule — and `.DEFAULT_GOAL := help` out. Used only to *name* the file
-# in the notes; whether probing works at all is decided by asking make (see
-# :func:`resolves_everything`).
-_CATCH_ALL = re.compile(r"^(?:%|\.DEFAULT)[ \t]*::?[^=]", re.MULTILINE)
 # A target no repository would define, used to ask make whether it answers anything.
 _SENTINEL_TARGET = "rhiza-probe-no-such-target"
-# The task runner a v1.4 shim pins: `RHIZA_TASK ?= rhiza-task@1.1.0`. The pin is the
-# whole point of reading it — `uvx rhiza-task list` answers for whatever release is
-# current, which is not necessarily the one this repo's gates run under.
-_TASK_RUNNER_PIN = re.compile(r"^RHIZA_TASK\s*\??=\s*(\S+)", re.MULTILINE)
 # The one artefact every sync writes, at every template version. `.rhiza/rhiza.mk` used
 # to stand in for it and stopped being written at template v1.4, so it now answers "was
 # this repo ever synced?" wrongly for every repo on the current template.
@@ -123,14 +114,20 @@ def find_makefile(target_dir: Path) -> Path | None:
 def makefile_chain(target_dir: Path, *, depth: int = _INCLUDE_DEPTH) -> list[Path]:
     """Return the repo's makefile plus the files it ``include``s, in reading order.
 
-    **Reading only the root makefile finds nothing on a real repo.** A rhiza-synced
-    repo's `Makefile` is a stub — a few variables and `include .rhiza/rhiza.mk` — which
-    in turn ends with `-include .rhiza/make.d/*.mk`, and *that* is where every gate
-    lives. Probing was unaffected (``make -n`` follows includes itself), but discovery
-    read one file where make reads a dozen, so a synced Rust repo reported zero
-    discovered targets while `.rhiza/make.d/rust.mk` was sitting there defining `deps`,
-    `license` and `coverage`. The mechanism that exists to stop `/quality` reporting
-    "nothing could be checked" was doing exactly that.
+    **Reading only the root makefile finds nothing on a pre-v1.4 repo.** Up to template
+    v1.3 a synced repo's `Makefile` was a stub — a few variables and
+    `include .rhiza/rhiza.mk` — which in turn ended with `-include .rhiza/make.d/*.mk`,
+    and *that* is where every gate lived. Probing was unaffected (``make -n`` follows
+    includes itself), but discovery read one file where make reads a dozen, so a synced
+    Rust repo reported zero discovered targets while `.rhiza/make.d/rust.mk` was sitting
+    there defining `deps`, `license` and `coverage`. The mechanism that exists to stop
+    `/quality` reporting "nothing could be checked" was doing exactly that.
+
+    Template v1.4 retired that layer: neither file is shipped any more, the gates are
+    `rhiza-task` tasks, and the `Makefile` is a shim that forwards to the pinned CLI.
+    Following includes is kept because a repo may pin any ref, so both shapes are live —
+    and on a current one the chain is simply the root makefile plus whatever `local.mk`
+    the repo added itself.
 
     Globs are expanded and each file is visited once. An operand containing `$` is
     skipped: it is a make variable this parser cannot resolve, and guessing is worse
@@ -205,52 +202,23 @@ def target_exists(target_dir: Path, target: str) -> bool:
     return result.returncode == 0
 
 
-def catch_all_source(target_dir: Path) -> Path | None:
-    """Return the makefile in the chain that defines a catch-all rule, or None.
-
-    Explanatory only — it names a file for the notes. The question of whether probing
-    can be trusted is :func:`resolves_everything`'s.
-
-    >>> import tempfile, pathlib
-    >>> d = pathlib.Path(tempfile.mkdtemp())
-    >>> _ = (d / "Makefile").write_text(".DEFAULT_GOAL := help")
-    >>> catch_all_source(d) is None
-    True
-    >>> _ = (d / "Makefile").write_text("%: ; @uvx rhiza-task $@")
-    >>> catch_all_source(d).name
-    'Makefile'
-    """
-    return next(
-        (
-            makefile
-            for makefile in makefile_chain(target_dir)
-            if _CATCH_ALL.search(makefile.read_text(encoding="utf-8", errors="ignore"))
-        ),
-        None,
-    )
-
-
 def pinned_task_runner(target_dir: Path) -> str | None:
-    """Return the `rhiza-task` pin the makefile chain carries, or None.
+    """Return the `rhiza-task` pin *target_dir*'s makefile chain carries, or None.
 
-    A v1.4 shim is a delegation to a *pinned* CLI, and that pin is the only thing on
-    disk that says which task catalogue this repo's gates actually come from. Reading it
-    is what turns "ask the runner" into a command a caller can run verbatim.
-
-    >>> import tempfile, pathlib
-    >>> d = pathlib.Path(tempfile.mkdtemp())
-    >>> _ = (d / "Makefile").write_text("RHIZA_TASK ?= rhiza-task@1.1.0\\n%: ; @uvx $@")
-    >>> pinned_task_runner(d)
-    'rhiza-task@1.1.0'
-    >>> _ = (d / "Makefile").write_text("test: ; @pytest")
-    >>> pinned_task_runner(d) is None
-    True
+    The chain walk is this module's; the pattern and its examples are
+    `_make_targets_runner.pin_from`'s. This is the seam between them.
     """
-    for makefile in makefile_chain(target_dir):
-        found = _TASK_RUNNER_PIN.search(makefile.read_text(encoding="utf-8", errors="ignore"))
-        if found:
-            return found.group(1)
-    return None
+    return _runner.pin_from(makefile_chain(target_dir))
+
+
+def runner_tasks(target_dir: Path) -> list[str] | None:
+    """Return the task names *target_dir*'s pinned `rhiza-task` provides, or None.
+
+    The v1.4+ answer to "what gates does this repo have?", where
+    :func:`documented_targets` was the v1.3 one. `_make_targets_runner.tasks` owns the
+    behaviour, including why None is not an empty list.
+    """
+    return _runner.tasks(pinned_task_runner(target_dir), target_dir)
 
 
 def resolves_everything(target_dir: Path) -> bool:
@@ -268,22 +236,17 @@ def resolves_everything(target_dir: Path) -> bool:
 
 
 def _delegating_notes(target_dir: Path, targets: list[str]) -> list[str]:
-    """Guidance for a repo whose makefile answers every target."""
-    source = catch_all_source(target_dir)
-    where = f"a catch-all rule in {source.name}" if source else "a catch-all rule"
-    pin = pinned_task_runner(target_dir)
-    runner = pin if pin else "rhiza-task"
-    return [
-        f"this makefile resolves *every* target ({where}), so `make -n` cannot tell a "
-        f"real gate from a typo — all {len(targets)} named gate(s) are reported "
-        "undetermined rather than available, which is what they are.",
-        f"enumerate the repo's real tasks with `uvx {runner} list`, which is the "
-        + ("pin this makefile carries" if pin else "runner a shim delegates to")
-        + " and the authority on what exists; `make help` shows the same catalogue plus "
-        "any `local.mk` targets. Match each named gate to a task before running it.",
-        "a gate that fails with an unknown-task error was never provided: score it "
-        "out-of-scope, never FAIL.",
-    ]
+    """Guidance for a repo whose makefile answers every target.
+
+    Reads the two facts the notes need out of the chain and hands them to
+    `_make_targets_runner.delegating_notes`, which owns the wording.
+    """
+    source = _runner.catch_all_source(makefile_chain(target_dir))
+    return _runner.delegating_notes(
+        len(targets),
+        f"a catch-all rule in {source.name}" if source else "a catch-all rule",
+        pinned_task_runner(target_dir),
+    )
 
 
 def _probe_notes(available: list[str], unavailable: list[str], undeclared: list[str]) -> list[str]:
@@ -450,6 +413,25 @@ def _state(target: str, summary: dict[str, Any]) -> str:
     return "available" if target in summary["available"] else "unavailable"
 
 
+def _report_tasks(target_dir: Path) -> int:
+    """Print the pinned runner's tasks one per line; the body of `--tasks`.
+
+    Exits 1 with a reason rather than printing nothing and exiting 0. Silence at 0 reads
+    as "this repo has no tasks", which is the misreading `runner_tasks`' None return
+    exists to prevent — so the CLI must not launder it into an empty list.
+    """
+    found = runner_tasks(target_dir)
+    if found is None:
+        print(
+            "could not enumerate tasks: no rhiza-task pin, no uvx, or the runner failed",
+            file=sys.stderr,
+        )
+        return EXIT_UNAVAILABLE
+    for task in found:
+        print(task)
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point: probe the gate targets and return an exit code."""
     parser = argparse.ArgumentParser(
@@ -470,7 +452,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--json", dest="json_output", action="store_true", help="Emit the summary as JSON."
     )
+    parser.add_argument(
+        "--tasks",
+        action="store_true",
+        help="List the tasks the repo's pinned rhiza-task provides, one per line, and exit.",
+    )
     args = parser.parse_args(argv)
+
+    # Answered before the probe, and instead of it: on a shim repo the probe can only say
+    # "undetermined", and this is the question a caller asks next.
+    if args.tasks:
+        return _report_tasks(Path(args.target_dir).resolve())
 
     command_file = (
         Path(args.command_file)

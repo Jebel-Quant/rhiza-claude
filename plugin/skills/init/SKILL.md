@@ -194,7 +194,7 @@ The repo slug and URL, platform + profile, language, template repo + pinned ref,
 branch, and the **PR URL** (or compare URL). Then one line each for what the
 procedures did: the pointer file, what `/skeleton` created or filled in plus the
 Python version applied, and which license was written. State what is **not** in this
-PR: no CI, no `Makefile`, no `.rhiza/rhiza.mk`, no docs, no gates run.
+PR: no CI, no `Makefile`, no docs, no gates run.
 
 Next steps: **review + merge**, then **run `/update`** (syncs the template, opens
 PR #2); add your first module — the package is empty by design; `/docs` for

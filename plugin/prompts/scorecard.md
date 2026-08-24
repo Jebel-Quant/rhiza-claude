@@ -66,11 +66,12 @@ from degraded mode, all of them corrections:
   not merely redundant; omit it. Template fidelity is still not-applicable, for the
   same reason as degraded mode.
 
-**And a check that doesn't apply to the language is out-of-scope too.** Test-layout
-parity is the clearest case: `check_test_layout.py` is built on Python module and class
-naming, so it says nothing about a Go or Rust repo. `language_profile.py` reports
-`test_layout_applies` for exactly this reason. Scoring a Rust crate down for failing a
-Python convention is the same mistake as scoring a managed repo down for its template.
+**And a check that doesn't apply to the language is out-of-scope too.** Gate 8 splits
+along exactly that line: its README half parses fences in whatever language they claim
+and runs anywhere, while its docstring half is built on Python's `>>>` convention and
+says nothing about a Go or Rust repo. Score the half that ran and mark the other
+out-of-scope. Scoring a Rust crate down for failing a Python convention is the same
+mistake as scoring a managed repo down for its template.
 
 ## 2. Subcategories
 
@@ -79,7 +80,7 @@ evidence. Add the others that fit what you actually observed.
 
 - **Gate-derived:** linting/style, type safety, docstring/API-doc coverage, test pass
   rate, test coverage & depth, dependency & security hygiene, template fidelity
-  (`make validate` drift), **executable documentation** (`/quality`'s gate 9).
+  (`make validate` drift), **executable documentation** (`/quality`'s gate 8).
 - **Design (always both):** *code complexity* — average CC, the worst C-or-worse
   blocks, maintainability index, size of the largest functions/modules; *overall
   architecture* — layering & dependency direction, coupling/cohesion, module
@@ -97,7 +98,7 @@ evidence. Add the others that fit what you actually observed.
   - *user-facing documentation* — README and usage, not just docstrings.
 
 **Executable documentation is scored apart from docstring coverage, and the two must not
-be merged.** `interrogate` measures whether a docstring *exists*; gate 9 measures whether
+be merged.** `interrogate` measures whether a docstring *exists*; gate 8 measures whether
 what it *claims* is still true — a distinction a repo can fail in only one direction, and
 usually does. Three results, three different marks:
 
