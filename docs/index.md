@@ -133,6 +133,10 @@ are used and are near-universal. The plugin's own scripts are **stdlib-only Pyth
 there is no `rhiza` CLI to install, which is the most common point of confusion about
 what this needs.
 
+It also means the deterministic half runs without any of the rest: if you want the
+sync, the status read or the bootstrap from a shell script or a CI job with no LLM in
+the loop, see **[Without Claude Code](headless.md)**.
+
 ## Language support
 
 `/rhiza:init` offers Python, Go and Rust, and all three point at the same

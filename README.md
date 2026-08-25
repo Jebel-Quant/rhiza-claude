@@ -128,6 +128,14 @@ You don't have to do this ahead of time, though: both `/rhiza:init` and
 approval) on any platform. `git` and `make` are also used but are near-universal, and
 the plugin's own bundled scripts are stdlib-only Python — no `rhiza` CLI required.
 
+That last point cuts further than it looks: **the deterministic half runs without Claude
+Code at all.** Every command's scripted work — the template sync, the status read, the
+bootstrap, detaching — is a stdlib-only script with its own CLI, so it can be driven from
+a shell script or a CI job with no LLM in the loop. What you give up is the judgement the
+markdown supplies; what you get is the same code path the commands drive.
+[Without Claude Code](https://jebel-quant.github.io/rhiza-claude/headless/) is the map —
+the command-to-script table, the sync step by step, and every exit code it can hand you.
+
 ## Commands
 
 - **`/rhiza:init`** — make the current folder rhiza-managed. It writes **one file**

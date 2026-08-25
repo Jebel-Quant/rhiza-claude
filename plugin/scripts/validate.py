@@ -74,7 +74,7 @@ def _check_template_file_exists(
         log.error(f"No template file found at: {display}")
         log.error("The template configuration must be in the .rhiza folder.")
         log.info("To fix this:")
-        log.info("  • If you're starting fresh, run: /rhiza:init")
+        log.info("  • If you're starting fresh, run /rhiza:init — or init_scaffold.py directly")
         log.info("  • It writes .rhiza/template.yml, the only file the sync needs")
         return False, template_file
     log.success(f"Template file exists: {display}")
@@ -96,7 +96,10 @@ def _parse_template_file(log: Log, template_file: Path) -> tuple[bool, dict[str,
 
     if not config:
         log.error("template.yml is empty")
-        log.error("Add configuration to template.yml, or run /rhiza:init to generate it")
+        log.error(
+            "Add configuration to template.yml, or generate it with /rhiza:init "
+            "(init_scaffold.py directly)"
+        )
         return False, None
 
     log.success("YAML syntax is valid")
