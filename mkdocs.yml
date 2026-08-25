@@ -33,6 +33,7 @@ nav:
       - known-issues: internals/known-issues.md
       - license: internals/license.md
       - python-version: internals/python-version.md
+  - Without Claude Code: headless.md
   - Development: development.md
 
 extra:

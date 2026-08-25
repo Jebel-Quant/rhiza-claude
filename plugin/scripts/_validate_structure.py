@@ -29,7 +29,10 @@ def validate_python_structure(log: Log, target: Path) -> bool:
     if not (target / "pyproject.toml").exists():
         log.error(f"pyproject.toml not found: {target / 'pyproject.toml'}")
         log.error("pyproject.toml is required for Python projects")
-        log.info("Run /rhiza:init to set the repo up, which creates a pyproject.toml")
+        log.info(
+            "Run /rhiza:init — or init_skeleton.py directly — to set the repo up, "
+            "which creates a pyproject.toml"
+        )
         passed = False
     else:
         log.success(f"pyproject.toml exists: {target / 'pyproject.toml'}")
@@ -88,7 +91,10 @@ def validate_rust_structure(log: Log, target: Path) -> bool:
     if not manifest.exists():
         log.error(f"Cargo.toml not found: {manifest}")
         log.error("Cargo.toml is required for Rust projects")
-        log.info("Run /rhiza:init to set the repo up, which creates a Cargo.toml")
+        log.info(
+            "Run /rhiza:init — or init_skeleton.py directly — to set the repo up, "
+            "which creates a Cargo.toml"
+        )
         return False
 
     log.success(f"Cargo.toml exists: {manifest}")

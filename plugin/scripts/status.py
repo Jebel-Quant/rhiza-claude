@@ -174,13 +174,16 @@ def _outdated_message(ref: str, tags: list[str]) -> str:
     if current is None:
         return (
             f"Update     : latest release is {latest_tag} "
-            f"(current ref '{ref}' is not a release tag) — run /update"
+            f"(current ref '{ref}' is not a release tag) — run /rhiza:update, or sync.py"
         )
     behind = _behind_count(releases, current)
     if behind == 0:
         return f"Update     : up to date ({latest_tag} is the latest release)"
     plural = "s" if behind != 1 else ""
-    return f"Update     : {ref} → {latest_tag} ({behind} release{plural} behind) — run /update"
+    return (
+        f"Update     : {ref} → {latest_tag} ({behind} release{plural} behind) "
+        "— run /rhiza:update, or sync.py"
+    )
 
 
 def _print_outdated(payload: dict[str, Any]) -> None:
@@ -222,7 +225,9 @@ def status(
     lock_path = (target / LOCK_REL).resolve()
     if not lock_path.exists():
         print(
-            "No template.lock found — run /rhiza:update to perform the first sync", file=sys.stderr
+            "No template.lock found — this repo has never been synced. "
+            "Run /rhiza:update, or sync.py directly.",
+            file=sys.stderr,
         )
         return 0
 
