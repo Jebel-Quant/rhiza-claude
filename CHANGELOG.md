@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.14.0] - 2026-09-07
+
+### New Features
+- *(release)* Detect phase B when the version is derived from the tag (#226)
+- *(release)* Land and tag a release in one run (#227)
+
+### Documentation
+- Document running the plugin without an LLM (#220)
+
 ## [0.13.0] - 2026-08-24
 
 ### New Features
