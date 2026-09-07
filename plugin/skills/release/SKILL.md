@@ -98,6 +98,20 @@ grep -m1 '^version = ' Cargo.toml 2>/dev/null
   `-m1` on a manifest cargo wrote finds `[package]`'s, since that table leads the file; if
   the manifest has been rearranged, `Read` it instead of trusting the first match. No
   config at all → stop, as above.
+- **And a third shape, which reads as the first and behaves like neither: a Python
+  project whose version is *derived* from the tag.** `dynamic = ["version"]` in
+  `[project]`, with a backend plugin such as hatch-vcs supplying it. `show
+  current_version` succeeds here — it does not fail the way an untagged Go repo does —
+  so nothing above catches it, and what it returns is **the newest tag**, not a version
+  the repo declared. Detect it before anything else uses `CURRENT`:
+```bash
+uv run --python 3.12 --no-project python -c "import tomllib;d=tomllib.load(open('pyproject.toml','rb'));print('dynamic' if 'version' in (d.get('project',{}).get('dynamic') or []) else 'static')"
+```
+  Hold the answer as `VERSION_SOURCE`. On `dynamic` the repo has **no written version at
+  all** — not in the manifest, not in a `__version__`, not in `uv.lock`, all three being
+  what such a project removed on purpose. That is a better place to be for every reason
+  except one: `CURRENT` is now an *output* of the tags rather than an independent fact
+  about the tree, and step 1a's phase detection is built on comparing the two. Read on.
 - **On the default branch.** Compare `git branch --show-current` against the remote
   default (`gh repo view --json defaultBranchRef`, else `git remote show origin`). If
   not, warn and ask (`AskUserQuestion`) — releasing off a side branch is unusual, not
@@ -133,6 +147,34 @@ normal second half of every release. The user merges the PR whenever review fini
 which may be days later and in a different session; the only state that carries across
 is what is committed to the default branch, which is exactly what the comparison above
 reads.
+
+### On `VERSION_SOURCE=dynamic`, compare the changelog instead
+
+**The comparison above cannot detect phase B on a derived version, and it fails in the
+worst direction: silently, as phase A.** `CURRENT` *is* the newest tag there — that is
+what deriving means — so `CURRENT > highest` is unsatisfiable and the flow reads a merged
+but untagged release as a fresh one. It would then offer a bump table for the version
+after the one already sitting on the default branch, cut `v1.8.0` when `v1.7.0` is merged
+and untagged, and strand that release forever. This is the same class of defect as #160's
+phase-B guard, in the same step, and for the same reason: an argument whose meaning
+changes between the two phases.
+
+What still carries across is the artifact the release *commits*. Step 7 prepends a
+section to `CHANGELOG.md` before the release commit, in every language and on every
+config shape, so the newest heading there leads the newest tag for exactly the window
+phase B covers:
+
+```bash
+CHANGELOG_VERSION="$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] ')"
+```
+
+Use it in place of `CURRENT` for the three-way comparison — `== highest` is phase A,
+`> highest` is phase B with `TARGET=v$CHANGELOG_VERSION`, `< highest` still stops. The
+rest of the flow is unchanged.
+
+If there is no `CHANGELOG.md`, or its newest heading does not parse, **stop and say so**
+rather than falling through to phase A. On a derived version that file is the only record
+of a release in flight, and guessing is what this command refuses to do.
 
 ## 2. Gather the candidate versions
 
@@ -238,6 +280,18 @@ init` started at `0.1.0`, which is why step 1 *reads* the value instead of assum
 Passing what step 1 settled makes every case deterministic.
 
 Then **show `git diff --stat`** so the user sees exactly which files moved.
+
+**On `VERSION_SOURCE=dynamic`, `pyproject.toml` will not be among them, and that is the
+bump working.** There is no version in it to rewrite; what moves is whatever
+`[[tool.bumpversion.files]]` entries the repo keeps for its *documentation* pins — a
+`rhiza-task@X.Y.Z` in a README, a `@vX.Y.Z` in a CI stub. Say that when you show the
+diff, because a manifest missing from it reads like a bump that did nothing, and the
+obvious reaction is to go and write the version back in by hand.
+
+That is also why such a repo still commits before it tags. Documentation pins have to be
+correct in the commit the tag *names*, so they cannot be derived from a tag that does not
+exist yet. A repo with no pins at all has nothing to commit but the changelog — and the
+changelog is what step 1a reads to find phase B, so it is not optional either.
 
 > **Anchor the `pyproject.toml` pattern.** `search`/`replace` are applied to **every**
 > occurrence in the file, so the obvious `search = 'version = "{current_version}"'`
@@ -397,6 +451,16 @@ uvx bump-my-version show current_version
 ```
 It must equal `${TARGET#v}`. A mismatch means the PR was edited before merging — stop
 and report both values.
+
+**On `VERSION_SOURCE=dynamic` this command answers the wrong question**, and it answers
+it confidently: it derives from the newest tag, which in phase B is the version *before*
+`TARGET`, so the check fails on every correct release and would pass on none. Read what
+step 1a read:
+
+```bash
+grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] '
+```
+Same rule: it must equal `${TARGET#v}`, and a mismatch stops.
 
 Then guard and tag:
 

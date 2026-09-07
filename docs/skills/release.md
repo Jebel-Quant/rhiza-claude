@@ -20,6 +20,10 @@ not a target.
     reads `[tool.bumpversion]` from `.bumpversion.toml` or `pyproject.toml` and rewrites
     **only** the explicit search/replace patterns listed there.
 
+    A version *derived* from the tag counts as declared: `dynamic = ["version"]` says
+    where it lives as clearly as a literal does. What such a repo bumps is only its
+    documentation pins, and `/release` says so rather than showing a diff that looks empty.
+
     That's what makes it safe to bump a `pyproject.toml` version, a plugin manifest and
     a self-referencing CI pin in one step **without** touching a dependency that happens
     to share the current version number. If the config is missing, `/release` **stops**
@@ -102,6 +106,18 @@ against the highest tag — you never tell it:
 
 That comparison is the only state carried between runs, so the merge can happen days
 later, in a different session, and phase B still knows what to do.
+
+!!! note "Unless the version *is* the tag"
+    A project using PEP 621's `dynamic = ["version"]` — hatch-vcs, setuptools-scm — has no
+    declared version to compare. `bump-my-version show current_version` still answers, but
+    what it answers with is the newest tag, so `current > highest tag` is unsatisfiable and
+    the middle row above can never be reached: a merged, untagged release would read as
+    phase A and get bumped again, stranding the one already on the default branch.
+
+    On such a repo `/release` compares the newest heading in `CHANGELOG.md` instead. That is
+    the artifact the release commit actually carries, in every language and on every config
+    shape, so it leads the newest tag over exactly the window phase B covers. The three rows
+    are otherwise unchanged.
 
 ## The one repo that can't use a PR
 
