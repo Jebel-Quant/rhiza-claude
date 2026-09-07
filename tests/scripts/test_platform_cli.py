@@ -103,6 +103,8 @@ _EXPECTED = {
     ),
     ("github", "pr-update"): "gh pr edit feat --body-file BODY.md",
     ("gitlab", "pr-update"): "glab mr update feat --description %BODY%",
+    ("github", "pr-merge"): "gh pr merge feat --squash --auto",
+    ("gitlab", "pr-merge"): "glab mr merge feat --squash --auto-merge --yes",
     ("github", "issue-create"): "gh issue create --title T --body-file BODY.md",
     ("gitlab", "issue-create"): "glab issue create --title T --description %BODY%",
 }
@@ -176,6 +178,32 @@ def test_release_create_without_notes_is_refused_on_gitlab():
     """glab has no --generate-notes, and a silently note-less release is worse."""
     with pytest.raises(platform_cli.UnsupportedAction, match="--generate-notes"):
         platform_cli.build_command("gitlab", "release-create", tag="v1.2.3")
+
+
+def test_neither_auto_merge_flag_is_the_other_platforms():
+    """`--auto` and `--auto-merge` are not aliases, and swapping them is `Unknown flag`.
+
+    They are not synonyms either: `gh --auto` waits for the branch's required checks,
+    while glab's `--auto-merge` defers only while a pipeline is *already running*. Both
+    mean "merge when the forge allows it", which is what `/rhiza:release` asks for, but
+    only one of them is a gate — see the module docstring.
+    """
+    gh = platform_cli.build_command("github", "pr-merge", head="feat")
+    glab = platform_cli.build_command("gitlab", "pr-merge", head="feat")
+    assert "--auto" in gh and "--auto" not in glab
+    assert "--auto-merge" in glab and "--auto-merge" not in gh
+    # Without --yes, glab prompts, and a prompt hangs a non-interactive run.
+    assert "--yes" in glab
+    # Both squash, because the release commit is one commit and the tag names its merge.
+    assert "--squash" in gh and "--squash" in glab
+
+
+def test_a_merge_never_deletes_the_branch_behind_the_caller():
+    """Neither argv carries a branch-deletion flag: that is the repo's policy, not ours."""
+    for platform in ("github", "gitlab"):
+        argv = platform_cli.build_command(platform, "pr-merge", head="feat")
+        assert "--delete-branch" not in argv
+        assert "--remove-source-branch" not in argv
 
 
 def test_the_two_platforms_never_share_a_flag_name_by_accident():

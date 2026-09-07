@@ -1,5 +1,5 @@
 ---
-description: Prepare a release in any git repo that declares its version locations (no .rhiza/ needed) — choose a version from a table, bump, regenerate the changelog, and open a release PR. Tags the merged commit on a second run.
+description: Release any git repo that declares its version locations (no .rhiza/ needed) in one run — choose a version from a table, bump, regenerate the changelog, open a release PR, let the forge merge it once its checks pass, then tag the merged commit.
 argument-hint: "[version e.g. v1.4.0]  (optional; omit to pick from a table of candidates)"
 allowed-tools: Bash(git*), Bash(gh*), Bash(glab*), Bash(uv*), Bash(uvx*), Bash(make*), Bash(cat*), Bash(grep*), Read, Edit, AskUserQuestion
 disable-model-invocation: true
@@ -7,33 +7,52 @@ disable-model-invocation: true
 
 You are running `/release` in the **current working directory's repo**. Goal: land the
 version bump on the default branch **through a pull request**, like every other change,
-and then tag the commit that actually merged.
+and tag the commit that actually merged — in **one run**.
 
-**That splits the release into two phases, and the split is forced by squash-merge.** A
-tag must point at a commit that exists on the branch you publish from; a squash-merge
-replaces the branch's commits with a new one, so a tag cut before the merge names a SHA
-that never lands. There is no ordering of one invocation that fixes this — the commit to
-tag does not exist until the human merges. So:
+**A tag still cannot be cut before the merge, which is why there is a wait in the
+middle.** A tag must point at a commit that exists on the branch you publish from; a
+squash-merge replaces the branch's commits with a new one, so a tag created before the
+merge names a SHA that never lands. No reordering of the steps fixes that — the commit to
+tag does not exist until the request merges. So the run goes *through* the merge instead
+of stopping in front of it: it hands the merge to the forge, waits for the bump to appear
+on the default branch, and tags what landed.
 
-| Phase | You run | It ends with |
+| Stage | Steps | Ends with |
 | --- | --- | --- |
-| **A — the release PR** | `/rhiza:release` on a clean default branch | a pushed branch and an open PR. **No tag.** |
-| **B — the tag** | `/rhiza:release` again, after that PR merges | the merged commit tagged and the tag pushed — release CI running |
+| **Prepare** | 2–9 | the version chosen, the bump and changelog committed on a pushed branch, an open release PR |
+| **Land** | 10–11 | auto-merge handed to the forge, and the bump on the default branch |
+| **Tag** | 12–13 | the merged commit tagged, the tag pushed, release CI running |
 
-Step 1 works out which phase it's in from the repo's own state; the user does not
-declare it.
+**`phase A` and `phase B` — what step 1a's script reports — name the repo's *state*, not
+two runs of this command.** Phase A is "nothing pending"; phase B is "a bump is committed
+that no tag names". An ordinary run starts in A, and steps 10–11 are what *put the repo
+into B*; step 12 then tags it. A run that starts in B is one finishing a release whose
+wait had expired.
 
-**Never push to the default branch, and never move an existing tag.** Phase A pushes one
-*release branch* — the same thing `/rhiza:init` and `/rhiza:update` do. Phase B pushes
-one *tag*, onto a commit the user already reviewed and merged.
+**The wait can time out, and then the run hands back rather than half-finishing.** Review
+takes as long as it takes and a session does not outlive a weekend; when the wait expires
+the run reports the open PR and stops, having created no tag. **Re-running
+`/rhiza:release` finishes the release** — step 1a reports phase B and goes straight to
+step 12. That is not a special case: it is steps 12–13 entered later, and it is why an
+expired wait leaves nothing to undo.
 
-**The human decision is the merge, and there is exactly one of it.** Phase A stops at an
-open PR precisely so that a person chooses the version, watches the checks, and consents
-by merging. Everything after that is mechanical, and making the user re-type a push
-command for it adds a step without adding a decision. What keeps this safe is not a second pair
-of hands, it is step 10's guard: a version that does not strictly increase, or a tag that
-already exists, stops phase B before anything is created. If anything is ambiguous, stop
-and report.
+**Never push to the default branch, and never move an existing tag.** The run pushes one
+*release branch* — the same thing `/rhiza:init` and `/rhiza:update` do — and then one
+*tag*, onto the commit the forge merged.
+
+**The human decision is the version; the checks are the gate.** Step 3 stops and makes a
+person choose the bump, because that is the judgement nothing here can make. What follows
+is mechanical, so the run carries it through rather than handing back a command to
+re-type. What keeps that safe is not a second pair of hands, it is step 12's guard: a
+version that does not strictly increase, or a tag that already exists, stops the run
+before anything is created. If anything is ambiguous, stop and report.
+
+**Be honest about what auto-merge waits for: `--auto` defers to the *required* checks the
+branch has, so a repo with none configured merges the release PR immediately.** On such a
+repo one run really is one run, start to published, and the review window is whatever
+branch protection actually enforces — not the pause this command used to create by
+accident. Say so in the report, and if a repo wants a longer look at its release PR, the
+fix is a required check, not a slower command.
 
 **The repo declares where its version lives; you don't guess.** `bump-my-version` reads
 `[tool.bumpversion]` (in `.bumpversion.toml` or `pyproject.toml`) and rewrites only the
@@ -58,9 +77,9 @@ anyway (step 3).
   is cut from committed work.
 - **Releasing what will actually ship.** The tag must point at a commit that exists on
   the branch you publish from. If `HEAD` is a feature branch whose commits aren't on the
-  default branch yet, **stop and say so** — that includes a release branch this command
-  opened in phase A, which is not tagged until it merges. Both phases run from the
-  default branch.
+  default branch yet, **stop and say so** — that includes a release branch a previous run
+  opened, which is not tagged until it merges. Every run starts from the default branch;
+  the only branch this command is ever *on* is the one it created in step 8.
 - **Version config.** `[tool.bumpversion]` must exist, in `.bumpversion.toml` or
   `pyproject.toml`:
   ```bash
@@ -115,13 +134,16 @@ grep -m1 '^version = ' Cargo.toml 2>/dev/null
   default (`gh repo view --json defaultBranchRef`, else `git remote show origin`). If
   not, warn and ask (`AskUserQuestion`) — releasing off a side branch is unusual, not
   forbidden.
-- **Up to date.** `git fetch --tags origin`, and `git pull --ff-only` so the merged
-  release PR is actually in your history — phase B reads the version off it.
+- **Up to date.** `git fetch --tags origin`, and `git pull --ff-only` so a release PR
+  that merged while you were away is actually in your history — step 1a reads the version
+  off it.
 
-## 1a. Work out which phase you're in
+## 1a. Which state is the repo in?
 
-The repo's own state says it, so don't ask — and the script decides, so don't compare
-versions by eye. Pass `--changelog` always, and `--tag-derived` when step 1 found no
+Almost always this is a fresh release and the answer is phase A. The exception is a run
+whose wait expired (step 11): its bump is merged and untagged, and this run finishes it.
+The repo's own state says which — and the script decides, so don't compare versions by
+eye. Pass `--changelog` always, and `--tag-derived` when step 1 found no
 `current_version` to read:
 
 ```bash
@@ -135,7 +157,7 @@ It prints a `phase` line, and in phase B a `target`. Take both as given:
   step 2.
 - **`phase B`** — a release has landed on the default branch that no tag names: the PR
   merged and only the tag is missing. Take `TARGET` from the script's `target` line, skip
-  steps 2–9 entirely, and go to **step 10**. Say which phase it reported and on what
+  steps 2–11 entirely, and go to **step 12**. Say which phase it reported and on what
   evidence, so the user can correct you if a hand-edit put the repo here.
 - **exit 3, `phase ambiguous`** — the repo's state fits neither. **Stop and report the
   reason line**, which names the disagreement: a version below its own newest tag (a
@@ -161,10 +183,12 @@ branch, so after the merge the newest heading names a version above every tag, a
 `--tag-derived` makes the script **refuse** rather than answer "A" when that file is
 missing. There is no third source to fall back on — pick the tag by hand at that point.
 
-**Phase B is what makes the flow resumable, and it is not a special case** — it is the
-normal second half of every release. The user merges the PR whenever review finishes,
-which may be days later and in a different session; the only state that carries across
-is what is committed to the default branch, which is exactly what the script above reads.
+**This is what makes the flow resumable, and it is why an expired wait costs nothing.**
+The merge may happen days later, in a different session; the only state that carries
+across is what is committed to the default branch, which is exactly what the script above
+reads. Step 11 polls for the same fact from the same evidence — the changelog heading,
+through the same parser — so the wait and this check cannot disagree about whether a
+release has landed.
 
 ## 2. Gather the candidate versions
 
@@ -356,15 +380,15 @@ git commit -m "chore: release $TARGET"
 `git add --all` is safe here *because the tree was verified clean in step 1* — the only
 changes present are the ones steps 6 and 7 made.
 
-**Do not tag.** The tag belongs on the merged commit, which does not exist yet; step 10
-creates it. Creating one here is the exact mistake the two-phase split exists to prevent
-— a squash-merge would strand it on a SHA that never reaches the default branch.
+**Do not tag.** The tag belongs on the merged commit, which does not exist yet; step 12
+creates it, in this same run. Creating one here is the exact mistake the wait exists to
+prevent — a squash-merge would strand it on a SHA that never reaches the default branch.
 
 ```bash
 git push --set-upstream origin "$BRANCH"
 ```
 
-## 9. Open the release PR — then stop
+## 9. Open the release PR
 
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
@@ -378,11 +402,9 @@ relay the note and print the compare URL.
 
 Body: `CURRENT` → `TARGET`, every file the bump touched, the changelog section being
 added, and — the part a reviewer cannot see from the diff — that **merging this PR does
-not publish the release**, because the tag is cut afterwards from the merged commit by a
-second `/rhiza:release` run.
-
-Then **stop.** Merging is the human's call and the checks have to run. Tell them to
-re-run `/rhiza:release` once it lands.
+publish the release**: the run that opened it is waiting for the merge and will tag the
+merged commit, and if that run has ended, re-running `/rhiza:release` does the same.
+Keep the PR URL; steps 11 and 13 report it.
 
 > **A repo that pins its own tag cannot use this flow, and it is the one exception.**
 > When CI stubs delegate via `uses: <owner>/<repo>/…@vX.Y.Z` and the repo being released
@@ -404,12 +426,116 @@ re-run `/rhiza:release` once it lands.
 > consuming its **own** action or reusable workflow should reference it by local path
 > (`uses: ./.github/actions/<name>`), which needs no tag, cannot drift, and makes the
 > repo releasable by PR like any other.
+>
+> On the atomic path there is nothing to merge and nothing to wait for: **skip steps 10
+> and 11**, and go from that push to step 13. It is already one run — what it gives up is
+> the PR, not the second invocation.
 
-## 10. Phase B — tag the merged commit
+## 10. Hand the merge to the forge
 
-You are here because step 1a reported **phase B**. The release PR has merged; `TARGET`
-is the version it printed on its `target` line — which is `v$CURRENT` on a repo that
-writes its version into a file, and the changelog's newest heading on a tag-derived one.
+**If step 9 could not open the request at all** — no `gh`/`glab`, or it failed — there is
+nothing to merge and nothing to wait for. Skip this step and step 11, report the pushed
+branch and the compare URL, and say the release finishes by re-running `/rhiza:release`
+once the PR has been opened and merged by hand. Waiting on a request that does not exist
+is nine minutes spent proving it.
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/platform_cli.py" \
+  pr-merge --head "$BRANCH"
+```
+That is `gh pr merge "$BRANCH" --squash --auto` on GitHub and `glab mr merge "$BRANCH"
+--squash --auto-merge --yes` on GitLab. Don't hand-write either: the two disagree about
+the flag's *name* and about what it defers on — gh waits for the branch's required
+checks, glab only defers while a pipeline is already running — and glab prompts without
+`--yes`, which hangs a non-interactive run rather than failing it.
+
+**Squash, deliberately.** The release is one commit and the changelog section describes
+exactly that commit; a merge commit would put the tag on a commit whose *parent* carries
+the version.
+
+**Exit 1 here is not fatal, and one cause of it is routine:** a repo with the setting
+switched off answers `Auto-merge is not allowed for this repository`. Relay the message
+and **continue to step 11 anyway** — the wait does not care who merges, so a human
+merging by hand arrives at step 12 by the same road. Two things not to do: don't reach
+for `--admin` (it merges past the checks that are this flow's actual gate), and don't
+merge the PR yourself with a hand-written `gh`/`glab` call, because then nothing reviewed
+the release but the version table.
+
+## 11. Wait for the bump to land on the default branch
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/wait_for_merge.py" \
+  --branch "$DEFAULT" --expect-version "${TARGET#v}"
+```
+It fetches `origin/$DEFAULT` on an interval and reads the newest release heading out of
+that branch's `CHANGELOG.md` — the artifact step 7 committed, in every language and on
+every config shape, parsed by the same `_rhiza_changelog` that step 1a's phase decision
+uses. **What it waits for is the bump landing, not a request merging.** Those are
+different claims and only the first is the precondition for a tag: a request can be
+closed and re-landed by hand, or merged under a title nobody recognises, without changing
+what step 12 needs to be true.
+
+**One call blocks for up to nine minutes** — `--timeout` defaults to 540 seconds and
+`--interval` to 20 — because that is what fits inside a single tool call. Allow for it if
+your own invocation carries a timeout, and don't raise `--timeout` past ten minutes: the
+call would be killed mid-poll, and a killed wait reads as a failure rather than as "not
+yet". `--timeout 0` polls once, which is how to ask whether it has landed without waiting
+for it to. Read the exit code:
+
+| Exit | Meaning | What to do |
+| --- | --- | --- |
+| **0** | the bump is on `$DEFAULT` | hold the SHA it reports as `MERGE_SHA`; step 12 |
+| **3** | timed out — the release has not merged yet | **stop**; see below |
+| **1** | git failed (no `origin`, no network, no such branch) | **stop and report** — nothing was waited for |
+| **2** | `--expect-version` wasn't `X.Y.Z` | a caller bug, not a repo problem |
+
+**On exit 3, ask the forge why before deciding anything:**
+
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/pr_status.py" \
+  --branch "$BRANCH"
+```
+- **Checks still running** — call the wait once more. At most **three waits in total**
+  (about 27 minutes); a release whose CI is green in four minutes is the common case and
+  is worth waiting out.
+- **A check is red** — stop. The release cannot merge until someone fixes it, and that
+  someone is not this command: `/rhiza:remote` reads the failure and works on the
+  request's own branch.
+- **Green but still open** — auto-merge is off or a review is required. Stop; the merge is
+  waiting on a person.
+- **No request listed at all** — `pr_status.py` asks for `--state open`, so a request that
+  merged in the seconds between the wait giving up and this call answers with nothing.
+  That is not "the PR vanished", it is very likely "it just landed": re-probe with
+  `wait_for_merge.py --branch "$DEFAULT" --expect-version "${TARGET#v}" --timeout 0`
+  before handing anything back, and go to step 12 if it now says landed. Only if that
+  still reports not-landed is the request genuinely gone — closed unmerged, or the branch
+  renamed — and then stop and say so.
+
+Then **hand back**, and say plainly that **no tag exists and nothing is half-done**: the
+release is finished by re-running `/rhiza:release` once the PR merges, and step 1a will
+report phase B and go straight to step 12. What you must not do is loop the wait
+indefinitely — a review that isn't finished is not a timing problem, and an agent asleep
+for an hour is not doing the user a service.
+
+## 12. Tag the merged commit
+
+You arrive here two ways, and they differ in exactly one thing: **from step 11 you are
+still on the release branch**, because step 8 switched to it, whereas step 1a sends you
+here from the default branch. So get onto the merged commit first:
+
+```bash
+git switch "$DEFAULT"
+git pull --ff-only
+```
+`--ff-only` is a check, not a convenience: the release commit is the squash of your own
+branch onto a `$DEFAULT` you were level with in step 1, so a fast-forward is exactly what
+the history should permit. If it refuses, **stop** — something else has landed and your
+history and the remote's have diverged, which is not a state to cut a release from.
+
+From step 11, `TARGET` is what you chose in step 3, and the wait has just confirmed the
+merged branch names it. From step 1a, `TARGET` is the version it printed on its `target`
+line — which is `v$CURRENT` on a repo that writes its version into a file, and the
+changelog's newest heading on a tag-derived one.
 
 **Verify you are tagging the right commit before creating anything:**
 
@@ -418,13 +544,25 @@ git rev-parse --abbrev-ref HEAD
 git status --porcelain
 git log -1 --format='%H %s'
 ```
-On `$DEFAULT`, clean, and up to date with `origin/$DEFAULT` after step 1's `pull
---ff-only`. If `HEAD` is behind the remote, stop — you would tag a commit that isn't the
-merge.
+On `$DEFAULT` and clean. **What `HEAD` is does not have to be the release commit**, and
+this is the one place where insisting on it would be wrong: a merge that lands while
+someone else is also merging leaves the release commit one or two behind the tip within
+seconds, through nobody's mistake. The tag names a commit, not a branch position — so
+when you came from step 11, tag the SHA the wait identified and check the property the
+tag actually needs, which is the same one release CI re-checks:
 
-**Confirm the merged tree really carries `TARGET`.** Step 1a read the *pre-merge* tree,
-so this is a check that the merge preserved what it found, not a re-read. Re-run it and
-require the same verdict — `phase B` with the same target:
+```bash
+git merge-base --is-ancestor "$MERGE_SHA" "origin/$DEFAULT"
+```
+Non-zero means `MERGE_SHA` is not on the branch you publish from — **stop**, because that
+is the orphaned-tag case the whole wait exists to avoid. On the step-1a path there is no
+`MERGE_SHA` to check: `HEAD` is the merged commit by construction, since that is what
+step 1a read the version off, and the pull above left you level with the remote.
+
+**Confirm the merged tree really carries `TARGET`.** Everything read so far was read
+before the merge, so this is a check that the merge preserved it, not a re-read. Run it
+on the merged history and require the verdict the repo is now in — `phase B`, with the
+same target:
 
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
@@ -444,24 +582,30 @@ Then guard and tag:
 HIGHEST="$(git tag --list 'v*' | sort -V | tail -1)"
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
   "$TARGET" --current "$HIGHEST"
-git tag -a "$TARGET" -m "release $TARGET"
+git tag -a "$TARGET" -m "release $TARGET" "${MERGE_SHA:-HEAD}"
 ```
-The guard runs **again**, on the merged history: it is cheap, and between phases the repo
-gained commits and possibly tags, so the fact that `TARGET` was legal in phase A is no
-longer evidence that it is legal now. Non-zero exit means stop. **Never** `-f`.
+**The explicit commit is the point**, and the fallback is what makes one line serve both
+paths: from step 11 `MERGE_SHA` is the commit the wait watched arrive, and on the step-1a
+path it is unset and `HEAD` is that commit already. Tagging a *branch name* would let the
+few seconds between the check above and the tag decide which commit gets released.
+The guard runs **again**, on the merged history: it is cheap, and while the run was
+waiting the repo gained commits and possibly tags, so the fact that `TARGET` was legal in
+step 4 is no longer evidence that it is legal now. Non-zero exit means stop. **Never**
+`-f`.
 
-**Pass the highest tag, not `$CURRENT` — this is the one place the two phases differ.**
-The script's floor is `max(current, highest tag)`, and in phase A that is exactly right:
-`CURRENT` is the *released* version and `TARGET` has to beat it. By phase B the bump has
-merged, so `CURRENT` **is** `TARGET`, and asking it to strictly increase past itself
-cannot be satisfied by any version:
+**Pass the highest tag, not `$CURRENT` — this is the one place this guard differs from
+step 4's.** The script's floor is `max(current, highest tag)`, and in step 4 that is
+exactly right: `CURRENT` is the *released* version and `TARGET` has to beat it. Once the
+bump has merged, `CURRENT` **is** `TARGET`, and asking it to strictly increase past
+itself cannot be satisfied by any version:
 
 ```
 error  v0.8.0 does not strictly increase past v0.8.0 (current 0.8.0, highest tag v0.7.0)
 ```
 
-That is not a fluke of one release — passing `$CURRENT` here fails *every* phase-B run and
-strands the tag permanently. It shipped that way and was caught on the first real use.
+That is not a fluke of one release — passing `$CURRENT` here fails *every* run at this
+step and strands the tag permanently. It shipped that way and was caught on the first
+real use.
 
 The invariant worth checking has not changed: **do not reuse or move a tag, and do not go
 backwards against what is published.** The highest tag is what expresses that once the
@@ -476,36 +620,43 @@ git push origin "$TARGET"
 Only the tag: the commit is already on the default branch, put there by the merge.
 Pushing it triggers release CI.
 
-> **Phase B pushes; it does not hand the push back.** This used to stop here and ask the
+> **This step pushes; it does not hand the push back.** It used to stop here and ask the
 > user to run that line themselves, on the reasoning that publishing should be a
-> deliberate human action. That reasoning belonged to the old single-phase flow, where the
+> deliberate human action. That reasoning belonged to an older flow still, where the
 > command committed straight to the default branch and the tag push was the *only* gate on
 > the whole release.
 >
-> The PR is that gate now. A human chose the version, reviewed a PR titled
-> `chore: release <TARGET>`, waited for its checks, and merged it. Demanding a second
-> deliberate act afterwards adds a step without adding a decision — and the safety here
-> was never the human's hand on the button, it is the guard above refusing an existing
-> tag and refusing a version that does not increase.
+> The PR and its checks are that gate now. A human chose the version and a PR titled
+> `chore: release <TARGET>` went green before it merged. Demanding a further deliberate
+> act adds a step without adding a decision — and the safety here was never the human's
+> hand on the button, it is the guard above refusing an existing tag and refusing a
+> version that does not increase.
 >
 > **If the guard did not pass, none of this runs.** That is the invariant worth protecting,
 > and it is unchanged.
 
-## 11. Report
+## 13. Report
 
-**In phase A**, concisely: `CURRENT` → `TARGET`, with confirmation that it strictly
-increases past every prior release; every file the bump touched (manifests,
+**On a completed release**, concisely: `CURRENT` → `TARGET`, with confirmation that it
+strictly increases past every prior release; every file the bump touched (manifests,
 `pyproject.toml`, any stub pins, the bumpversion config); the changelog diff summary; the
-branch and the PR/MR URL. State plainly that **no tag exists yet** and the release is not
-public — merging the PR does not publish it — and that the next step is to re-run
-`/rhiza:release` after the merge, which will tag the merged commit.
+PR/MR URL and that it merged; the tag, the commit SHA it points at, and that the tag has
+been **pushed** — so release CI is running. Link the workflow run and the published
+release once it appears. Say how long the wait took, and — when the repo has no required
+checks — that the PR merged as soon as it was opened, because that is a fact about the
+repo the user may want to change.
 
-**In phase B**: the tag, the commit SHA it points at, confirmation that the merged tree
-declares `TARGET`, and that the tag has been **pushed** — so release CI is running. Link
-the workflow run and the published release once it appears. To undo a tag that should not
-have gone out: `git push origin :refs/tags/<TARGET>` and `git tag -d <TARGET>`, and say
-plainly that deleting a published tag is disruptive to anyone who already fetched it.
-There is no commit to reset either way, because the bump landed by merge.
+To undo a tag that should not have gone out: `git push origin :refs/tags/<TARGET>` and
+`git tag -d <TARGET>`, and say plainly that deleting a published tag is disruptive to
+anyone who already fetched it. There is no commit to reset, because the bump landed by
+merge.
+
+**On a run that stopped at step 11** (the wait timed out, or the merge is blocked): the
+same bump and changelog summary, the branch, and the PR/MR URL — then state plainly that
+**no tag exists** and the release is not public, that nothing is half-done, and that
+re-running `/rhiza:release` after the PR merges finishes it. Name the reason the wait
+ended if you know it: red checks are the user's to fix (`/rhiza:remote` reads them), an
+un-merged PR is theirs to merge.
 
 If the repo has no release workflow, publish manually with the bundled mapper, which
 picks `gh` or `glab` from `origin`:

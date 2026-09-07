@@ -1,8 +1,8 @@
 # `/rhiza:release`
 
-Land a release **through a pull request**: bump every version location the repo declares,
-regenerate the changelog, and open a release PR — then, once it merges, tag the commit
-that actually landed.
+Land a release **through a pull request**, in one run: bump every version location the
+repo declares, regenerate the changelog, open a release PR, let the forge merge it once
+its checks pass, and tag the commit that actually landed.
 
 ```
 /rhiza:release [version e.g. v1.4.0]
@@ -50,38 +50,50 @@ not a target.
    new tag, then checks the diff touches nothing else. See below for why it prepends.
 8. **Commits the bump on a release branch** — `chore: release vX.Y.Z`, on a branch from
    [pr-base](../internals/pr-base.md), pushed. **No tag yet.**
-9. **Opens the release PR** and stops, because merging is your call and the checks have to
-   run.
-10. **Tags the merged commit and pushes the tag** — on a second run, after the PR lands.
-    That push triggers the repo's `Release` workflow.
+9. **Opens the release PR.**
+10. **Hands the merge to the forge** — `gh pr merge --squash --auto`, or
+    `glab mr merge --squash --auto-merge --yes`, through
+    `plugin/scripts/platform_cli.py pr-merge`. A repo with auto-merge switched off just
+    says so; the run continues, because the next step doesn't care who merges.
+11. **Waits for the bump to reach the default branch** —
+    `plugin/scripts/wait_for_merge.py` fetches `origin/<default>` on an interval and reads
+    the newest release heading out of that branch's `CHANGELOG.md`, through the same
+    parser the phase decision uses. It waits for **the bump landing**, not for a request
+    merging, because that is what the tag needs to be true. Nine minutes per call, up to
+    three calls while the PR's checks are still running.
+12. **Tags the merged commit and pushes the tag** — the commit the wait watched arrive,
+    named by SHA rather than by branch position, so another merge landing in the same few
+    seconds cannot decide what gets released. That push triggers the repo's `Release`
+    workflow.
 
-    The merge is the human decision, and there is only one of it: you picked the version,
-    watched the checks and consented by merging. Everything after that is mechanical, so
-    it is not handed back. What keeps it safe is step 10's guard — a version that doesn't
-    strictly increase, or a tag that already exists, stops the run before anything is
-    created.
+    The version is the human decision and the checks are the gate: you picked the bump
+    from the table, and a PR titled `chore: release vX.Y.Z` went green before it merged.
+    What keeps the tag safe is step 12's guard — a version that doesn't strictly increase,
+    or a tag that already exists, stops the run before anything is created.
+13. **Reports** the release, or — if the wait ran out — the open PR, with the tag
+    explicitly not created.
 
-!!! warning "A repo *can* skip the second run — this one tried, and stopped"
-    If the repo owns its CI, a workflow on push-to-default can do phase B itself: when the
-    declared version is ahead of the highest tag, tag the merged commit and publish. That
-    condition is one of the two `/release` uses to tell its phases apart — and it is blind
-    on a tag-derived repo, where nothing is ever ahead of the tag — and it is
-    self-limiting — after tagging, declared equals highest, so every ordinary merge that
-    follows is a no-op. This repo ran exactly that, and removed it.
+!!! warning "Don't let CI tag it as well — this repo tried, and removed it"
+    If the repo owns its CI, a workflow on push-to-default can tag a merged release
+    itself: when the declared version is ahead of the highest tag, tag the merged commit
+    and publish. That condition is one of the two `/release` uses to read the repo's state
+    — and it is blind on a tag-derived repo, where nothing is ever ahead of the tag — and
+    it is self-limiting: after tagging, declared equals highest, so every ordinary merge
+    that follows is a no-op. This repo ran exactly that, and removed it.
 
-    The reason is worth having before you copy it: **it does not replace phase B, it races
-    it.** Nothing stops a maintainer from doing what the command documents, and when they
-    do, one of the two loses — `Reference already exists (HTTP 422)`, a failed run, and a
-    release that actually succeeded now sitting under a red check. A second entry point to
-    a step that must happen exactly once buys one saved command and costs a flow with two
-    correct paths that contradict each other.
+    The reason still applies, and now applies more sharply: **it does not replace the tag
+    step, it races it.** The command tags the merge it just waited for, so a workflow doing
+    the same thing means two things creating one ref — whichever loses gets
+    `Reference already exists (HTTP 422)`, a failed run, and a release that actually
+    succeeded sitting under a red check. A step that must happen exactly once needs exactly
+    one entry point.
 
     Two further traps if you still want it: a ref pushed with `GITHUB_TOKEN` does **not**
     trigger further workflow runs, so the auto-created tag publishes nothing unless the
     publishing workflow is invoked explicitly (`workflow_call`) rather than left to its
     tag-push trigger — and that second entry point then has to be maintained too.
 
-## Why it takes two runs
+## Why there's a wait in the middle
 
 The version bump is an ordinary change and goes through review like any other, which
 means the default branch is never pushed to directly and required checks actually gate
@@ -89,22 +101,45 @@ the release. But a tag has to name a commit **on** the default branch, and a squ
 replaces the branch's commits with a new one — so a tag cut before the merge points at a
 SHA that never lands.
 
-No ordering within a single invocation fixes that: the commit worth tagging does not exist
-until you merge. So `/release` stops at the PR and picks the work back up afterwards.
+No reordering fixes that: the commit worth tagging does not exist until the PR merges. It
+used to be you who bridged that gap, by running the command a second time. Now the run
+bridges it — it asks the forge to merge the PR when its checks pass, then waits for the
+bump to appear on the default branch.
 
-It works out which phase it's in from the repo itself — you never tell it. The question
-is "is a version committed to the default branch that no tag names?", and
-`check_version_bump.py` answers it, so the phase is read off a `phase` line rather than
+**The wait is bounded, and running out is an ordinary outcome.** Each call waits nine
+minutes — what fits inside one tool call — and `/release` repeats it only while the forge
+says the PR's checks are still running, at most three times. A red check, or a green PR
+nobody has merged, ends the wait immediately, because neither is something more waiting
+fixes. Then the run reports the open PR and stops with **no tag created**, and re-running
+`/release` finishes the release.
+
+It knows where it stands from the repo itself — you never tell it. The question is "is a
+version committed to the default branch that no tag names?", and
+`check_version_bump.py` answers it, so the state is read off a `phase` line rather than
 compared by eye:
 
 | State | Meaning | What it does |
 | --- | --- | --- |
-| declared version **==** highest tag, nothing pending | the declared version is released | **phase A** — bump, changelog, PR |
-| a committed version **>** highest tag | a merged bump no tag names | **phase B** — tag the merged commit, target taken from the script |
+| declared version **==** highest tag, nothing pending | the declared version is released | **phase A** — bump, changelog, PR, merge, tag |
+| a committed version **>** highest tag | a merged bump no tag names | **phase B** — tags the merged commit, target taken from the script |
 | declared version **<** highest tag, or two sources disagreeing | reverted bump, a tag cut ahead, or a PR edited before merge | stops and reports the reason (exit 3) |
 
-That verdict is the only state carried between runs, so the merge can happen days later,
-in a different session, and phase B still knows what to do.
+**Those two names are states of the repo, not two runs of the command.** An ordinary run
+starts in A, and its own merge is what puts the repo into B, which it then tags. A run
+that *starts* in B is one finishing a release whose wait had expired — and that verdict is
+the only state carried between runs, so the merge can happen days later, in a different
+session, and the next run still knows what to do.
+
+!!! warning "`--auto` waits for *required* checks — and a repo with none merges at once"
+    Auto-merge defers to whatever branch protection actually enforces. Where nothing is
+    required, the release PR is opened and merged within the same run, and "one step" is
+    literal. That is not the command being hasty: it is the repo having no gate, which was
+    equally true before, just hidden behind the pause of waiting for a second invocation.
+    If you want a longer look at a release PR, make a check required.
+
+    On GitLab the flag differs and so does its meaning: `glab mr merge --auto-merge`
+    defers only while a pipeline is *already running*, and merges immediately when none is.
+    Both platforms mean "merge when the forge will allow it"; only GitHub's is a gate.
 
 ### Where the committed version is, when it isn't in a file
 
@@ -120,7 +155,7 @@ menu again. No tag was ever mis-cut, but the second half of the release could no
 
 So `CHANGELOG.md` is the evidence instead. Step 7 prepends the new section on the release
 branch, so after the merge its newest heading names a version above every tag — and on a
-tag-derived repo the run **refuses** rather than assuming phase A when that file is
+tag-derived repo the run **refuses** rather than assuming nothing is pending when it is
 missing, because there is no third source to fall back on.
 
 ## The one repo that can't use a PR
@@ -143,6 +178,10 @@ fallback commits and tags on the default branch directly, pushing both refs with
 `git push --atomic origin HEAD <TAG>` — atomic because two sequential pushes leave a
 window where the branch is published and the tag is not, and every run started in it fails
 as above.
+
+On that path there is nothing to merge and nothing to wait for, so steps 10–11 are
+skipped: it is already a single run, and what it gives up is the pull request, not a
+second invocation.
 
 The durable fix belongs in the repo, not here: reference your own action by local path
 (`uses: ./.github/actions/<name>`), which needs no tag, cannot drift, and makes the repo
@@ -213,10 +252,13 @@ self-reference the config doesn't cover, it stops and says so. Third-party pins
 
 ## Notes
 
-- **Never pushes to the default branch, and never force-tags.** The one push it makes on
-  its own is the release branch — the same thing [`/rhiza:init`](init.md) and
-  [`/rhiza:update`](update.md) do. Pushing the tag stays yours, and until you do, phase A
-  is undone by deleting the branch and phase B by `git tag -d …`.
+- **Never pushes to the default branch, and never force-tags.** It pushes two things: the
+  release branch — the same thing [`/rhiza:init`](init.md) and [`/rhiza:update`](update.md)
+  do — and then the tag, onto the commit the forge merged. Before the merge, the whole
+  thing is undone by deleting the branch; after the tag, by deleting the tag.
+- **The wait needs no forge CLI.** It is `git fetch` against `origin` and a read of the
+  merged `CHANGELOG.md`, so a repo whose `gh`/`glab` is missing or logged out still gets
+  it — you merge the PR in the browser and the run tags what lands.
 - **Works for this plugin too.** It reads the version from wherever the config points,
   so a repo with no `pyproject.toml` (like this one, whose version lives in the two
   `.claude-plugin/` manifests) is handled the same way.
