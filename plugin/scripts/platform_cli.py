@@ -28,6 +28,7 @@ Actions:
   auth-status      is the platform CLI installed and logged in?
   repo-view        default branch + visibility, **normalised** across the two shapes
   pr-create        open a pull/merge request      pr-update  edit its body
+  pr-merge         let the request merge itself once its checks pass
   issue-create     file an issue
   release-create   publish a release from an existing tag
 
@@ -37,11 +38,19 @@ about flags, and folding it in would push this module past the size and complexi
 it is held to. What the two share — deciding which forge `origin` is on at all — is in
 ``_rhiza_forge.py``, so there is still exactly one answer to that question.
 
-Two divergences are surfaced rather than papered over:
+Three divergences are surfaced rather than papered over:
 
 * **glab has no `--body-file`/`--description-file` anywhere.** The body is passed
   inline via ``--description``, so this script reads the file and puts its text on the
   command line. (`-d -` means "open an editor", which is useless non-interactively.)
+* **The two disagree about what "auto" defers on.** `gh pr merge --auto` waits for the
+  *required checks* configured on the branch, and is refused outright — `Auto-merge is
+  not allowed for this repository` — when the repo has the setting switched off. glab's
+  `--auto-merge` defers only *while a pipeline is running*: with no pipeline in flight
+  it merges the MR immediately. Both are "merge this when it is allowed to merge", which
+  is what `/rhiza:release` asks for, but only the GitHub side is a gate. The `--yes` on
+  the glab argv is not optional — without it `glab mr merge` prompts, and a prompt hangs
+  a non-interactive run rather than failing it.
 * **glab has no `--generate-notes`.** `gh release create` can synthesise release notes;
   GitLab cannot. Asking for it on GitLab is an error naming the fix — pass
   ``--notes-file``, which `/rhiza:release` already has from `git-cliff`.
@@ -79,6 +88,7 @@ ACTIONS = (
     "repo-view",
     "pr-create",
     "pr-update",
+    "pr-merge",
     "issue-create",
     "release-create",
 )
@@ -105,6 +115,10 @@ def _github_command(action: str, opts: dict[str, Any]) -> list[str]:
             "--base", opts["base"], "--head", opts["head"],
             "--title", opts["title"], "--body-file", opts["body_file"],
         ]  # fmt: skip
+    if action == "pr-merge":
+        # No `--delete-branch`: the branch is the release PR's, and whether a merged
+        # branch is deleted is a repo policy this has no business overriding.
+        return ["gh", "pr", "merge", opts["head"], "--squash", "--auto"]
     if action == "issue-create":
         return ["gh", "issue", "create", "--title", opts["title"], "--body-file", opts["body_file"]]
     command = ["gh", "release", "create", opts["tag"]]
@@ -135,6 +149,8 @@ def _gitlab_command(action: str, opts: dict[str, Any]) -> list[str]:
             "--target-branch", opts["base"], "--source-branch", opts["head"],
             "--title", opts["title"], "--description", opts["body"],
         ]  # fmt: skip
+    if action == "pr-merge":
+        return ["glab", "mr", "merge", opts["head"], "--squash", "--auto-merge", "--yes"]
     if action == "issue-create":
         # Supplying both --title and --description is what stops glab opening an
         # editor, which would hang a non-interactive run.
@@ -259,7 +275,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("action", choices=ACTIONS, help="The operation to perform.")
     parser.add_argument("--target-dir", default=".", help="Repository root (default: cwd).")
     parser.add_argument("--base", default="", help="Branch to merge into (pr-create).")
-    parser.add_argument("--head", default="", help="Branch holding the work (pr-create/update).")
+    parser.add_argument(
+        "--head", default="", help="Branch holding the work (pr-create/update/merge)."
+    )
     parser.add_argument("--title", default="", help="Title (pr-create, issue-create).")
     parser.add_argument(
         "--body-file", default=None, help="File holding the body (pr-create/update, issue-create)."

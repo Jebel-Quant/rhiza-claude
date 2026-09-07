@@ -50,6 +50,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _rhiza_changelog import read_changelog_version  # noqa: E402
+
 _SEMVER = re.compile(
     r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
     r"(?:-(?P<pre>[0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$"
@@ -70,7 +73,6 @@ PHASE_AMBIGUOUS = "ambiguous"
 # The newest `## [1.7.0]`-style heading in a changelog. `[Unreleased]` is not a version
 # and is skipped by the semver shape rather than by name, so `## [Unreleased]` on top of
 # a real section does not hide it.
-_CHANGELOG_HEADING = re.compile(r"^#{1,3}\s*\[?v?(\d+\.\d+\.\d+[0-9A-Za-z.+-]*)\]?", re.M)
 
 
 class VersionError(Exception):
@@ -173,54 +175,6 @@ def compute_floor(current: str, tags: list[str]) -> str:
         if compare(tag, floor) > 0:
             floor = tag
     return floor
-
-
-def newest_changelog_version(text: str) -> str | None:
-    r"""Return the newest version a changelog's headings name, or ``None``.
-
-    This is the committed evidence a tag-derived repo has and a manifest-declared one
-    does not. `/rhiza:release` writes the section with `git-cliff --prepend`, so the
-    newest release is the **first** version-shaped heading in the file.
-
-    >>> newest_changelog_version("# Changelog\n\n## [1.7.0] - 2026-09-07\n\n## [1.6.0]\n")
-    '1.7.0'
-
-    An `Unreleased` heading is not version-shaped, so it is skipped rather than
-    swallowing the section under it:
-
-    >>> newest_changelog_version("## [Unreleased]\n\n## [1.6.0] - 2026-09-04\n")
-    '1.6.0'
-
-    A `v` prefix, a bare heading with no brackets, and a deeper level all parse:
-
-    >>> [
-    ...     newest_changelog_version("## [v2.0.0]\n"),
-    ...     newest_changelog_version("## 0.9.1 - 2026-01-01\n"),
-    ...     newest_changelog_version("### [1.0.0-rc.1]\n"),
-    ... ]
-    ['2.0.0', '0.9.1', '1.0.0-rc.1']
-
-    A file with no version heading at all yields nothing, rather than a guess:
-
-    >>> print(newest_changelog_version("# Changelog\n\nNothing released yet.\n"))
-    None
-    """
-    match = _CHANGELOG_HEADING.search(text)
-    return match[1] if match else None
-
-
-def read_changelog_version(path: Path) -> str | None:
-    """Return the newest version named by the changelog at *path*, or ``None``.
-
-    A missing or unreadable file is not an error: a repo need not keep a changelog, and
-    the phase decision below is what turns "no evidence" into a verdict. Reading it here
-    keeps the markdown parsing in tested Python rather than in a caller's regex.
-    """
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    return newest_changelog_version(text)
 
 
 def decide_phase(

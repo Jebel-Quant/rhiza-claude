@@ -7,7 +7,8 @@ name: Release
 # -able as well, so a repo-local `auto-tag.yml` could tag a merged release itself and then
 # ask this workflow to publish it. Two entry points meant two things racing to create the
 # same tag: whichever lost got `Reference already exists (HTTP 422)` and a red run on a
-# release that had in fact succeeded. The plugin's own two-phase flow is the one path now.
+# release that had in fact succeeded. `/rhiza:release` — which waits for its own PR to
+# merge and then tags what landed, in one run — is the one path.
 
 on:
   push:

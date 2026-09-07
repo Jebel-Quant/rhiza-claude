@@ -62,7 +62,7 @@ no script can perform.
 | [`/rhiza:maffay`](skills/maffay.md) | `maffay.py` | nothing |
 | [`/rhiza:quality`](skills/quality.md) | `check_make_targets.py` probes the gates | **the score** — reading a repo and judging it is the command |
 | [`/rhiza:docs`](skills/docs.md) | `render_badges.py`, `sync_readme_help.py` | the prose, which is most of it |
-| [`/rhiza:release`](skills/release.md) | `check_version_bump.py`, `bump-my-version`, `git-cliff` | choosing the version, writing the changelog section |
+| [`/rhiza:release`](skills/release.md) | `check_version_bump.py`, `wait_for_merge.py`, `bump-my-version`, `git-cliff` | choosing the version, writing the changelog section |
 | [`/rhiza:remote`](skills/remote.md) | `pr_status.py` reports what CI said | diagnosing the failure and fixing it |
 
 The bottom four are worth being precise about. They are not commands that were never

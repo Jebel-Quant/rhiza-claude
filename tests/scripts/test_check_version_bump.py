@@ -361,40 +361,6 @@ def _changelog(repo: Path, text: str = _CHANGELOG) -> None:
     (repo / "CHANGELOG.md").write_text(text, encoding="utf-8")
 
 
-def test_newest_changelog_version_takes_the_first_heading():
-    """git-cliff prepends, so the newest release is the first version-shaped heading."""
-    assert cvb.newest_changelog_version(_CHANGELOG) == "1.7.0"
-
-
-def test_newest_changelog_version_skips_an_unreleased_heading():
-    """`## [Unreleased]` is not version-shaped and must not hide the section below it."""
-    assert cvb.newest_changelog_version("## [Unreleased]\n\n## [1.6.0]\n") == "1.6.0"
-
-
-def test_newest_changelog_version_is_none_without_a_version_heading():
-    """No heading is no evidence — the phase decision handles that, not a guess here."""
-    assert cvb.newest_changelog_version("# Changelog\n\nnothing yet\n") is None
-
-
-def test_read_changelog_version_reads_the_file(repo):
-    """The path form the CLI passes.
-
-    Args:
-        repo: A git repo fixture with one commit.
-    """
-    _changelog(repo)
-    assert cvb.read_changelog_version(repo / "CHANGELOG.md") == "1.7.0"
-
-
-def test_read_changelog_version_tolerates_a_missing_file(repo):
-    """A repo need not keep a changelog, so absence is not an error.
-
-    Args:
-        repo: A git repo fixture with one commit.
-    """
-    assert cvb.read_changelog_version(repo / "nope.md") is None
-
-
 def test_phase_a_when_the_declared_version_is_the_newest_tag():
     """Nothing has landed: /release computes a version and opens the PR."""
     summary = cvb.decide_phase("1.6.0", "v1.6.0", None, False)

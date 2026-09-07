@@ -180,13 +180,14 @@ the command-to-script table, the sync step by step, and every exit code it can h
   into every location the repo declares in `[tool.bumpversion]` — `pyproject.toml`, plugin
   manifests, self-referencing CI stub pins — regenerate `CHANGELOG.md`, and open a release
   PR. Because the locations are declared rather than inferred, a dependency that happens
-  to share the version number is never rewritten. **Run it again after the PR merges** and
-  it tags the merged commit and pushes the tag: a tag must name a commit on the default
-  branch, and a squash-merge rewrites the SHA, so the commit worth tagging doesn't exist
-  until you merge. It works out which of the two phases it's in from the repo's own state.
-  The merge is the decision; everything after it is mechanical, and what keeps it safe is
-  the guard refusing a non-increasing or already-existing tag. **In this repo a
-  push-to-`main` workflow does that second phase for you**, so a release is: run it, merge.
+  to share the version number is never rewritten. Then it **hands the merge to the forge**
+  (`--squash --auto`), **waits for the bump to reach the default branch**, and tags the
+  commit that actually landed — one run, because a tag must name a commit on the default
+  branch and a squash-merge rewrites the SHA, so the commit worth tagging doesn't exist
+  until the PR merges. The version is the decision and the checks are the gate; what keeps
+  the tag safe is the guard refusing a non-increasing or already-existing tag. If review
+  outlasts the wait, the run stops with **no tag created** and re-running it finishes the
+  release — it works that out from the repo's own state.
 - **`/rhiza:remote`** — ask the forge what CI actually said about the repo's open
   requests, then diagnose and fix the red ones. `/rhiza:quality` files findings as
   issues, those issues become branches, and those branches become requests that were
