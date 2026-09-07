@@ -70,8 +70,10 @@ anyway (step 3).
   guessing is exactly what this command refuses to do. Report what's needed: a
   `.bumpversion.toml` with `current_version` and one `[[tool.bumpversion.files]]` entry
   per location (see step 6 for the stub-pin case). Hold the value as `CURRENT`.
-- **Unless the config is tag-derived, which is how Go *and Rust* declare it.** Both
-  `go-core` and `rust-core` ship a `.bumpversion.toml` that deliberately omits
+- **Unless the config is tag-derived, which is how Go *and Rust* declare it** — and any
+  Python project on `hatch-vcs`, whose `[project]` carries `dynamic = ["version"]` and so
+  has no version in a file either. Both `go-core` and `rust-core` ship a
+  `.bumpversion.toml` that deliberately omits
   `current_version`: the file is *synced*, so it must not carry a value only the consuming
   repo can own — the next `/rhiza:update` would reset it. Each therefore derives the
   current version from the newest matching tag, and on a repo that has not been tagged yet
@@ -81,6 +83,17 @@ anyway (step 3).
 ```bash
 grep -lq '^\[tool\.bumpversion\]' .bumpversion.toml pyproject.toml 2>/dev/null
 ```
+  **Hold whether the config is tag-derived, as `TAG_DERIVED` — step 1a needs it and the
+  command above does not answer it.** A missing `current_version` is the test, not a
+  failing `show`: on a repo that *has* been tagged, `show` succeeds by deriving the
+  version from the tag, so the failure only appears before the first release. Read the
+  key instead:
+```bash
+grep -rn '^current_version' .bumpversion.toml pyproject.toml 2>/dev/null
+```
+  No match, with a `[tool.bumpversion]` table present → tag-derived; pass
+  `--tag-derived` in step 1a. This is the case where phase B has no other evidence, so
+  getting it wrong is what strands the tag.
   A config that exists and no tags → this is the repo's **first** release. Hold `CURRENT`
   as whatever that language's declared location actually carries, and pass it explicitly
   in step 6 — **`0.0.0` is right for Go only**, and passing it to a crate fails the bump:
@@ -121,32 +134,51 @@ uv run --python 3.12 --no-project python -c "import tomllib;d=tomllib.load(open(
 
 ## 1a. Work out which phase you're in
 
-The repo's own state says it, so don't ask:
+The repo's own state says it, so don't ask — and the script decides, so don't compare
+versions by eye. Pass `--changelog` always, and `--tag-derived` when step 1 found no
+`current_version` to read:
 
 ```bash
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
-  --current "$CURRENT"
+  --current "$CURRENT" --changelog CHANGELOG.md ${TAG_DERIVED:+--tag-derived}
 ```
 
-It prints `current` and `highest` (the highest existing tag) side by side. Compare them
-**as semver**, which is what that script already did to pick the floor:
+It prints a `phase` line, and in phase B a `target`. Take both as given:
 
-- **`CURRENT` == `highest`** — the declared version is released. This is **phase A**:
-  continue to step 2.
-- **`CURRENT` > `highest`** — a bump has landed on the default branch that no tag names.
-  This is **phase B**: the release PR merged and only the tag is missing. Set
-  `TARGET=v$CURRENT`, skip steps 2–9 entirely, and go to **step 10**. Say which phase
-  you picked and why, so the user can correct you if a hand-edit put the repo here.
-- **`CURRENT` < `highest`** — a reverted bump, or a tag cut ahead of the config. Neither
-  phase fits; **stop and report both values.** The floor in step 4 already accounts for
-  this, but arriving here means something rewrote history and guessing is not this
-  command's job.
+- **`phase A`** — the declared version is released, and nothing is pending. Continue to
+  step 2.
+- **`phase B`** — a release has landed on the default branch that no tag names: the PR
+  merged and only the tag is missing. Take `TARGET` from the script's `target` line, skip
+  steps 2–9 entirely, and go to **step 10**. Say which phase it reported and on what
+  evidence, so the user can correct you if a hand-edit put the repo here.
+- **exit 3, `phase ambiguous`** — the repo's state fits neither. **Stop and report the
+  reason line**, which names the disagreement: a version below its own newest tag (a
+  reverted bump, or a tag cut ahead of the config), two sources naming different pending
+  versions (the PR was edited before merging), or a tag-derived repo with no changelog to
+  read. Something rewrote history, and guessing is not this command's job.
+
+**Why the script is given the changelog, and why it is not optional.** The phase is
+"is there a version committed to the default branch that no tag names?", and for most
+repos `CURRENT` answers it: the bump wrote a number into a manifest, so `CURRENT` >
+`highest` exactly when the release PR has merged.
+
+**A tag-derived repo has no such number, and this is where the check used to fail
+silently.** When the version *is* the newest tag — Go and Rust as step 1 describes them,
+and any Python project on `hatch-vcs` with `dynamic = ["version"]` — `CURRENT` is *read
+from* `highest`, so it can never exceed it and phase B is unreachable by construction.
+The flow would re-detect phase A after the merge, offer the same menu again, and fail at
+step 6 when `bump-my-version` could not find the old version in files already bumped.
+The tag was never mis-cut, but the second half of the release could not be run at all.
+
+So `CHANGELOG.md` is the evidence instead: step 7 prepends the new section on the release
+branch, so after the merge the newest heading names a version above every tag, and
+`--tag-derived` makes the script **refuse** rather than answer "A" when that file is
+missing. There is no third source to fall back on — pick the tag by hand at that point.
 
 **Phase B is what makes the flow resumable, and it is not a special case** — it is the
 normal second half of every release. The user merges the PR whenever review finishes,
 which may be days later and in a different session; the only state that carries across
-is what is committed to the default branch, which is exactly what the comparison above
-reads.
+is what is committed to the default branch, which is exactly what the script above reads.
 
 ### On `VERSION_SOURCE=dynamic`, compare the changelog instead
 
@@ -270,7 +302,7 @@ uvx bump-my-version bump --new-version "${TARGET#v}" --no-commit --no-tag
 the release commit contains the version bump and the changelog together. This updates
 every `[[tool.bumpversion.files]]` entry plus `current_version` in the config itself.
 
-**On a tag-derived config (Go or Rust), add `--current-version "$CURRENT"`.** With no
+**On a tag-derived config (Go, Rust, or `hatch-vcs`), add `--current-version "$CURRENT"`.** With no
 `current_version` key and no tag to derive one from, the bump fails exactly as step 1's
 `show` did — and with a value that disagrees with the declared location, it fails
 differently and more confusingly: `Did not find 'const Version = …'` on Go, and on Rust
@@ -429,8 +461,9 @@ re-run `/rhiza:release` once it lands.
 
 ## 10. Phase B — tag the merged commit
 
-You are here because step 1a found `CURRENT` > the highest tag. The release PR has
-merged; `TARGET` is `v$CURRENT`.
+You are here because step 1a reported **phase B**. The release PR has merged; `TARGET`
+is the version it printed on its `target` line — which is `v$CURRENT` on a repo that
+writes its version into a file, and the changelog's newest heading on a tag-derived one.
 
 **Verify you are tagging the right commit before creating anything:**
 
@@ -443,14 +476,21 @@ On `$DEFAULT`, clean, and up to date with `origin/$DEFAULT` after step 1's `pull
 --ff-only`. If `HEAD` is behind the remote, stop — you would tag a commit that isn't the
 merge.
 
-**Confirm the merged tree really carries `TARGET`.** The version the config declares is
-what step 1a read, so this is a check that the *merge* preserved it, not a re-read:
+**Confirm the merged tree really carries `TARGET`.** Step 1a read the *pre-merge* tree,
+so this is a check that the merge preserved what it found, not a re-read. Re-run it and
+require the same verdict — `phase B` with the same target:
 
 ```bash
-uvx bump-my-version show current_version
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
+  --current "$CURRENT" --changelog CHANGELOG.md ${TAG_DERIVED:+--tag-derived} --json
 ```
-It must equal `${TARGET#v}`. A mismatch means the PR was edited before merging — stop
-and report both values.
+`target` must equal `$TARGET`. A mismatch, or a phase that is no longer B, means the PR
+was edited before merging — stop and report both values.
+
+**Do not confirm this with `bump-my-version show current_version`.** That was this step's
+check and it is only half a check: on a tag-derived repo it reads the *old* tag and so
+reports `$CURRENT` — never `$TARGET` — failing every time on a correctly merged release.
+The script above is the one source that answers for both repo shapes.
 
 **On `VERSION_SOURCE=dynamic` this command answers the wrong question**, and it answers
 it confidently: it derives from the newest tag, which in phase B is the version *before*

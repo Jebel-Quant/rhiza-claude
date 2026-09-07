@@ -67,8 +67,9 @@ not a target.
 
 !!! warning "A repo *can* skip the second run — this one tried, and stopped"
     If the repo owns its CI, a workflow on push-to-default can do phase B itself: when the
-    declared version is ahead of the highest tag, tag the merged commit and publish. The
-    condition is the same one `/release` uses to tell its phases apart, and it is
+    declared version is ahead of the highest tag, tag the merged commit and publish. That
+    condition is one of the two `/release` uses to tell its phases apart — and it is blind
+    on a tag-derived repo, where nothing is ever ahead of the tag — and it is
     self-limiting — after tagging, declared equals highest, so every ordinary merge that
     follows is a no-op. This repo ran exactly that, and removed it.
 
@@ -95,17 +96,36 @@ SHA that never lands.
 No ordering within a single invocation fixes that: the commit worth tagging does not exist
 until you merge. So `/release` stops at the PR and picks the work back up afterwards.
 
-It works out which phase it's in from the repo itself, comparing the declared version
-against the highest tag — you never tell it:
+It works out which phase it's in from the repo itself — you never tell it. The question
+is "is a version committed to the default branch that no tag names?", and
+`check_version_bump.py` answers it, so the phase is read off a `phase` line rather than
+compared by eye:
 
 | State | Meaning | What it does |
 | --- | --- | --- |
-| current **==** highest tag | the declared version is released | **phase A** — bump, changelog, PR |
-| current **>** highest tag | a merged bump no tag names | **phase B** — tag the merged commit |
-| current **<** highest tag | reverted bump, or a tag cut ahead | stops and reports both |
+| declared version **==** highest tag, nothing pending | the declared version is released | **phase A** — bump, changelog, PR |
+| a committed version **>** highest tag | a merged bump no tag names | **phase B** — tag the merged commit, target taken from the script |
+| declared version **<** highest tag, or two sources disagreeing | reverted bump, a tag cut ahead, or a PR edited before merge | stops and reports the reason (exit 3) |
 
-That comparison is the only state carried between runs, so the merge can happen days
-later, in a different session, and phase B still knows what to do.
+That verdict is the only state carried between runs, so the merge can happen days later,
+in a different session, and phase B still knows what to do.
+
+### Where the committed version is, when it isn't in a file
+
+For most repos the declared version *is* the evidence: `bump-my-version` wrote a number
+into a manifest, so it exceeds the highest tag exactly when the release PR has merged.
+
+**A tag-derived repo has no such number.** When the version is the newest tag — Go and
+Rust, whose synced `.bumpversion.toml` deliberately omits `current_version`, and any
+Python project on `hatch-vcs` with `dynamic = ["version"]` — the declared version is
+*read from* the highest tag, so it can never exceed it. Phase B was unreachable for those
+repos by construction: the flow re-detected phase A after the merge and offered the same
+menu again. No tag was ever mis-cut, but the second half of the release could not be run.
+
+So `CHANGELOG.md` is the evidence instead. Step 7 prepends the new section on the release
+branch, so after the merge its newest heading names a version above every tag — and on a
+tag-derived repo the run **refuses** rather than assuming phase A when that file is
+missing, because there is no third source to fall back on.
 
 !!! note "Unless the version *is* the tag"
     A project using PEP 621's `dynamic = ["version"]` — hatch-vcs, setuptools-scm — has no

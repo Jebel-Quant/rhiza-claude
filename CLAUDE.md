@@ -214,8 +214,8 @@ it will report what that exemption covers, and the numbers are not small:
 
 | Tree | Blocks | Average | C-or-worse |
 | --- | --- | --- | --- |
-| `plugin/scripts` | 473 | A (4.00) | **0** |
-| `tests` | 1495 | A (2.83) | **6** |
+| `plugin/scripts` | 478 | A (4.01) | **0** |
+| `tests` | 1519 | A (2.82) | **6** |
 
 **Both rows are `make complexity` output — regenerate them there rather than editing them
 here.** The target prints exactly these four figures per tree, which it did not always do:

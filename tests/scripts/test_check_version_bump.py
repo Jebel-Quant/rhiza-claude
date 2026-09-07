@@ -293,7 +293,18 @@ def test_main_without_a_target_lists_suggestions(repo, capsys):
     assert "major    v1.0.0" in out
     # Nothing was proposed, so no target line and nothing guarded.
     assert not any(line.startswith("target ") for line in out.splitlines())
-    assert "listing suggestions only" in out
+    assert "phase    A" in out
+
+
+def test_main_without_a_target_reports_the_highest_tag(repo, capsys):
+    """The line the phase decision is actually made on.
+
+    It was absent from this mode, which is why the phases were indistinguishable: `floor`
+    is `max(current, highest)`, so it reads `v0.4.2` whether the tag is there or not.
+    """
+    _tag(repo, "v0.4.2")
+    cvb.main(["--current", "0.4.2", "--target-dir", str(repo)])
+    assert "highest  v0.4.2" in capsys.readouterr().out
 
 
 def test_main_without_a_target_json(repo, capsys):
@@ -320,6 +331,231 @@ def test_main_reports_no_tags(repo, capsys):
     rc = cvb.main(["v1.0.0", "--current", "0.4.2", "--target-dir", str(repo)])
     assert rc == cvb.EXIT_OK
     assert "(no tags)" in capsys.readouterr().out
+
+
+# --- phase detection ----------------------------------------------------------
+
+# The two release phases: A is "the bump has not landed, open the PR", B is "it landed,
+# only the tag is missing". Phase B used to be found by comparing the declared version
+# against the highest tag, which is unreachable for a repo whose version *is* the tag.
+
+_CHANGELOG = """# Changelog
+
+## [1.7.0] - 2026-09-07
+
+### Features
+
+- something
+
+## [1.6.0] - 2026-09-04
+"""
+
+
+def _changelog(repo: Path, text: str = _CHANGELOG) -> None:
+    """Write a CHANGELOG.md into *repo*.
+
+    Args:
+        repo: Repository root to write into.
+        text: Changelog body; defaults to one naming 1.7.0 above 1.6.0.
+    """
+    (repo / "CHANGELOG.md").write_text(text, encoding="utf-8")
+
+
+def test_newest_changelog_version_takes_the_first_heading():
+    """git-cliff prepends, so the newest release is the first version-shaped heading."""
+    assert cvb.newest_changelog_version(_CHANGELOG) == "1.7.0"
+
+
+def test_newest_changelog_version_skips_an_unreleased_heading():
+    """`## [Unreleased]` is not version-shaped and must not hide the section below it."""
+    assert cvb.newest_changelog_version("## [Unreleased]\n\n## [1.6.0]\n") == "1.6.0"
+
+
+def test_newest_changelog_version_is_none_without_a_version_heading():
+    """No heading is no evidence — the phase decision handles that, not a guess here."""
+    assert cvb.newest_changelog_version("# Changelog\n\nnothing yet\n") is None
+
+
+def test_read_changelog_version_reads_the_file(repo):
+    """The path form the CLI passes.
+
+    Args:
+        repo: A git repo fixture with one commit.
+    """
+    _changelog(repo)
+    assert cvb.read_changelog_version(repo / "CHANGELOG.md") == "1.7.0"
+
+
+def test_read_changelog_version_tolerates_a_missing_file(repo):
+    """A repo need not keep a changelog, so absence is not an error.
+
+    Args:
+        repo: A git repo fixture with one commit.
+    """
+    assert cvb.read_changelog_version(repo / "nope.md") is None
+
+
+def test_phase_a_when_the_declared_version_is_the_newest_tag():
+    """Nothing has landed: /release computes a version and opens the PR."""
+    summary = cvb.decide_phase("1.6.0", "v1.6.0", None, False)
+    assert (summary["phase"], summary["target"]) == (cvb.PHASE_A, None)
+    assert summary["exit_code"] == cvb.EXIT_OK
+
+
+def test_phase_b_when_a_manifest_carries_an_untagged_version():
+    """The manifest-declared shape: the bump wrote the version into a file."""
+    summary = cvb.decide_phase("1.7.0", "v1.6.0", None, False)
+    assert (summary["phase"], summary["target"]) == (cvb.PHASE_B, "v1.7.0")
+
+
+def test_phase_b_for_a_tag_derived_repo_comes_from_the_changelog():
+    """The bug this fixes: `current` is read *from* v1.6.0, so it can never exceed it."""
+    summary = cvb.decide_phase("1.6.0", "v1.6.0", "1.7.0", True)
+    assert (summary["phase"], summary["target"]) == (cvb.PHASE_B, "v1.7.0")
+
+
+def test_a_tag_derived_repo_before_its_release_pr_is_phase_a():
+    """The changelog's newest section is the *released* version until the bump lands."""
+    assert cvb.decide_phase("1.6.0", "v1.6.0", "1.6.0", True)["phase"] == cvb.PHASE_A
+
+
+def test_a_tag_derived_repo_without_evidence_refuses_to_guess():
+    """Phase A would be a silent wrong answer here, so it stops instead."""
+    summary = cvb.decide_phase("1.6.0", "v1.6.0", None, True)
+    assert summary["phase"] == cvb.PHASE_AMBIGUOUS
+    assert summary["exit_code"] == cvb.EXIT_AMBIGUOUS
+    assert "--changelog" in summary["phase_reason"]
+
+
+def test_a_manifest_repo_without_evidence_is_still_phase_a():
+    """The declared version is evidence on its own, so the changelog is optional there."""
+    assert cvb.decide_phase("1.6.0", "v1.6.0", None, False)["phase"] == cvb.PHASE_A
+
+
+def test_disagreeing_evidence_is_ambiguous():
+    """Two candidate targets and no basis to choose: the PR was edited before merging."""
+    summary = cvb.decide_phase("1.7.0", "v1.6.0", "1.8.0", False)
+    assert summary["phase"] == cvb.PHASE_AMBIGUOUS
+    assert "1.7.0" in summary["phase_reason"] and "1.8.0" in summary["phase_reason"]
+
+
+def test_a_version_below_its_newest_tag_is_ambiguous():
+    """A reverted bump or a tag cut ahead of the config — neither phase fits."""
+    summary = cvb.decide_phase("1.5.0", "v1.6.0", None, False)
+    assert summary["phase"] == cvb.PHASE_AMBIGUOUS
+    assert summary["exit_code"] == cvb.EXIT_AMBIGUOUS
+
+
+def test_an_untagged_repo_is_phase_a_even_when_tag_derived():
+    """A first release has no tag to derive from, so the declared value is not evidence."""
+    assert cvb.decide_phase("0.1.0", None, None, True)["phase"] == cvb.PHASE_A
+
+
+def test_an_untagged_repo_with_a_changelog_section_is_phase_b():
+    """The first release PR merged and only the first tag is missing."""
+    summary = cvb.decide_phase("0.1.0", None, "0.1.0", False)
+    assert (summary["phase"], summary["target"]) == (cvb.PHASE_B, "v0.1.0")
+
+
+def test_landed_versions_ignores_a_starting_manifest_version():
+    """`cargo init` writes 0.1.0; treating that as landed calls every fresh repo phase B."""
+    assert cvb._landed_versions("0.1.0", None, None) == set()
+    assert cvb._landed_versions("0.1.0", None, "0.1.0") == {"0.1.0"}
+
+
+def test_landed_versions_collapses_agreeing_sources():
+    """Both sources naming the same version is one candidate, not a disagreement."""
+    assert cvb._landed_versions("1.7.0", "v1.6.0", "1.7.0") == {"1.7.0"}
+
+
+# --- phase detection through main() -------------------------------------------
+
+
+def test_main_detects_phase_b_from_the_changelog(repo, capsys):
+    """The end of the chain: a tag-derived repo whose release PR has merged.
+
+    Args:
+        repo: A git repo fixture with one commit.
+        capsys: Pytest capture fixture for stdout/stderr.
+    """
+    _tag(repo, "v1.6.0")
+    _changelog(repo)
+    rc = cvb.main(
+        [
+            "--current",
+            "1.6.0",
+            "--target-dir",
+            str(repo),
+            "--changelog",
+            "CHANGELOG.md",
+            "--tag-derived",
+        ]
+    )
+    assert rc == cvb.EXIT_OK
+    out = capsys.readouterr().out
+    assert "highest  v1.6.0" in out
+    assert "pending  1.7.0" in out
+    assert "phase    B" in out
+    assert "target   v1.7.0" in out
+
+
+def test_main_exits_3_when_the_phase_is_ambiguous(repo, capsys):
+    """Its own exit code, so a caller need not read the reason to tell it from a bad bump.
+
+    Args:
+        repo: A git repo fixture with one commit.
+        capsys: Pytest capture fixture for stdout/stderr.
+    """
+    _tag(repo, "v1.6.0")
+    rc = cvb.main(["--current", "1.6.0", "--target-dir", str(repo), "--tag-derived"])
+    assert rc == cvb.EXIT_AMBIGUOUS
+    assert "phase ambiguous" in capsys.readouterr().err
+
+
+def test_main_phase_json_carries_the_target(repo, capsys):
+    """/release reads the target from here rather than re-deriving it.
+
+    Args:
+        repo: A git repo fixture with one commit.
+        capsys: Pytest capture fixture for stdout/stderr.
+    """
+    _tag(repo, "v1.6.0")
+    _changelog(repo)
+    rc = cvb.main(
+        ["--current", "1.6.0", "--target-dir", str(repo), "--changelog", "CHANGELOG.md", "--json"]
+    )
+    assert rc == cvb.EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["phase"] == "B"
+    assert payload["target"] == "v1.7.0"
+    assert payload["pending"] == "1.7.0"
+    assert payload["highest_tag"] == "v1.6.0"
+
+
+def test_main_omits_the_pending_line_without_a_changelog(repo, capsys):
+    """Nothing read means nothing reported — an empty `pending` line would read as none.
+
+    Args:
+        repo: A git repo fixture with one commit.
+        capsys: Pytest capture fixture for stdout/stderr.
+    """
+    _tag(repo, "v1.6.0")
+    cvb.main(["--current", "1.6.0", "--target-dir", str(repo)])
+    assert "pending" not in capsys.readouterr().out
+
+
+def test_a_guarded_run_reports_no_phase(repo, capsys):
+    """Phase detection is the no-target mode's job; a guarded run answers one question.
+
+    Args:
+        repo: A git repo fixture with one commit.
+        capsys: Pytest capture fixture for stdout/stderr.
+    """
+    _tag(repo, "v1.6.0")
+    cvb.main(["v1.7.0", "--current", "1.6.0", "--target-dir", str(repo)])
+    out = capsys.readouterr().out
+    assert "phase" not in out
+    assert "target   v1.7.0" in out
 
 
 # --- end-to-end: /release's full chain on a real repo -------------------------
