@@ -277,15 +277,24 @@ FIGURES: dict[str, dict] = {
     },
     "fig-release": {
         "title": "/rhiza:release — the legal next versions, with no recommendation",
-        # source: check_version_bump.py --current 0.6.1 in this repo
+        # source: check_version_bump.py --current 0.6.1 --changelog CHANGELOG.md against a
+        # repo tagged v0.6.1. The `highest` and `phase` lines are not decoration: the
+        # phase decision is made on them, and this mode printed neither until it had to.
         "lines": [
-            ("prompt", "python3 plugin/scripts/check_version_bump.py --current 0.6.1"),
+            (
+                "prompt",
+                "python3 plugin/scripts/check_version_bump.py --current 0.6.1"
+                " --changelog CHANGELOG.md",
+            ),
             ("kv", "current  : 0.6.1"),
+            ("kv", "highest  : v0.6.1"),
             ("kv", "floor    : v0.6.1"),
+            ("kv", "pending  : 0.6.1"),
             ("kv", "patch    : v0.6.2"),
             ("kv", "minor    : v0.7.0"),
             ("kv", "major    : v1.0.0"),
-            ("kv", "ok       : no target given — listing suggestions only"),
+            ("kv", "phase    : A"),
+            ("kv", "ok       : phase A — the declared version 0.6.1 is released as v0.6.1"),
         ],
     },
 }
