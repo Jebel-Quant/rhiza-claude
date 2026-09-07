@@ -484,7 +484,7 @@ for it to. Read the exit code:
 
 | Exit | Meaning | What to do |
 | --- | --- | --- |
-| **0** | the bump is on `$DEFAULT`, and the summary carries the SHA | step 12 |
+| **0** | the bump is on `$DEFAULT` | hold the SHA it reports as `MERGE_SHA`; step 12 |
 | **3** | timed out — the release has not merged yet | **stop**; see below |
 | **1** | git failed (no `origin`, no network, no such branch) | **stop and report** — nothing was waited for |
 | **2** | `--expect-version` wasn't `X.Y.Z` | a caller bug, not a repo problem |
@@ -503,6 +503,13 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/pr_statu
   request's own branch.
 - **Green but still open** — auto-merge is off or a review is required. Stop; the merge is
   waiting on a person.
+- **No request listed at all** — `pr_status.py` asks for `--state open`, so a request that
+  merged in the seconds between the wait giving up and this call answers with nothing.
+  That is not "the PR vanished", it is very likely "it just landed": re-probe with
+  `wait_for_merge.py --branch "$DEFAULT" --expect-version "${TARGET#v}" --timeout 0`
+  before handing anything back, and go to step 12 if it now says landed. Only if that
+  still reports not-landed is the request genuinely gone — closed unmerged, or the branch
+  renamed — and then stop and say so.
 
 Then **hand back**, and say plainly that **no tag exists and nothing is half-done**: the
 release is finished by re-running `/rhiza:release` once the PR merges, and step 1a will
@@ -522,8 +529,8 @@ git pull --ff-only
 ```
 `--ff-only` is a check, not a convenience: the release commit is the squash of your own
 branch onto a `$DEFAULT` you were level with in step 1, so a fast-forward is exactly what
-the history should permit. If it refuses, **stop** — something else has landed and the
-commit you were about to tag is not the one you think it is.
+the history should permit. If it refuses, **stop** — something else has landed and your
+history and the remote's have diverged, which is not a state to cut a release from.
 
 From step 11, `TARGET` is what you chose in step 3, and the wait has just confirmed the
 merged branch names it. From step 1a, `TARGET` is the version it printed on its `target`
@@ -537,9 +544,20 @@ git rev-parse --abbrev-ref HEAD
 git status --porcelain
 git log -1 --format='%H %s'
 ```
-On `$DEFAULT`, clean, and level with `origin/$DEFAULT` after the pull above. When you
-came from step 11, that `%H` must be the SHA the wait reported; if it isn't, the branch
-moved again after the merge — stop and report both.
+On `$DEFAULT` and clean. **What `HEAD` is does not have to be the release commit**, and
+this is the one place where insisting on it would be wrong: a merge that lands while
+someone else is also merging leaves the release commit one or two behind the tip within
+seconds, through nobody's mistake. The tag names a commit, not a branch position — so
+when you came from step 11, tag the SHA the wait identified and check the property the
+tag actually needs, which is the same one release CI re-checks:
+
+```bash
+git merge-base --is-ancestor "$MERGE_SHA" "origin/$DEFAULT"
+```
+Non-zero means `MERGE_SHA` is not on the branch you publish from — **stop**, because that
+is the orphaned-tag case the whole wait exists to avoid. On the step-1a path there is no
+`MERGE_SHA` to check: `HEAD` is the merged commit by construction, since that is what
+step 1a read the version off, and the pull above left you level with the remote.
 
 **Confirm the merged tree really carries `TARGET`.** Everything read so far was read
 before the merge, so this is a check that the merge preserved it, not a re-read. Run it
@@ -564,8 +582,12 @@ Then guard and tag:
 HIGHEST="$(git tag --list 'v*' | sort -V | tail -1)"
 uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/check_version_bump.py" \
   "$TARGET" --current "$HIGHEST"
-git tag -a "$TARGET" -m "release $TARGET"
+git tag -a "$TARGET" -m "release $TARGET" "${MERGE_SHA:-HEAD}"
 ```
+**The explicit commit is the point**, and the fallback is what makes one line serve both
+paths: from step 11 `MERGE_SHA` is the commit the wait watched arrive, and on the step-1a
+path it is unset and `HEAD` is that commit already. Tagging a *branch name* would let the
+few seconds between the check above and the tag decide which commit gets released.
 The guard runs **again**, on the merged history: it is cheap, and while the run was
 waiting the repo gained commits and possibly tags, so the fact that `TARGET` was legal in
 step 4 is no longer evidence that it is legal now. Non-zero exit means stop. **Never**

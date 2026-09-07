@@ -61,8 +61,10 @@ not a target.
     parser the phase decision uses. It waits for **the bump landing**, not for a request
     merging, because that is what the tag needs to be true. Nine minutes per call, up to
     three calls while the PR's checks are still running.
-12. **Tags the merged commit and pushes the tag.** That push triggers the repo's
-    `Release` workflow.
+12. **Tags the merged commit and pushes the tag** — the commit the wait watched arrive,
+    named by SHA rather than by branch position, so another merge landing in the same few
+    seconds cannot decide what gets released. That push triggers the repo's `Release`
+    workflow.
 
     The version is the human decision and the checks are the gate: you picked the bump
     from the table, and a PR titled `chore: release vX.Y.Z` went green before it merged.
