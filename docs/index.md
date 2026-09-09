@@ -185,6 +185,17 @@ make install
 The commands appear namespaced under the plugin — type `/rhiza` to have Claude
 Code autocomplete them.
 
+### If the install fails with `Invalid schema`
+
+`/plugin install` validates **every** configured marketplace before it installs
+anything, so a manifest that has nothing to do with rhiza can stop the install —
+one long `Invalid schema:` line naming `plugins.<n>.source: Invalid input` and
+`Unrecognized key: "displayName"` for entry indices far past the single plugin this
+marketplace ships. Those entries belong to another marketplace whose schema your
+Claude Code predates. `claude update` fixes it; the
+[README](https://github.com/Jebel-Quant/rhiza-claude#if-the-install-fails-with-invalid-schema)
+has the full reading.
+
 ## First run, start to finish
 
 An empty directory to a managed, synced, scored repo. Two PRs, both merged by you.

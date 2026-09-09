@@ -114,6 +114,42 @@ to show that switching goes both ways — so a literal version here would be one
 release could keep current, and it silently aged three minor versions before
 anyone noticed.
 
+### If the install fails with `Invalid schema`
+
+`/plugin install` validates **every** marketplace you have configured before it
+installs anything, so a manifest this repo has nothing to do with can stop the
+rhiza install:
+
+```text
+❯ /plugin install rhiza@rhiza-claude
+  ⎿  Invalid schema: plugins.0.source: Invalid input, …
+     plugins.76: Unrecognized key: "displayName", … plugins.290.source: Invalid input
+```
+
+The indices name the culprit. This marketplace ships a single plugin, so there is no
+`plugins.290` here to be invalid — that entry belongs to another configured
+marketplace, in practice Anthropic's own `claude-plugins-official`, which is a few
+hundred entries long. Its entries use `source` object forms (`git-subdir`, `url`,
+`archive`) and a `displayName` key that older Claude Code releases have no schema
+for, so an out-of-date client rejects that manifest and the rhiza install is
+collateral damage. `/plugin marketplace add Jebel-Quant/rhiza-claude` succeeding
+while the install fails is the tell: the add validated *this* manifest and was happy
+with it.
+
+The fix is to update Claude Code, not to change anything here:
+
+```bash
+claude update
+```
+
+If you can't update, dropping the marketplace that fails to validate also unblocks
+the install:
+
+```text
+/plugin marketplace list
+/plugin marketplace remove claude-plugins-official
+```
+
 ## Prerequisites
 
 The commands drive a rhiza-managed repo with [`uv`](https://docs.astral.sh/uv/) —
