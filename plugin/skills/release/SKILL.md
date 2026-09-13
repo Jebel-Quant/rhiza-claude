@@ -9,6 +9,14 @@ You are running `/release` in the **current working directory's repo**. Goal: la
 version bump on the default branch **through a pull request**, like every other change,
 and tag the commit that actually merged — in **one run**.
 
+**This command is the Claude Code harness for a repo-owned release contract, not a
+Claude-only release policy.** The durable contract is the state machine below: declared
+version locations, conventional-commit changelog evidence, a release PR, forge-gated
+merge, and a tag on the merged default-branch commit. Keep the steps explainable in
+those repo terms so another agent, a human following the docs, or a future non-Claude
+wrapper can reproduce the same pre-tag state instead of depending on Claude-specific
+wording.
+
 **A tag still cannot be cut before the merge, which is why there is a wait in the
 middle.** A tag must point at a commit that exists on the branch you publish from; a
 squash-merge replaces the branch's commits with a new one, so a tag created before the

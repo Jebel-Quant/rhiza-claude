@@ -4,6 +4,12 @@ Land a release **through a pull request**, in one run: bump every version locati
 repo declares, regenerate the changelog, open a release PR, let the forge merge it once
 its checks pass, and tag the commit that actually landed.
 
+`/rhiza:release` is the Claude Code entry point for a repo-owned release contract, not a
+Claude-only release policy. The contract is the sequence this page documents — declared
+version locations, changelog evidence, a release PR, a forge-gated merge, and a tag on
+the merged default-branch commit — so another agent or a human runbook can reproduce the
+same pre-tag state without depending on Claude-specific wording.
+
 ```
 /rhiza:release [version e.g. v1.4.0]
 ```
