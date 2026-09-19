@@ -1,6 +1,6 @@
 # rhiza-claude
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![Coverage](https://jebel-quant.github.io/rhiza-claude/coverage-badge.svg)](https://jebel-quant.github.io/rhiza-claude/reports/html-coverage/)
 [![CodeFactor](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-claude/badge)](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-claude)
 
