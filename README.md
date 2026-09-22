@@ -44,7 +44,7 @@ run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
 <!-- rhiza-count: commands procedures -->
-the ten slash commands you invoke; `prompts/` holds eight **internal procedures** they
+the ten slash commands you invoke; `prompts/` holds nine **internal procedures** they
 `Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.
