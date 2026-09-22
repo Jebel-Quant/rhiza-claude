@@ -41,8 +41,8 @@ This is the command that does it.
    number — and demotes the ones that no longer hold.
 6. **Asks**, with a multi-select of the survivors. Nothing is preselected and choosing
    none is a valid answer.
-7. **Fixes one at a time**: a branch off `origin/<default>`, the smallest edit, the repo's
-   gates run bare, one Conventional Commits line, one push, one request.
+7. **Fixes one at a time**: a branch off `origin/<default>`, the smallest edit, the work
+   staged, the repo's gates run bare, one Conventional Commits line, one push, one request.
 8. **Reports** every category — including, as prominently, the issues it did not fix.
 
 ## The five categories
@@ -94,6 +94,12 @@ wholesale.
 
 ## Notes
 
+- **The fix is staged before the gates run, and that is load-bearing.** `pre-commit` and
+  `prek` build their file list from git, so a file the edit *created* is invisible to every
+  hook while it is untracked — they all report a clean pass on a file none of them opened,
+  and the first real lint happens in CI on a request already under review. A command that
+  routinely adds a module or a test is exactly the one that would get this wrong. It is
+  safe here only because the tree was proved clean before the branch was cut.
 - **A failed gate never produces a pull request.** The attempt is committed on its branch
   and left unpushed, so the tree is clean for the next issue and a never-green branch
   stays out of review. The branch is never deleted.

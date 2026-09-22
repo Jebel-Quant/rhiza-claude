@@ -190,7 +190,27 @@ Finish and report one issue before starting the next.
    content from the same base, and here a branch of that name may carry a pushed attempt
    someone has already looked at. Take the timestamp suffix instead.
 2. **Edit.** The smallest change that satisfies the acceptance criterion, and nothing else.
-3. **Gates.** Run the targets the probe found, bare, **one per Bash call** — cheapest first.
+3. **Stage, then run the gates.** Staging first is not tidiness — it decides what the gates
+   can see.
+   ```bash
+   git add -A
+   ```
+   **A hook runner only ever sees git-tracked files.** `pre-commit` and `prek` both build
+   their file list from git, so a file the edit *created* is invisible to them while it is
+   untracked: every hook reports a clean pass on a file none of them opened, and the first
+   real lint happens in CI, on a request already under review. This command creates files
+   routinely — a new module, a new test, a new page — which is exactly the case it would
+   otherwise get wrong. **This is not a theoretical failure; it is how the commit that added
+   this command reached CI with unsorted imports after a fully green local run.**
+
+   `/rhiza:update` forbids `git add --all` outright, and this is not an exception to that
+   rule but the other side of it: there, staging is delegated to `stage_synced.py` because
+   the commit must touch exactly the lock's file list and nothing else. Here step 0 proved
+   the tree clean, so the only changes present are the ones step 2 made for this issue —
+   the same reasoning `/rhiza:release` records for its own `git add --all`. **If step 0 was
+   skipped or its result ignored, this line is unsafe.**
+
+   Then the targets the probe found, bare, **one per Bash call**, cheapest first:
    ```bash
    make fmt
    ```
@@ -201,13 +221,20 @@ Finish and report one issue before starting the next.
    `make` outright, so a pipe here is a denied call rather than a style note. Where the repo
    is a v1.4 shim, `uvx rhiza-task <task>` is the same front door and carries the same
    thresholds.
-4. **Scope check.** `git status --porcelain` again. A file the issue never named and no
-   formatter touched means the edit went wider than the issue — revert it. A file a formatter
-   rewrote that has nothing to do with this issue belongs in its own change, so restore it
-   with `git checkout --` and say so in the report.
-5. **Commit.** One Conventional Commits line, no body:
+
+   A formatter that rewrites a staged file leaves the fix unstaged, so `git add -A` again
+   after the gates — and read the next step before you do, because that second staging is
+   also the moment to check *what* it rewrote.
+4. **Scope check.** `git status --porcelain` again, reading both columns now that the work is
+   staged. A file the issue never named and no formatter touched means the edit went wider
+   than the issue — revert it. A file a formatter rewrote that has nothing to do with this
+   issue belongs in its own change, so drop it with `git restore --staged --worktree --` and
+   say so in the report. **`git checkout --` alone will not do it once the file is staged**,
+   which is the trap in checking scope after staging rather than before.
+5. **Commit.** One Conventional Commits line, no body. The work is already staged, so this is
+   a plain `git commit` rather than `-a`:
    ```bash
-   git commit -am "fix: drop the dead pytest table (#95)"
+   git commit -m "fix: drop the dead pytest table (#95)"
    ```
    No attribution or co-author trailers — no rhiza command adds them.
 6. **Push and open.**
