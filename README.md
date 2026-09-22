@@ -44,7 +44,7 @@ run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
 <!-- rhiza-count: commands procedures -->
-the ten slash commands you invoke; `prompts/` holds nine **internal procedures** they
+the eleven slash commands you invoke; `prompts/` holds nine **internal procedures** they
 `Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.
@@ -385,7 +385,7 @@ components by those names at the plugin root, so they cannot be renamed. `prompt
 slash command.
 
 <!-- rhiza-count: commands -->
-All ten commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
+All eleven commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
 names the command, so `skills/init/SKILL.md` is what answers `/rhiza:init`. Check the
 [plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before
 assuming what the spec requires.
@@ -395,7 +395,7 @@ assuming what the spec requires.
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
 | `plugin/` | **The plugin as shipped.** Everything below is inside it. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/skills/` | The plugin's ten slash commands (`<name>/SKILL.md`, the directory naming the command). |
+| `plugin/skills/` | The plugin's eleven slash commands (`<name>/SKILL.md`, the directory naming the command). |
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive, plus the non-Python assets they copy out (`licenses/`, `completions/`). |

@@ -97,7 +97,7 @@
 \textbf{rhiza-claude} is a Claude Code plugin for repositories that share their
 scaffolding with a template repository instead of each carrying a private copy of it.
 % rhiza-count: commands
-This document is the part the reference pages cannot be: not a catalogue of the ten
+This document is the part the reference pages cannot be: not a catalogue of the eleven
 skills under \file{skills/}, but an account of the problem they exist to
 solve --- the two-repository boundary a sync respects, what ``rhiza-managed'' actually
 means on disk, the order the commands are meant to be run in, and why a plugin whose
@@ -264,7 +264,7 @@ The first line registers the \emph{marketplace} --- this repository, read straig
 git; the second installs the \emph{plugin} it publishes. From a shell, \texttt{make
 install} runs the equivalent \texttt{claude plugin} commands, which is the form to
 % rhiza-count: commands
-prefer in a setup script. Either way the ten commands then appear namespaced under
+prefer in a setup script. Either way the eleven commands then appear namespaced under
 \texttt{/rhiza:}, and typing \texttt{/rhiza} is enough for Claude Code to autocomplete
 them.
 
@@ -450,7 +450,7 @@ The plugin ships two kinds of markdown, and the distinction is enforced rather t
 conventional:
 
 \begin{itemize}[leftmargin=1.4em, itemsep=0.3em]
-  \item \file{skills/<name>/SKILL.md} are \textbf{slash commands} you invoke: ten of
+  \item \file{skills/<name>/SKILL.md} are \textbf{slash commands} you invoke: eleven of
         them, each with a reference page. The \emph{directory} carries the name, so the
         file that answers \cmd{init} is \file{skills/init/SKILL.md}.
   \item \file{prompts/*.md} are \textbf{internal procedures}: nine shared steps a
@@ -492,7 +492,7 @@ argument from an absent constraint reads, to a later human or model, as a constr
 no longer binds.
 
 % rhiza-count: commands
-\section{The ten commands, and what each writes}
+\section{The eleven commands, and what each writes}
 
 An introduction should say which of these change your repository, because that is the
 first thing anyone actually wants to know.
@@ -695,7 +695,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 this actually requires.
 
 % rhiza-count: commands procedures
-Honest scope, at v0.15.0: ten user-facing commands, nine internal procedures. It is
+Honest scope, at v0.15.0: eleven user-facing commands, nine internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command
