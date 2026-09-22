@@ -201,7 +201,9 @@ paper:  ## Build the paper and stage it for the docs site (needs tectonic or pdf
 paper-figures: $(UVX)  ## Regenerate the paper's figures from the captured command output
 	uv run --with pillow python paper/render_figures.py
 
-clean:  ## Remove generated caches and artifacts (ruff cache, __pycache__, _book, test reports, paper build)
-	rm -rf .ruff_cache _book $(TESTS) docs/reports docs/paper
+clean:  ## Remove generated caches and artifacts (tool caches, __pycache__, _book, test reports, paper build)
+	rm -rf .ruff_cache .mypy_cache .pytest_cache .cache htmlcov
+	rm -rf _book $(TESTS) docs/reports docs/paper
+	rm -f .coverage .coverage.* coverage.xml
 	rm -f paper/*.aux paper/*.log paper/*.out paper/*.pdf
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
