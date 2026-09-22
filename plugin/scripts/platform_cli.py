@@ -32,6 +32,14 @@ Actions:
   issue-create     file an issue
   release-create   publish a release from an existing tag
 
+**Every issue is stamped.** `issue-create` puts `ISSUE_BADGE` on the first line of the
+body before it is sent, so a finding rhiza filed in somebody else's tracker says where
+it came from instead of arriving anonymously. It happens here, not in the command prose,
+for the reason anything deterministic does: prose is re-read by a model each run, and a
+provenance mark that is only usually applied is worse than none. The caller's body file
+is left untouched — the stamped text goes to a scratch file, since gh takes a path where
+glab takes the text.
+
 Reading a request's CI state is the same problem one door down, and it lives in
 ``pr_status.py`` rather than here: its two CLIs disagree about *shape* far more than
 about flags, and folding it in would push this module past the size and complexity bars
@@ -69,10 +77,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import shutil
 import subprocess  # nosec B404
 import sys
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +106,31 @@ ACTIONS = (
 
 # The actions whose body text has to reach the CLI one way or the other.
 _BODY_ACTIONS = ("pr-create", "pr-update", "issue-create")
+
+# Stamped at the top of every issue body. Filing is the one thing rhiza does *inside*
+# somebody else's tracker, where the next reader has no other way to tell an automated
+# finding from a human one, so the badge says so and links back to what filed it.
+ISSUE_BADGE = (
+    "[![rhiza](https://img.shields.io/badge/filed_by-rhiza-007ec6)]"
+    "(https://github.com/Jebel-Quant/rhiza-claude)"
+)
+
+
+def stamp_issue_body(body: str) -> str:
+    """Return *body* with `ISSUE_BADGE` as its first line.
+
+    Idempotent, and deliberately so: a body that already carries the badge is returned
+    unchanged, so a caller that stamped its own — or a re-run over the same file — never
+    stacks two.
+
+    >>> stamp_issue_body("Coverage is 84%.\\n").splitlines()[0] == ISSUE_BADGE
+    True
+    >>> stamp_issue_body(stamp_issue_body("x")) == stamp_issue_body("x")
+    True
+    """
+    if body.lstrip().startswith(ISSUE_BADGE):
+        return body
+    return f"{ISSUE_BADGE}\n\n{body.lstrip()}"
 
 
 class UnsupportedAction(Exception):
@@ -269,6 +305,27 @@ def resolve_body(target_dir: Path, body_file: str | None) -> str | None:
     return candidate.read_text(encoding="utf-8") if candidate.is_file() else None
 
 
+@contextlib.contextmanager
+def prepared_body(
+    action: str, body: str | None, body_file: str | None
+) -> Iterator[tuple[str | None, str | None]]:
+    """Yield the ``(body, body_file)`` to send, stamping the badge for `issue-create`.
+
+    Both halves have to move together: glab is given the text and gh a path, so a stamp
+    applied to only one would file two different issues depending on the forge. The
+    scratch file lives for the length of the call and no longer — the caller's body file
+    is never rewritten, since it belongs to the command that wrote it.
+    """
+    if action != "issue-create" or body is None:
+        yield body, body_file
+        return
+    with tempfile.TemporaryDirectory() as scratch:
+        stamped = stamp_issue_body(body)
+        path = Path(scratch) / "issue-body.md"
+        path.write_text(stamped, encoding="utf-8")
+        yield stamped, str(path)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point: perform the requested action and return an exit code."""
     parser = argparse.ArgumentParser(description="Run a forge operation on gh or glab.")
@@ -300,22 +357,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: --body-file is required and must exist for {args.action}", file=sys.stderr)
         return EXIT_USAGE
 
-    try:
-        summary = run(
-            target_dir,
-            args.action,
-            dry_run=args.dry_run,
-            base=args.base,
-            head=args.head,
-            title=args.title,
-            body_file=args.body_file,
-            body=body,
-            tag=args.tag,
-            notes_file=args.notes_file,
-        )
-    except (PlatformError, UnsupportedAction) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return EXIT_USAGE
+    with prepared_body(args.action, body, args.body_file) as (body, body_file):
+        try:
+            summary = run(
+                target_dir,
+                args.action,
+                dry_run=args.dry_run,
+                base=args.base,
+                head=args.head,
+                title=args.title,
+                body_file=body_file,
+                body=body,
+                tag=args.tag,
+                notes_file=args.notes_file,
+            )
+        except (PlatformError, UnsupportedAction) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_USAGE
 
     if args.json_output:
         print(json.dumps(summary, indent=2))

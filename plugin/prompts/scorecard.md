@@ -193,3 +193,8 @@ unauthenticated; say so and skip, and don't substitute another mechanism.
 Each issue must be self-contained: the title from the finding, and a body carrying the
 subcategory, the current→target score, the file(s)/lines or config to change, and the
 `done when…` criterion. Report the created issue URLs.
+
+**Write the body as the finding, and nothing else.** The mapper puts a `filed by rhiza`
+badge on the first line of every issue it creates, so the tracker says where the finding
+came from without you adding anything. Don't hand-write that badge — it is stamped for
+both forges, and stamping it twice is the only way to get two.

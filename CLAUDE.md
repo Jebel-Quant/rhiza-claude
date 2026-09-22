@@ -114,7 +114,7 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 
 | Path | What it is |
 | --- | --- |
-| `plugin/skills/<name>/SKILL.md` | The ten slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
+| `plugin/skills/<name>/SKILL.md` | The eleven slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Nine **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
@@ -188,11 +188,12 @@ random song — those are scripts. Reading a repo and scoring it is prose.
 
 **An underscore prefix means "not an entry point".** A command invokes
 `scripts/<name>.py`; everything a script leans on lives in a `_`-prefixed sibling that no
-command ever names. Five families, plus the sync core:
+command ever names. Six families, plus the sync core:
 
 | Prefix | Owns |
 | --- | --- |
-| `_rhiza_*` | the sync core, and anything shared across unrelated commands — `_rhiza_toml` (add a TOML key, reformat nothing) serves the skeleton, `set_license` **and** `set_python_version`; `_rhiza_yaml` is the read/write façade over `_rhiza_yaml_parse`; `_rhiza_forge` answers *which forge is this* for both `platform_cli` and `pr_status` |
+| `_rhiza_*` | the sync core, and anything shared across unrelated commands — `_rhiza_toml` (add a TOML key, reformat nothing) serves the skeleton, `set_license` **and** `set_python_version`; `_rhiza_yaml` is the read/write façade over `_rhiza_yaml_parse`; `_rhiza_forge` answers *which forge is this* for `platform_cli`, `pr_status` and `issue_status` |
+| `_issue_*` | `issue_status.py`'s text half — what an issue's prose says about whether it can be fixed without a judgement call. Split for the same reason as `_make_targets_*`: asking a forge for a payload and reading regexes over English are different instruments with different failure modes, and only the second can be covered exhaustively from doctests |
 | `_skeleton_*` | one module per language behind `init_skeleton.py`, which is only the dispatcher and the CLI — each language's gap differs in kind, not degree |
 | `_validate_*` | `validate.py`'s three halves: the `Log` sink, the language structure checks, the `template.yml` field checks |
 | `_doc_examples_*` | `check_doc_examples.py`'s two halves: the doctests under a source root, and the README's fenced blocks. They share only a verdict, so the dispatcher runs each independently — a repo with no source root still gets its README checked |
