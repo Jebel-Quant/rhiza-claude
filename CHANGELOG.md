@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.16.0] - 2026-09-22
+
+### New Features
+- Add /rhiza:fix — triage open issues, one PR per fixable issue (#241)
+
+### Bug Fixes
+- *(make)* Clean the tool caches it never named (#240)
+
 ## [0.15.0] - 2026-09-22
 
 ### New Features
