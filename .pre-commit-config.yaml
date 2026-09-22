@@ -26,8 +26,9 @@ repos:
     rev: v0.49.0
     hooks:
       - id: markdownlint
-        # A SKILL.md is a prompt, not docs; CHANGELOG is generated.
-        exclude: '^(plugin/skills/|CHANGELOG\.md|\.github/)'
+        # A SKILL.md is a prompt, not docs; CHANGELOG is generated. `bundle/` is
+        # both — generated prompts — and `build_bundle.py --check` is its gate.
+        exclude: '^(plugin/skills/|bundle/|CHANGELOG\.md|\.github/)'
         args: ["--disable", "MD013", "MD041"]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
@@ -165,6 +166,16 @@ repos:
       # docs-nav checks a page *exists*; this checks its facts are current. The
       # reference block on each page is generated from the frontmatter, so a renamed
       # argument or a widened allowed-tools list can't survive in the docs.
+      # The portable bundle is generated from the same two directories and committed,
+      # so it drifts exactly the way the reference blocks above do — silently, and in
+      # the direction nobody reads. `files:` names the sources *and* the bundle itself:
+      # a hand-edit under `bundle/` has to be caught as surely as a stale generation.
+      - id: skill-bundle
+        name: the portable skill bundle is up to date
+        entry: uv run --python 3.12 --no-project python plugin/scripts/build_bundle.py --check
+        language: system
+        pass_filenames: false
+        files: '^(plugin/(skills|prompts)/.*\.md|plugin/scripts/build_bundle\.py|bundle/.*\.md)$'
       - id: docs-reference-blocks
         name: generated docs reference blocks are up to date
         entry: uv run --python 3.12 --no-project python plugin/scripts/render_command_docs.py --check

@@ -35,6 +35,7 @@ nav:
       - license: internals/license.md
       - python-version: internals/python-version.md
   - Without Claude Code: headless.md
+  - With another agent: other-agents.md
   - Development: development.md
 
 extra:

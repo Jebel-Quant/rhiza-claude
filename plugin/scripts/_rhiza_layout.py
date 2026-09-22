@@ -44,6 +44,20 @@ PLUGIN_MANIFEST = f"{PLUGIN_DIR}/.claude-plugin/plugin.json"
 MARKETPLACE_MANIFEST = ".claude-plugin/marketplace.json"
 """The marketplace catalogue. Stays at the repository root, where `add` looks."""
 
+BUNDLE_DIR = "bundle"
+"""The generated, client-agnostic copy of the commands and procedures.
+
+Not a discovery location for anything — it is a build artifact that happens to be
+committed, so a client that reads the open ``SKILL.md`` format can be pointed at a
+checkout without a build step. ``build_bundle.py`` writes it; nothing reads it back.
+"""
+
+BUNDLE_SKILLS_DIR = f"{BUNDLE_DIR}/skills"
+"""One directory per command inside the bundle, named ``rhiza-<command>``."""
+
+BUNDLE_PROMPTS_DIR = f"{BUNDLE_DIR}/prompts"
+"""The procedures inside the bundle, one file per procedure, same stems as the source."""
+
 DOCS_SKILLS_DIR = "docs/skills"
 """Where a command's docs page lives, relative to the repository root.
 
