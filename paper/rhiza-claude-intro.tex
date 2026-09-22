@@ -453,7 +453,7 @@ conventional:
   \item \file{skills/<name>/SKILL.md} are \textbf{slash commands} you invoke: ten of
         them, each with a reference page. The \emph{directory} carries the name, so the
         file that answers \cmd{init} is \file{skills/init/SKILL.md}.
-  \item \file{prompts/*.md} are \textbf{internal procedures}: eight shared steps a
+  \item \file{prompts/*.md} are \textbf{internal procedures}: nine shared steps a
         command reaches with the \texttt{Read} tool, kept deliberately \emph{outside}
         \file{skills/} so they cannot be invoked directly.
 \end{itemize}
@@ -695,7 +695,7 @@ near-universal. The plugin's own scripts are stdlib-only Python: \textbf{there i
 this actually requires.
 
 % rhiza-count: commands procedures
-Honest scope, at v0.14.0: ten user-facing commands, eight internal procedures. It is
+Honest scope, at v0.14.0: ten user-facing commands, nine internal procedures. It is
 not a build system, a package manager, or a replacement for your CI --- the template
 delivers workflows, and the plugin's job is to get them to you intact and tell you how
 the result scores. Nothing here runs on a schedule or in the background; every command

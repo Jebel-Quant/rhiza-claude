@@ -115,7 +115,7 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 | Path | What it is |
 | --- | --- |
 | `plugin/skills/<name>/SKILL.md` | The ten slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
-| `plugin/prompts/*.md` | Eight **internal procedures** commands reach with `Read`. |
+| `plugin/prompts/*.md` | Nine **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
 | `plugin/.claude-plugin/plugin.json` | The plugin manifest. |

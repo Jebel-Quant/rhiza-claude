@@ -99,6 +99,61 @@ The optional argument scopes the assessment; it defaults to the whole repo.
 5. **Optionally files issues** for them — via a multi-select menu, never free text,
    and nothing created without an explicit selection.
 
+## Your own rules: `.rhiza/quality.md`
+
+A repo can state the standards it holds *itself* to, and `/quality` reads them before it
+runs anything. Write `.rhiza/quality.md` by hand — freeform markdown, no schema, nothing
+parses it — and put in it the four things a generic gate list cannot know:
+
+```markdown
+# Quality charter
+
+## Extra gates
+- `make bench` — the performance suite. Must be green; a regression is a release blocker.
+
+## Scope
+- `legacy/` is being deleted this quarter. Don't score it and don't file against it.
+
+## Accepted deviations
+- The complexity ceiling doesn't apply to `tests/`. A branchy end-to-end fixture is
+  branchy because the scenario is, and splitting it buys a grade at the cost of a test
+  a human can follow.
+
+## Emphasis
+- We ship on Windows. Always score cross-platform robustness.
+- Style nits are handled by the formatter in CI; please don't file issues for them.
+```
+
+Extra gates are run and reported beside the built-in ones. Scope clauses narrow what is
+scored and filed. An accepted deviation stops being re-filed every run — it is listed as
+*accepted*, with your reason quoted, so a reader sees what was excused and on what
+grounds. Emphasis decides what is always scored and what is ranked first.
+
+!!! warning "What a charter cannot do — and why the limits are the point"
+    **It governs judgement, never the instruments.** Thresholds stay in your committed
+    config, because that is what CI enforces and therefore what the repo actually means.
+    So a charter can **raise** a bar and cannot **lower** one: a markdown sentence that
+    lowers a coverage floor is a threshold supplied at scoring time, which is the one
+    thing `/quality` refuses everywhere else.
+
+    It also cannot hide a gate result (a FAIL stays a FAIL; your explanation lands *next
+    to* it), cannot excuse a gap it gives no reason for, cannot grant the command
+    permissions it doesn't have — it still never edits, commits, pushes, or files an
+    issue without your explicit selection — and cannot suppress the lines saying which
+    mode produced the number and what rested on a narrower base.
+
+    Every mark a charter moved is labelled where it moved, quoting the clause. A
+    charter-adjusted score that read like an unadjusted one would be the same failure as
+    a degraded-mode score that read like a full one.
+
+    A clause that asks for something out of bounds is named once, reported as unhonoured,
+    and set aside — not silently followed, and not silently dropped.
+
+A charter does **not** make a repo rhiza-managed: the mode is decided by
+`.rhiza/template.yml` and `.rhiza/template.lock` alone, so a `.rhiza/` holding only a
+charter is an unmanaged repo that wrote one. It is honoured in all three modes. Full
+details in [quality-charter](../internals/quality-charter.md).
+
 ## Language support: the gate list is the Python profile
 
 !!! warning "A Rust or Go scorecard rests on a narrower base"
