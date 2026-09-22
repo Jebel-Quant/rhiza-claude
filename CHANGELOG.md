@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.15.0] - 2026-09-22
+
+### New Features
+- *(quality)* Honour a repo's own .rhiza/quality.md (#237)
+
+### Documentation
+- Explain the Invalid schema install failure (#222) (#229)
+
 ## [0.14.0] - 2026-09-07
 
 ### New Features
