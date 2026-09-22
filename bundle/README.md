@@ -30,6 +30,7 @@ script is stdlib-only Python.
 | `rhiza-completions` | Install shell tab-completion for make targets, so `make <TAB>` lists a project's targets. |
 | `rhiza-detach` | Detach this repo from rhiza — delete every rhiza-managed file listed in .rhiza/template.lock, prune the emptied directories, and remove the lock file. |
 | `rhiza-docs` | Create or refresh this repo's README.md, CLAUDE.md and mkdocs.yml, detecting project metadata from git and the manifest. |
+| `rhiza-fix` | Read this repo's open issues, triage them, and open one pull request per issue that can be fixed without a judgement call. |
 | `rhiza-init` | Make the current folder a rhiza-managed repo — write the .rhiza/template.yml pointer, add a skeleton and license, open a PR. |
 | `rhiza-maffay` | Print one bonmot from a random Peter Maffay song — a pick-me-up for a long refactor. |
 | `rhiza-quality` | Run the Rhiza code-quality gates and score this repo, then optionally file findings as issues. |
