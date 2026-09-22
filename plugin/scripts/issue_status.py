@@ -58,8 +58,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _issue_signals import signals  # noqa: E402
-from _rhiza_lock import lock_path, previously_tracked  # noqa: E402
 from _rhiza_forge import PlatformError, detect_platform  # noqa: E402
+from _rhiza_lock import lock_path, previously_tracked  # noqa: E402
 
 EXIT_OK = 0
 EXIT_CLI_FAILED = 1
@@ -223,9 +223,7 @@ def managed_paths(target_dir: Path) -> set[str]:
     return {str(path) for path in previously_tracked(lock_path(target_dir, None))}
 
 
-def resolve_references(
-    platform: str, target_dir: Path, numbers: list[int]
-) -> dict[int, str]:
+def resolve_references(platform: str, target_dir: Path, numbers: list[int]) -> dict[int, str]:
     """Map each of *numbers* to its state, or ``unresolved`` when it cannot be read.
 
     One lookup per number, and only dependency references reach here — an issue that
@@ -396,9 +394,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--json", dest="json_output", action="store_true", help="Emit the report as JSON."
     )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Print the argv without running it."
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Print the argv without running it.")
     args = parser.parse_args(argv)
 
     target = Path(args.target_dir).resolve()
