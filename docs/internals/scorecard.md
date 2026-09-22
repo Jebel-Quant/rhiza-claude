@@ -40,6 +40,12 @@ never a FAIL.
    `plugin/scripts/platform_cli.py issue-create`, which maps to `gh issue create` or
    `glab issue create` — and matters because `glab issue create` has **no** body-file
    flag, so the body has to be passed inline.
+5. **Stamps what it files** — every issue body created through the mapper opens with a
+   `filed by rhiza` badge linking back to this plugin, so a reader of somebody else's
+   tracker can tell an automated finding from a hand-written one. It is stamped in
+   `platform_cli.py` rather than asked for in the prose, because a provenance mark that
+   is only usually applied is worse than none; the scorecard writes the finding and
+   nothing more.
 
 ## Notes
 

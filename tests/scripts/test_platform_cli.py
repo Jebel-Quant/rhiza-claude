@@ -349,6 +349,102 @@ def test_issue_create_returns_the_issue_url(repo, stub_cli):
     assert "glab issue create" in stub_cli.log.read_text(encoding="utf-8")
 
 
+# --- the provenance badge -----------------------------------------------------
+
+
+def test_stamping_puts_the_badge_on_the_first_line():
+    stamped = platform_cli.stamp_issue_body("Coverage is 84%.\n")
+
+    assert stamped.splitlines()[0] == platform_cli.ISSUE_BADGE
+    assert stamped.endswith("Coverage is 84%.\n")
+
+
+def test_stamping_twice_leaves_one_badge():
+    """A caller that wrote its own badge, or a re-run over the same file, must not stack."""
+    once = platform_cli.stamp_issue_body("Coverage is 84%.\n")
+
+    assert platform_cli.stamp_issue_body(once) == once
+    assert once.count(platform_cli.ISSUE_BADGE) == 1
+
+
+@pytest.fixture
+def body_capture(tmp_path: Path, stub_cli_installer):
+    """Install a CLI stub recording the body text it was *given*, however it arrived.
+
+    Asserting on argv is not enough here: on GitHub the stamped text goes to a scratch
+    file that is deleted before `main` returns, so what has to be checked is the content
+    the CLI read — which is also the only thing the forge ever sees.
+    """
+    captured = tmp_path / "captured-body.md"
+
+    def install(name: str) -> Path:
+        stub_cli_installer(
+            name,
+            "import sys\n"
+            "argv = sys.argv[1:]\n"
+            "text = ''\n"
+            "if '--body-file' in argv:\n"
+            "    with open(argv[argv.index('--body-file') + 1], encoding='utf-8') as fh:\n"
+            "        text = fh.read()\n"
+            "elif '--description' in argv:\n"
+            "    text = argv[argv.index('--description') + 1]\n"
+            f"with open({str(captured)!r}, 'w', encoding='utf-8') as fh:\n"
+            "    fh.write(text)\n"
+            "print('https://example.test/issues/1')\n",
+        )
+        return captured
+
+    return install
+
+
+@pytest.mark.parametrize(
+    ("cli", "remote"),
+    [("gh", "https://github.com/acme/widget.git"), ("glab", "https://gitlab.com/grp/proj.git")],
+)
+def test_a_filed_issue_carries_the_badge_on_either_forge(repo, body_capture, cli, remote):
+    """Both platforms, one guarantee — the badge is the first thing the tracker shows."""
+    _remote(repo, remote)
+    captured = body_capture(cli)
+
+    rc = platform_cli.main(
+        ["issue-create", "--title", "T", "--body-file", "BODY.md", "--target-dir", str(repo)]
+    )
+
+    assert rc == platform_cli.EXIT_OK
+    text = captured.read_text(encoding="utf-8")
+    assert text.splitlines()[0] == platform_cli.ISSUE_BADGE
+    assert "## Summary" in text, "the finding itself must survive the stamp"
+
+
+def test_filing_does_not_rewrite_the_callers_body_file(repo, body_capture):
+    """The stamp goes to a scratch file: the body the command wrote is its own to keep."""
+    _remote(repo, "https://github.com/acme/widget.git")
+    body_capture("gh")
+
+    platform_cli.main(
+        ["issue-create", "--title", "T", "--body-file", "BODY.md", "--target-dir", str(repo)]
+    )
+
+    assert (repo / "BODY.md").read_text(encoding="utf-8") == "## Summary\n\nbody\n"
+
+
+def test_a_pull_request_body_is_never_stamped(repo, body_capture):
+    """The badge says an automated finding landed in someone else's tracker.
+
+    A pull request is already attributed — it has a branch, an author and a diff — so
+    stamping one would be noise rather than provenance.
+    """
+    _remote(repo, "https://github.com/acme/widget.git")
+    captured = body_capture("gh")
+
+    platform_cli.main(
+        ["pr-create", "--base", "main", "--head", "feat", "--title", "T",
+         "--body-file", "BODY.md", "--target-dir", str(repo)]
+    )  # fmt: skip
+
+    assert platform_cli.ISSUE_BADGE not in captured.read_text(encoding="utf-8")
+
+
 def test_auth_status_succeeds_when_logged_in(repo, stub_cli):
     _remote(repo, "https://github.com/acme/widget.git")
     stub_cli("gh")
