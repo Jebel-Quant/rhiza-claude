@@ -88,7 +88,7 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`skills/<name>/SKILL.md` → slash commands** you invoke: ten of them, each with a
+- **`skills/<name>/SKILL.md` → slash commands** you invoke: eleven of them, each with a
   page here. The *directory* carries the command name, so `skills/init/SKILL.md` is the
   file that answers `/rhiza:init`.
 - **`prompts/*.md` → internal procedures**: eight shared steps a command reaches with

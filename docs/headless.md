@@ -48,8 +48,8 @@ prose and may be reworded, the JSON keys are what the tests pin.
 ## What maps, and what doesn't
 
 <!-- rhiza-count: commands -->
-Six of the ten slash commands are deterministic end to end and have an exact headless
-equivalent. The other four exist *because* they need a reading of your repository that
+Six of the eleven slash commands are deterministic end to end and have an exact headless
+equivalent. The other five exist *because* they need a reading of your repository that
 no script can perform.
 
 | Command | Headless equivalent | What you give up |
@@ -64,12 +64,14 @@ no script can perform.
 | [`/rhiza:docs`](skills/docs.md) | `render_badges.py`, `sync_readme_help.py` | the prose, which is most of it |
 | [`/rhiza:release`](skills/release.md) | `check_version_bump.py`, `wait_for_merge.py`, `bump-my-version`, `git-cliff` | choosing the version, writing the changelog section |
 | [`/rhiza:remote`](skills/remote.md) | `pr_status.py` reports what CI said | diagnosing the failure and fixing it |
+| [`/rhiza:fix`](skills/fix.md) | `issue_status.py` lists the issues and derives their signals | the triage, and the fix itself |
 
-The bottom four are worth being precise about. They are not commands that were never
+The bottom five are worth being precise about. They are not commands that were never
 scripted; they are commands whose deterministic half **was already** extracted into the
 scripts named beside them. What is left over in each is irreducibly a judgement:
 whether a finding matters, whether a breaking change should spend the 1.0 signal, what
-to preserve in a README someone wrote by hand.
+to preserve in a README someone wrote by hand, which of two designs an issue was asking
+for.
 
 ## Read-only: what state is this repo in?
 
