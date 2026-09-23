@@ -132,12 +132,14 @@ e2e: $(UVX)  ## Run only the end-to-end tests, without the coverage gate
 portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cross-platform CI subset)
 	$(PYTEST) -k "not e2e" --no-cov $(ARGS)
 
-# The portable copy of the ten commands and nine procedures, for clients that read the
-# open `SKILL.md` format but know nothing of Claude Code's plugin spec. Generated, and
-# **committed**: a user points their client at a checkout, so a bundle that only existed
-# after a build step would not be there when it is needed. The price of a generated tree
-# in git is drift, which is why `prek` runs the same script with `--check` — the
-# arrangement `render_command_docs.py` already uses for the docs reference blocks.
+# rhiza-count: commands procedures
+# The portable copy of the eleven commands and nine procedures, for clients that read
+# the open `SKILL.md` format but know nothing of Claude Code's plugin spec. Generated,
+# and **committed**: a user points their client at a checkout, so a bundle that only
+# existed after a build step would not be there when it is needed. The price of a
+# generated tree in git is drift, which is why `prek` runs the same script with
+# `--check` — the arrangement `render_command_docs.py` already uses for the docs
+# reference blocks.
 #
 # No `$(UVX)` prerequisite and no `uvx`: this is stdlib-only Python like every script it
 # reads, and `uv run --no-project` is what the commands themselves use.

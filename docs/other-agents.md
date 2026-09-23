@@ -3,8 +3,11 @@
 The plugin is written for Claude Code, but very little of it is *about* Claude Code. The
 deterministic half — the sync, the lock parsing, the merge, the staging — is stdlib-only
 Python with its own CLI, and [Without Claude Code](headless.md) drives it with no model
-in the loop at all. What is left is the prose: ten commands and nine procedures, in the
-`SKILL.md` format that many clients now read.
+in the loop at all.
+
+<!-- rhiza-count: commands procedures -->
+What is left is the prose: eleven commands and nine procedures, in the `SKILL.md` format
+that many clients now read.
 
 So the gap is small and specific, and `bundle/` closes it.
 
@@ -20,7 +23,26 @@ directories into wherever it loads skills from. Each is named `rhiza-<command>`,
 a skills folder is a shared namespace and `docs`, `status` and `release` are names
 somebody else will want too.
 
+Codex reads `$HOME/.agents/skills` for skills you want everywhere, and
+`$REPO_ROOT/.agents/skills` for ones that belong to a single repo. The first is what you
+want here — rhiza operates on whichever repo you are standing in, so tying it to one
+would be backwards:
+
+```bash
+mkdir -p ~/.agents/skills
+ln -sfn "$RHIZA_ROOT"/bundle/skills/rhiza-* ~/.agents/skills/
+```
+
+**Symlink rather than copy.** A copy is a fork of generated output: the next `git pull`
+in the checkout leaves it behind, silently, and a skill that is a version out of step
+with the scripts it calls is the failure this bundle exists to avoid. Links make the
+pull the whole update.
+
+Another client's directory differs, but nothing else does — the same skill directories,
+the same two frontmatter fields, and no build step in between.
+
 `uv` and `git` on PATH is the whole dependency list; there is no package to install.
+Anything that talks to a forge also wants `gh` or `glab`, as it does under Claude Code.
 
 !!! warning "`bundle/prompts/` are not skills"
     They are procedures a skill reaches with a file read, and several are shared between

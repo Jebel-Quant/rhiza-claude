@@ -172,10 +172,11 @@ markdown supplies; what you get is the same code path the commands drive.
 [Without Claude Code](https://jebel-quant.github.io/rhiza-claude/headless/) is the map —
 the command-to-script table, the sync step by step, and every exit code it can hand you.
 
-**And the judgement half runs under other agents.** `bundle/` holds the same ten commands
-and nine procedures in the open `SKILL.md` format, generated from `plugin/` with the
-Claude-specific bindings rewritten or restated — point your client at `bundle/skills` and
-export `RHIZA_ROOT`.
+<!-- rhiza-count: commands procedures -->
+**And the judgement half runs under other agents.** `bundle/` holds the same eleven
+commands and nine procedures in the open `SKILL.md` format, generated from `plugin/` with
+the Claude-specific bindings rewritten or restated — point your client at `bundle/skills`
+and export `RHIZA_ROOT`.
 [With another agent](https://jebel-quant.github.io/rhiza-claude/other-agents/) covers what
 the translation changes and what it cannot carry across.
 
