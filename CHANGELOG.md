@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.17.0] - 2026-09-23
+
+### New Features
+- *(quality)* Stamp every filed issue with a provenance badge (#243)
+- *(bundle)* Ship the commands as portable skills for any client (#238)
+
 ## [0.16.0] - 2026-09-22
 
 ### New Features
