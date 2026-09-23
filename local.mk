@@ -18,7 +18,7 @@
 # target that shells out to `uvx` so a machine without uv bootstraps one, rather than failing
 # with "command not found" partway through a recipe.
 
-.PHONY: install audit complexity test e2e portable book paper paper-figures clean
+.PHONY: install audit bundle complexity test e2e portable book paper paper-figures clean
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -131,6 +131,20 @@ e2e: $(UVX)  ## Run only the end-to-end tests, without the coverage gate
 # for exactly one caller.
 portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cross-platform CI subset)
 	$(PYTEST) -k "not e2e" --no-cov $(ARGS)
+
+# rhiza-count: commands procedures
+# The portable copy of the eleven commands and nine procedures, for clients that read
+# the open `SKILL.md` format but know nothing of Claude Code's plugin spec. Generated,
+# and **committed**: a user points their client at a checkout, so a bundle that only
+# existed after a build step would not be there when it is needed. The price of a
+# generated tree in git is drift, which is why `prek` runs the same script with
+# `--check` — the arrangement `render_command_docs.py` already uses for the docs
+# reference blocks.
+#
+# No `$(UVX)` prerequisite and no `uvx`: this is stdlib-only Python like every script it
+# reads, and `uv run --no-project` is what the commands themselves use.
+bundle:  ## Regenerate the portable skill bundle under bundle/ (for non-Claude clients)
+	uv run --python 3.12 --no-project python plugin/scripts/build_bundle.py
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
 # all run via `make fmt`, which is **not** in this file: it is one of the three targets

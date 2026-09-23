@@ -33,6 +33,7 @@ a pattern rule, so every target below is `local.mk`'s. Add a target there, never
 make help           # list every target
 make fmt            # all prek hooks over every file (delegated to rhiza-task)
 make audit          # bandit over the scripts, zizmor over the workflows
+make bundle         # regenerate the portable skill bundle under bundle/
 make complexity     # radon CC/MI — the census this file quotes; reports, never fails
 make test           # pytest over tests/, 100% coverage gate on scripts/
 make e2e            # only the end-to-end tests, no coverage gate (template-drift's target)
@@ -112,6 +113,11 @@ Three habits go with that, and each is easy to undo by accident:
 Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a personal one)
 `name` overrides the last segment of the command, so a stale one silently renames it.
 
+**The open `SKILL.md` format requires exactly that field**, which is the one place the two
+spellings contradict each other rather than merely differing — and the reason `bundle/`
+below is generated instead of maintained by hand. Neither rule bends: the source tree
+carries no `name:`, and every bundled copy carries one.
+
 | Path | What it is |
 | --- | --- |
 | `plugin/skills/<name>/SKILL.md` | The eleven slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
@@ -119,6 +125,7 @@ Do **not** add a `name:` field to a `SKILL.md`. In a *plugin* skill (unlike a pe
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |
 | `plugin/.claude-plugin/plugin.json` | The plugin manifest. |
+| `bundle/` | The same commands and procedures, generated for non-Claude clients. Committed; never hand-edited. |
 | `tests/scripts/*.py` | Pytest suite mirroring `plugin/scripts/` 1:1. Not shipped. |
 | `docs/` | The MkDocs site: `skills/`, `internals/`, `index.md`, `development.md`. |
 | `paper/` | A LaTeX introduction, rebuilt by CI and published with the site. |
@@ -150,6 +157,32 @@ off `.py`, and being *copied* rather than run they fail silently — the install
 and completion simply never works. `test_install_completions.py` parses each of them with
 `bash -n` / `zsh -n`, which is the only thing standing in for the eight gates the Python
 beside them gets. Keep that test if you touch them.
+
+**`bundle/` is the same plugin, translated for clients that are not Claude Code.**
+`build_bundle.py` rewrites the five bindings the prose cannot carry elsewhere —
+`${CLAUDE_PLUGIN_ROOT}`, `$ARGUMENTS`, `/rhiza:<name>`, and the `allowed-tools` /
+`argument-hint` / `disable-model-invocation` frontmatter keys — into `${RHIZA_ROOT}` and a
+preamble that restates the rest as prose. Three properties are deliberate and worth not
+undoing:
+
+- **It is generated and *committed*.** A user points a client at a checkout, so a bundle
+  that only existed after a build step would be missing exactly when it is wanted. The
+  price is drift, paid the same way `render_command_docs.py` pays it: `build_bundle.py
+  --check` runs as the `skill-bundle` hook over the sources *and* the bundle, so a
+  hand-edit there is as red as a stale generation. Run `make bundle`; never edit under
+  `bundle/`.
+- **It copies no Python.** `${RHIZA_ROOT}/plugin/scripts/<name>.py` is the same file the
+  plugin runs, under the same eight gates. A bundled copy would be a second `scripts/`
+  tree to keep in step — the thing `docs/headless.md` already refuses on the grounds that
+  one operation gets one entry point.
+- **It restates what it drops.** `allowed-tools` is enforcement here and a comment
+  elsewhere; dropping it silently would change the permission surface with nothing in the
+  text to notice. The binaries reappear in the preamble as prose.
+
+What CI can gate is that the bundle is current and its translation complete — no surviving
+`${CLAUDE_PLUGIN_ROOT}`, one skill per command, no orphan from a rename. What it cannot
+gate is another client's behaviour, since no runner here loads one. Say so rather than
+implying the bundle is verified end to end.
 
 **Skills vs `prompts/` is the load-bearing distinction.** Procedures live outside every
 discovery location specifically so they cannot be invoked as slash commands — that's the
@@ -291,6 +324,8 @@ exactly that reason.
    only — run `plugin/scripts/render_command_docs.py` for the **Reference** block, which is
    generated from the frontmatter and gated by `docs-reference-blocks`.
 4. Update `README.md` if it's a headline command.
+5. Run `make bundle` — the portable copy is generated, and the `skill-bundle` hook
+   fails the build until it matches.
 
 **Versioning.** The two manifests must agree; `manifest-version-parity` enforces it.
 Both are declared in `.bumpversion.toml`, so `bump-my-version` writes them together —
