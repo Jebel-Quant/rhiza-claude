@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.17.1] - 2026-09-24
+
+### Bug Fixes
+- *(quality)* Check closed issues before offering findings to file (#245)
+
 ## [0.17.0] - 2026-09-23
 
 ### New Features
