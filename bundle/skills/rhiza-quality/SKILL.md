@@ -579,7 +579,9 @@ so that evidence is gathered by hand, or the marks are guesses.
 scoping rule, the subcategory list, the coverage bar, the findings format, and the
 issue-filing menu. Feed it the step-2 gate results, the step-3 infrastructure findings
 (degraded mode only) and the step-4 design evidence; it turns
-them into marks, then findings, then — only with an explicit selection — issues.
+them into marks, then findings, then — only with an explicit selection — issues,
+after checking the tracker's closed issues as well as its open ones, so each menu option
+says whether it was already filed, fixed or declined. The user always chooses.
 
 Both files are **internal procedures, not slash commands** — deliberately kept out of
 any directory Claude Code scans, so the user can't invoke them, and `Read` is how you
