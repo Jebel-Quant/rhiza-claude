@@ -35,10 +35,20 @@ that is not an issue comes back ``unresolved`` rather than guessed at. An unreso
 reference pushes an issue toward *reported* rather than *fixed*, so the weaker path
 degrades safe.
 
+**It also reads the tracker's history, for `/rhiza:quality`.** A finding the user closed
+last run — fixed, or declined as not worth doing — is not new because this run found it
+again, and re-filing it is how a scoring command turns into noise. ``--state closed`` or
+``--state all`` lists those too, each with its ``state`` and, on GitHub, the
+``state_reason`` it was closed with (``completed``, ``not_planned``, ``duplicate``).
+GitLab records no reason, so there it comes back empty rather than guessed. Only open
+issues get the triage signals: they describe whether an issue *can be fixed*, which is a
+question a closed one no longer asks.
+
 Usage:
   uv run --python 3.12 --no-project python \
       scripts/issue_status.py [--target-dir DIR] [--issue N] [--limit N]
-                              [--label L] [--json] [--dry-run]
+                              [--label L] [--state open|closed|all]
+                              [--json] [--dry-run]
 
 Exit codes:
   0  the forge answered (including "no open issues"), or --dry-run rendered
@@ -68,8 +78,13 @@ EXIT_NO_PLATFORM = 2
 # Spelled out rather than globbed: `gh` errors on an unknown field, so this list is
 # itself a contract with the CLI and a typo here fails loudly instead of silently
 # dropping a signal the triage depends on.
-_GH_FIELDS = "number,title,body,labels,author,createdAt,updatedAt,url"
+_GH_FIELDS = "number,title,body,labels,author,createdAt,updatedAt,url,state,stateReason,closedAt"
 _GH_REQUEST_FIELDS = "number,title,body,url"
+
+# Which issues a listing asks for. GitHub takes the word; GitLab lists open issues by
+# default and spells the other two as flags of their own.
+STATES = ("open", "closed", "all")
+_GLAB_STATE_FLAGS = {"open": [], "closed": ["--closed"], "all": ["--all"]}
 
 # States that mean a referenced issue or request is no longer in play.
 _SETTLED = frozenset({"CLOSED", "MERGED", "closed", "merged"})
@@ -79,25 +94,33 @@ class ForgeQueryError(Exception):
     """A platform CLI was absent, unauthenticated, or answered something unreadable."""
 
 
-def build_issue_command(platform: str, *, limit: int, labels: list[str]) -> list[str]:
-    """Return the argv listing open issues, optionally narrowed to *labels*.
+def build_issue_command(
+    platform: str, *, limit: int, labels: list[str], state: str = "open"
+) -> list[str]:
+    """Return the argv listing issues in *state*, optionally narrowed to *labels*.
 
-    >>> build_issue_command("github", limit=5, labels=[])[:4]
-    ['gh', 'issue', 'list', '--state']
+    >>> build_issue_command("github", limit=5, labels=[])[:5]
+    ['gh', 'issue', 'list', '--state', 'open']
 
     GitLab's listing is open by default and takes its labels comma-joined, which is the
     second place these two CLIs stop lining up:
 
     >>> build_issue_command("gitlab", limit=5, labels=["bug", "docs"])[-2:]
     ['--label', 'bug,docs']
+
+    and it has no ``--state``, so the history is a flag of its own:
+
+    >>> build_issue_command("gitlab", limit=5, labels=[], state="all")[-1]
+    '--all'
     """
     if platform == "github":
-        command = ["gh", "issue", "list", "--state", "open", "--json", _GH_FIELDS]
+        command = ["gh", "issue", "list", "--state", state, "--json", _GH_FIELDS]
         command += ["--limit", str(limit)]
         for label in labels:
             command += ["--label", label]
         return command
     command = ["glab", "issue", "list", "--output", "json", "--per-page", str(limit)]
+    command += _GLAB_STATE_FLAGS[state]
     return [*command, "--label", ",".join(labels)] if labels else command
 
 
@@ -166,6 +189,19 @@ def _text(raw: dict[str, Any], key: str) -> str:
     return str(raw.get(key) or "")
 
 
+def _state(value: str) -> str:
+    """One forge's issue state in the shared vocabulary: ``open``, ``closed`` or ``''``.
+
+    GitHub shouts (``OPEN``) and GitLab says ``opened``; neither is wrong, and a caller
+    comparing against one spelling would silently miss the other:
+
+    >>> [_state(v) for v in ("OPEN", "opened", "CLOSED", "")]
+    ['open', 'open', 'closed', '']
+    """
+    lowered = value.lower()
+    return "open" if lowered == "opened" else lowered
+
+
 def _normalize_github(raw: dict[str, Any]) -> dict[str, Any]:
     """One `gh issue list` object in the shared vocabulary."""
     return {
@@ -176,6 +212,9 @@ def _normalize_github(raw: dict[str, Any]) -> dict[str, Any]:
         "author": (raw.get("author") or {}).get("login", ""),
         "created": _text(raw, "createdAt"),
         "url": _text(raw, "url"),
+        "state": _state(_text(raw, "state")),
+        "state_reason": _text(raw, "stateReason").lower(),
+        "closed": _text(raw, "closedAt"),
     }
 
 
@@ -184,7 +223,8 @@ def _normalize_gitlab(raw: dict[str, Any]) -> dict[str, Any]:
 
     Five keys differ from GitHub's and none of them errors when read with the wrong
     name — `iid`/`number`, `description`/`body`, label strings against label objects,
-    snake_case against camelCase, and `web_url`/`url`.
+    snake_case against camelCase, and `web_url`/`url`. A sixth is missing outright:
+    GitLab records no reason for a close, so ``state_reason`` is always empty here.
     """
     return {
         "id": raw.get("iid"),
@@ -194,6 +234,9 @@ def _normalize_gitlab(raw: dict[str, Any]) -> dict[str, Any]:
         "author": (raw.get("author") or {}).get("username", ""),
         "created": _text(raw, "created_at"),
         "url": _text(raw, "web_url"),
+        "state": _state(_text(raw, "state")),
+        "state_reason": "",
+        "closed": _text(raw, "closed_at"),
     }
 
 
@@ -295,15 +338,16 @@ def collect(
     labels: list[str],
     only: list[int],
     dry_run: bool,
+    state: str = "open",
 ) -> dict[str, Any]:
-    """Gather every open issue with its derived signals and suggested category.
+    """Gather the issues in *state*, the open ones with derived signals and a category.
 
     Raises:
         PlatformError: the hosting platform could not be determined.
         ForgeQueryError: a platform CLI was absent, failed, or was unauthenticated.
     """
     platform = detect_platform(target_dir)
-    command = build_issue_command(platform, limit=limit, labels=labels)
+    command = build_issue_command(platform, limit=limit, labels=labels, state=state)
     if dry_run:
         return {"platform": platform, "command": command, "dry_run": True, "issues": []}
 
@@ -322,12 +366,17 @@ def collect(
         issue = normalize(platform, raw)
         if only and issue["id"] not in only:
             continue
+        if issue["state"] == "closed":
+            issue["signals"] = None
+            issues.append(issue)
+            continue
         issues.append(_enrich(issue, platform, target_dir, requests, owned))
 
     return {
         "platform": platform,
         "command": command,
         "dry_run": False,
+        "state": state,
         "notes": notes,
         "issues": issues,
     }
@@ -341,10 +390,15 @@ def render(report: dict[str, Any]) -> str:
     for note in report.get("notes", []):
         lines.append(f"note         {note}")
     if not report["issues"]:
-        lines.append("no open issues")
+        lines.append("no issues" if report.get("state", "open") != "open" else "no open issues")
         return "\n".join(lines)
     for issue in report["issues"]:
         facts = issue["signals"]
+        if facts is None:
+            reason = issue.get("state_reason") or "reason unrecorded"
+            lines.append(f"{'closed':11}  #{issue['id']}  {issue['title']}")
+            lines.append(f"{'':13}{reason}")
+            continue
         lines.append(f"{facts['category']:11}  #{issue['id']}  {issue['title']}")
         lines.append(f"{'':13}{_why(facts)}")
         for caution in facts["cautions"]:
@@ -392,6 +446,12 @@ def main(argv: list[str] | None = None) -> int:
         "--label", action="append", default=[], help="Only issues with this label; repeatable."
     )
     parser.add_argument(
+        "--state",
+        choices=STATES,
+        default="open",
+        help="Which issues to list; closed ones carry no triage signals (default: open).",
+    )
+    parser.add_argument(
         "--json", dest="json_output", action="store_true", help="Emit the report as JSON."
     )
     parser.add_argument("--dry-run", action="store_true", help="Print the argv without running it.")
@@ -405,6 +465,7 @@ def main(argv: list[str] | None = None) -> int:
             labels=args.label,
             only=args.issue,
             dry_run=args.dry_run,
+            state=args.state,
         )
     except PlatformError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)

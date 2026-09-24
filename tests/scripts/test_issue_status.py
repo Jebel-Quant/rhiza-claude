@@ -103,6 +103,20 @@ def test_gitlab_omits_the_label_flag_entirely_when_there_are_none():
     assert "--label" not in issue_status.build_issue_command("gitlab", limit=5, labels=[])
 
 
+def test_github_passes_the_state_through():
+    argv = issue_status.build_issue_command("github", limit=5, labels=[], state="all")
+    assert argv[3:5] == ["--state", "all"]
+
+
+@pytest.mark.parametrize(
+    ("state", "flags"), [("open", []), ("closed", ["--closed"]), ("all", ["--all"])]
+)
+def test_gitlab_spells_each_state_as_its_own_flag(state, flags):
+    """`glab issue list` has no `--state`: open is the default, the rest are flags."""
+    argv = issue_status.build_issue_command("gitlab", limit=5, labels=[], state=state)
+    assert argv[7:] == flags
+
+
 def test_the_request_listings_differ_by_more_than_the_binary():
     assert issue_status.build_request_command("github", limit=3)[:3] == ["gh", "pr", "list"]
     assert issue_status.build_request_command("gitlab", limit=3)[:3] == ["glab", "mr", "list"]
@@ -136,6 +150,18 @@ _EVERY_ARGV = {
     "glab-issues": (
         "glab",
         lambda: issue_status.build_issue_command("gitlab", limit=5, labels=["a"]),
+    ),
+    "gh-history": (
+        "gh",
+        lambda: issue_status.build_issue_command("github", limit=5, labels=[], state="all"),
+    ),
+    "glab-history": (
+        "glab",
+        lambda: issue_status.build_issue_command("gitlab", limit=5, labels=[], state="all"),
+    ),
+    "glab-closed": (
+        "glab",
+        lambda: issue_status.build_issue_command("gitlab", limit=5, labels=[], state="closed"),
     ),
     "gh-requests": ("gh", lambda: issue_status.build_request_command("github", limit=5)),
     "glab-requests": ("glab", lambda: issue_status.build_request_command("gitlab", limit=5)),
@@ -198,6 +224,29 @@ def test_a_missing_author_does_not_raise():
 def test_github_labels_are_objects_and_gitlab_labels_are_strings():
     assert issue_status.normalize("github", GH_ISSUE)["labels"] == ["bug"]
     assert issue_status.normalize("gitlab", GLAB_ISSUE)["labels"] == ["bug"]
+
+
+def test_both_platforms_spell_a_state_the_same_way_once_normalised():
+    """GitHub says `OPEN`, GitLab `opened`; a caller comparing one would miss the other."""
+    gh = issue_status.normalize("github", {**GH_ISSUE, "state": "OPEN"})
+    lab = issue_status.normalize("gitlab", {**GLAB_ISSUE, "state": "opened"})
+    assert gh["state"] == lab["state"] == "open"
+
+
+def test_github_says_why_an_issue_was_closed():
+    raw = {**GH_ISSUE, "state": "CLOSED", "stateReason": "NOT_PLANNED", "closedAt": "t"}
+    issue = issue_status.normalize("github", raw)
+    assert (issue["state"], issue["state_reason"], issue["closed"]) == (
+        "closed",
+        "not_planned",
+        "t",
+    )
+
+
+def test_gitlab_records_no_reason_and_none_is_invented():
+    raw = {**GLAB_ISSUE, "state": "closed", "closed_at": "t"}
+    issue = issue_status.normalize("gitlab", raw)
+    assert (issue["state"], issue["state_reason"], issue["closed"]) == ("closed", "", "t")
 
 
 # --- run_json -----------------------------------------------------------------
@@ -334,6 +383,18 @@ def test_only_narrows_to_the_issues_asked_for(repo, monkeypatch):
     assert [i["id"] for i in report["issues"]] == [94]
 
 
+def test_a_closed_issue_is_listed_but_not_triaged(repo, monkeypatch):
+    """Triage asks whether an issue can be fixed, which a closed one no longer asks."""
+    closed = {**GH_ISSUE, "number": 90, "state": "CLOSED", "stateReason": "COMPLETED"}
+    monkeypatch.setattr(issue_status, "detect_platform", lambda _: "github")
+    _stub(monkeypatch, {"gh issue": [GH_ISSUE, closed], "gh pr": []})
+    report = issue_status.collect(repo, limit=20, labels=[], only=[], dry_run=False, state="all")
+    by_id = {i["id"]: i for i in report["issues"]}
+    assert by_id[90]["signals"] is None
+    assert by_id[95]["signals"]["category"] == "mechanical"
+    assert report["state"] == "all"
+
+
 def test_a_template_owned_mention_becomes_a_caution_not_a_category(repo, monkeypatch):
     (repo / ".rhiza").mkdir()
     (repo / ".rhiza" / "template.lock").write_text("files:\n- pytest.ini\n", encoding="utf-8")
@@ -392,6 +453,20 @@ def test_a_dry_run_renders_as_the_command_line():
 def test_an_empty_tracker_says_so():
     report = {"dry_run": False, "platform": "github", "issues": [], "notes": []}
     assert "no open issues" in issue_status.render(report)
+
+
+def test_an_empty_history_does_not_claim_to_be_about_open_issues():
+    report = {"dry_run": False, "platform": "github", "issues": [], "state": "all"}
+    assert issue_status.render(report).endswith("no issues")
+
+
+def test_a_closed_issue_renders_with_its_reason_or_says_there_is_none():
+    closed = {"id": 90, "title": "t", "signals": None, "state_reason": "not_planned"}
+    silent = {"id": 91, "title": "u", "signals": None, "state_reason": ""}
+    report = {"dry_run": False, "platform": "github", "issues": [closed, silent]}
+    rendered = issue_status.render(report)
+    assert "#90" in rendered and "not_planned" in rendered
+    assert "reason unrecorded" in rendered
 
 
 def test_the_render_names_the_category_and_the_reason(repo, monkeypatch):
@@ -462,6 +537,13 @@ def test_json_output_is_parseable(repo, monkeypatch, capsys):
     assert code == issue_status.EXIT_OK
     payload = json.loads(capsys.readouterr().out)
     assert payload["issues"][0]["signals"]["category"] == "mechanical"
+
+
+def test_the_state_flag_reaches_the_listing(repo, monkeypatch, capsys):
+    monkeypatch.setattr(issue_status, "detect_platform", lambda _: "github")
+    code = issue_status.main(["--target-dir", str(repo), "--dry-run", "--state", "closed"])
+    assert code == issue_status.EXIT_OK
+    assert "--state closed" in capsys.readouterr().out
 
 
 def test_an_empty_tracker_is_success_not_failure(repo, monkeypatch, capsys):

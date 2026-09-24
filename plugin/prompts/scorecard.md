@@ -175,9 +175,44 @@ move on — no lecture, and no quietly dropping it either.
 
 ## 5. Offer to file them — by menu, never free text
 
+**First, read the tracker — open issues and closed ones.** A finding this run rediscovered
+is not new because the scan is new. If the user closed it last time, they either fixed
+it or decided against it, and a menu that offers it as new invites them to override
+that decision by accident. List the history with the bundled reader:
+```bash
+uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/issue_status.py" \
+  --state all --limit 200 --json
+```
+(in a source checkout, `plugin/scripts/issue_status.py`). Match each finding against it
+**by substance, not by title**: the same subcategory and the same file, target or gate.
+A title that carries a measurement drifts between runs — `from 84% to 100%` last time,
+`from 86% to 100%` now — and an exact-title match misses exactly the repeats this step
+exists to catch. Older issues predate the `filed by rhiza` badge, so don't filter on it.
+
+**The match labels a finding; it never removes one.** Whether to file is always the
+user's call, so every finding still goes in the menu. What the tracker changes is what
+the option says, so the user sees the history before choosing:
+
+- **Open** — suffix the label `(already open as #N)`.
+- **Closed as `not_planned`** (or `duplicate` of one that was) — suffix
+  `(declined as #N)`. If the user leaves it unselected, suggest once that they record
+  the reason in `.rhiza/quality.md` so later runs treat it as an accepted deviation.
+- **Closed as `completed`, and the finding is back** — a regression, or a fix that
+  never met its `done when…`. Suffix `(recurs; closed #N)`.
+- **Closed with no reason recorded** (GitLab always; GitHub before close reasons
+  existed) — you can't tell fixed from declined, so don't guess. Suffix
+  `(closed #N, reason unknown)`.
+
+When a labelled finding is filed, put the earlier issue's number in the body so the
+tracker links the two.
+
+If the listing exits **1** (CLI missing or not logged in), say you couldn't check the
+tracker before you show the menu. Don't show an unchecked menu as if it were clean.
+
 Present the findings as an `AskUserQuestion` multi-select (`multiSelect: true`), one
-option per finding labelled by its title, so the user picks exactly which to file —
-**including none**. Create nothing without an explicit selection.
+option per finding labelled by its title and any tracker suffix, so the user picks
+exactly which to file — **including none**. Ask every run, even when every finding
+matches an issue already on the tracker. Create nothing without an explicit selection.
 
 For each selected finding, write its body to a file and create one issue with the
 bundled mapper, which detects the platform and picks the CLI:

@@ -97,7 +97,10 @@ The optional argument scopes the assessment; it defaults to the whole repo.
    self-contained title, the current→target score, the specific file(s)/config, a
    `done when…` criterion, and an evidence snippet, ordered by leverage.
 5. **Optionally files issues** for them — via a multi-select menu, never free text,
-   and nothing created without an explicit selection.
+   and nothing created without an explicit selection. Before the menu, it checks the
+   tracker's open **and closed** issues, and labels each finding that matches one:
+   already open, declined, recurring after a fix, or closed for a reason it can't see.
+   Every finding is still offered, so you decide what to file with the history in view.
 
 ## Your own rules: `.rhiza/quality.md`
 
