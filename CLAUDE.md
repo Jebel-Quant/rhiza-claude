@@ -42,6 +42,7 @@ make book           # build the docs site into _book/ (runs paper + test first)
 make book-serve     # docs with live reload
 make paper          # build the LaTeX paper (needs tectonic or pdflatex)
 make paper-figures  # regenerate the paper's figures
+make constraints    # recompile requirements-dev.txt from requirements-dev.in
 make clean          # drop caches and build artifacts
 make changelog      # regenerate CHANGELOG.md from conventional commits
 make install        # install the plugin via the claude CLI
