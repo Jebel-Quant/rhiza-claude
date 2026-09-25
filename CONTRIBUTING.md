@@ -48,6 +48,7 @@ make book           # build the documentation site into _book/
 make book-serve     # serve the docs locally with live reload
 make paper          # build the LaTeX paper and stage it for the docs site
 make paper-figures  # regenerate the paper's figures from captured command output
+make constraints    # recompile the toolchain pins (requirements-dev.in -> .txt)
 make clean          # remove generated caches and artifacts
 make changelog      # regenerate CHANGELOG.md from conventional commits
 ```

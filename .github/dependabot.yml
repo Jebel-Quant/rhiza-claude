@@ -15,7 +15,8 @@ updates:
     labels:
       - dependencies
 
-  # Keep the dev-toolchain pins in requirements-dev.txt up to date. These are the tools
+  # Keep the dev-toolchain pins up to date: requirements-dev.in is the input and
+  # requirements-dev.txt the closure `make constraints` compiles from it. These are the tools
   # `uvx` runs — prek, mypy, pytest, bandit, zizmor and the rest — not runtime
   # dependencies; the shipped plugin has none. Pinning them stops a tool release turning
   # CI red with no commit here, and watching them stops the pins quietly rotting instead.

@@ -1,0 +1,59 @@
+# Dev-toolchain pins. NOT runtime dependencies.
+#
+# `plugin/scripts/` is stdlib-only and that is gated — nothing here is imported by the
+# shipped plugin, and a user installing it needs none of it. These are the tools the
+# Makefile and the prek hooks invoke through `uvx`, which otherwise resolves the newest
+# release at call time. That is how CI could turn red with no commit in this repo, and
+# how a green PR could stop being green while nobody touched it.
+#
+# **This is the input; edit this file, never requirements-dev.txt.** `make constraints`
+# compiles it into requirements-dev.txt — these pins *plus every transitive dependency*
+# they pull in — and the Makefile exports UV_CONSTRAINT pointing at that compiled file,
+# so every `uvx` call is constrained by the full closure, the same shape as UV_PYTHON
+# reading `.python-version`. Pinning only the tools named here left their own
+# dependencies floating, which was the failure one level down (#247).
+#
+# Deliberately a requirements file rather than a `pyproject.toml`: a manifest would flip
+# `language_profile.py` from census detection to manifest detection, hand `deptry` a
+# dependency list to audit, and invite the reading that this repo has runtime
+# dependencies. It has none.
+#
+# Dependabot watches the pair (see .github/dependabot.yml), so a tool release arrives
+# as a reviewable PR that CI validates, instead of arriving unannounced mid-run. Its
+# support for `uv pip compile` output is known to be uneven — it can edit a line of the
+# compiled file rather than recompiling — so on a Dependabot PR, run `make constraints`
+# and commit whatever it changes.
+#
+# The 7 `rev:`-pinned hooks in .pre-commit-config.yaml are already pinned by prek and are
+# not repeated here; bump those with `uvx prek update`.
+
+# Hook runner and the two hooks that shell out to uvx.
+prek==0.5.3
+mypy==2.3.1
+interrogate==1.7.0
+
+# Test suite: `make test`, `make e2e`.
+pytest==9.1.1
+pytest-cov==7.1.0
+PyYAML==6.0.3
+
+# Security audit: `make audit`.
+bandit==1.9.4
+zizmor==1.30.1
+
+# Complexity bars: `make complexity`. Not a gate — it reports the numbers CLAUDE.md
+# states as this repo's bars, and an unpinned radon would let those numbers move without
+# the code moving.
+radon==6.0.1
+
+# Docs and release: `make book`, `make changelog`. `mkdocs-material` and `genbadge` arrive
+# through `uvx --with`, which UV_CONSTRAINT reaches the same as the tool itself; the
+# published coverage badge and the rendered site are outputs nobody diffs, so a silent
+# theme or renderer change is exactly the kind that goes unnoticed.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+genbadge==1.1.3
+git-cliff==2.13.1
+
+# Paper figures: `make paper-figures`, through `uvx --with pillow`.
+pillow==12.3.0

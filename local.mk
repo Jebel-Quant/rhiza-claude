@@ -18,7 +18,7 @@
 # target that shells out to `uvx` so a machine without uv bootstraps one, rather than failing
 # with "command not found" partway through a recipe.
 
-.PHONY: install audit bundle complexity test e2e portable book paper paper-figures clean
+.PHONY: install audit bundle complexity constraints test e2e portable book paper paper-figures clean
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -29,8 +29,14 @@ export UV_PYTHON := $(shell cat .python-version)
 
 # ...and the versions of the tools it runs. Without this, `uvx` resolves the newest
 # release of prek, mypy, pytest and the rest at call time, so a tool release can turn CI
-# red with no commit here. `requirements-dev.txt` explains why it is a requirements file
-# and not a pyproject.toml.
+# red with no commit here. `requirements-dev.in` explains why it is a requirements file
+# and not a pyproject.toml; this points at the file `make constraints` compiles from it,
+# which pins the tools' transitive dependencies as well.
+#
+# It binds `uvx` and `uvx --with`, and **not** `uv run --with` — measured: an impossible
+# pin in the constraint file fails the first and is silently ignored by the second, and
+# `uv run` has no constraints flag. So a recipe that needs a pinned package reaches it
+# through `uvx`.
 export UV_CONSTRAINT := $(CURDIR)/requirements-dev.txt
 
 PAPER := rhiza-claude-intro
@@ -201,7 +207,19 @@ paper:  ## Build the paper and stage it for the docs site (needs tectonic or pdf
 	cp paper/$(PAPER).pdf docs/paper/$(PAPER).pdf
 
 paper-figures: $(UVX)  ## Regenerate the paper's figures from the captured command output
-	uv run --with pillow python paper/render_figures.py
+	uvx --with pillow python paper/render_figures.py
+
+# The compiled half of the toolchain pins. `uv pip compile` prefers the versions already
+# in its output file, so a rerun with an unchanged input changes nothing, and a bumped
+# input moves only what the bump requires.
+#
+# UV_CONSTRAINT is dropped for this one call because it points at the very file being
+# regenerated: left set, the old closure would constrain the new one and a bump in
+# requirements-dev.in could never resolve past it. `--universal` because the same file
+# constrains the macOS and Windows `cross-platform` jobs, not only Linux.
+constraints: $(UV)  ## Recompile requirements-dev.txt (the full toolchain closure) from requirements-dev.in
+	env -u UV_CONSTRAINT $(UV) pip compile requirements-dev.in -o requirements-dev.txt \
+		--universal --python-version $(UV_PYTHON) --custom-compile-command "make constraints"
 
 clean:  ## Remove generated caches and artifacts (tool caches, __pycache__, _book, test reports, paper build)
 	rm -rf .ruff_cache .mypy_cache .pytest_cache .cache htmlcov
