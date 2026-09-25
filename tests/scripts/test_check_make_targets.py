@@ -24,7 +24,7 @@ from pathlib import Path
 import _rhiza_layout as layout
 import check_make_targets as cmt
 import pytest
-from conftest import assert_ok, run_cmd
+from conftest import assert_ok, run_cmd, write_include_chain
 
 pytestmark = pytest.mark.skipif(shutil.which("make") is None, reason="make not available")
 
@@ -243,12 +243,6 @@ def test_target_exists_is_false_for_an_undefined_target(managed_synced_repo):
     assert not cmt.target_exists(managed_synced_repo, "definitely-not-a-target")
 
 
-def test_find_makefile_accepts_the_conventional_names(tmp_path):
-    assert cmt.find_makefile(tmp_path) is None
-    (tmp_path / "GNUmakefile").write_text("x: ; @:\n", encoding="utf-8")
-    assert cmt.find_makefile(tmp_path).name == "GNUmakefile"
-
-
 # --- no gate list at all -----------------------------------------------------
 
 
@@ -427,24 +421,6 @@ def test_e2e_quality_gates_exist_on_the_gitlab_profile_too(gitlab_synced_repo, q
     assert result["unavailable"] == [], f"gitlab profile lacks: {result['unavailable']}"
 
 
-# --- discovery: what the repo documents beyond the prose's list ---------------
-
-
-def test_documented_targets_reads_the_help_convention(tmp_path):
-    (tmp_path / "Makefile").write_text(
-        "help:  ## Show this help\n\ttrue\n"
-        "build:  ## Compile the crate\n\ttrue\n"
-        "internal-thing:\n\ttrue\n",  # undocumented: deliberately not discovered
-        encoding="utf-8",
-    )
-    found = cmt.documented_targets(tmp_path)
-    assert found == {"help": "Show this help", "build": "Compile the crate"}
-
-
-def test_documented_targets_without_a_makefile_is_empty(tmp_path):
-    assert cmt.documented_targets(tmp_path) == {}
-
-
 def test_a_non_python_repo_yields_discovered_targets_instead_of_nothing(
     managed_unsynced_repo, quality_md
 ):
@@ -494,98 +470,6 @@ def test_an_unsynced_repo_reports_no_discovered_targets(managed_unsynced_repo, q
     assert summary["documented"] == {}
 
 
-# --- discovery follows the include chain, because make does -------------------
-#
-# A synced repo's root Makefile is a stub: variables and `include .rhiza/rhiza.mk`,
-# which itself ends in `-include .rhiza/make.d/*.mk`. Reading only the root file found
-# nothing on every real repo — the one place discovery was supposed to work.
-
-
-def _synced_layout(root: Path) -> None:
-    """Write the include shape a rhiza sync really delivers."""
-    (root / "Makefile").write_text(
-        "LOGO=x\ninclude .rhiza/rhiza.mk\n-include local.mk\n", encoding="utf-8"
-    )
-    (root / ".rhiza" / "make.d").mkdir(parents=True, exist_ok=True)
-    (root / ".rhiza" / "rhiza.mk").write_text(
-        "help:  ## Display this help message\n\ttrue\n-include .rhiza/make.d/*.mk\n",
-        encoding="utf-8",
-    )
-    (root / ".rhiza" / "make.d" / "rust.mk").write_text(
-        "test::  ## run the test suite with nextest\n\ttrue\n"
-        "deps:  ## report unused dependencies (the deptry analogue)\n\ttrue\n"
-        "license:  ## run license compliance scan\n\ttrue\n",
-        encoding="utf-8",
-    )
-
-
-def test_documented_targets_reads_the_included_makefiles(tmp_path):
-    """The regression: `deps` and `license` live two includes down, not in the Makefile."""
-    _synced_layout(tmp_path)
-    found = cmt.documented_targets(tmp_path)
-    assert set(found) == {"help", "test", "deps", "license"}
-    assert found["deps"] == "report unused dependencies (the deptry analogue)"
-
-
-def test_a_double_colon_rule_is_discovered(tmp_path):
-    """`test::` is how rust.mk declares its test target; a single-colon regex missed it."""
-    _synced_layout(tmp_path)
-    assert cmt.documented_targets(tmp_path)["test"] == "run the test suite with nextest"
-
-
-def test_makefile_chain_is_ordered_root_first_and_visits_each_file_once(tmp_path):
-    _synced_layout(tmp_path)
-    # A second include of the same file (make tolerates it) must not duplicate.
-    (tmp_path / "Makefile").write_text(
-        "include .rhiza/rhiza.mk\ninclude .rhiza/rhiza.mk\n-include local.mk\n", encoding="utf-8"
-    )
-    chain = [p.relative_to(tmp_path).as_posix() for p in cmt.makefile_chain(tmp_path)]
-    assert chain == ["Makefile", ".rhiza/rhiza.mk", ".rhiza/make.d/rust.mk"]
-
-
-def test_an_absent_optional_include_is_skipped(tmp_path):
-    """`-include local.mk` is how rhiza offers developer-local extensions."""
-    _synced_layout(tmp_path)
-    assert not (tmp_path / "local.mk").exists()
-    assert "local.mk" not in [p.name for p in cmt.makefile_chain(tmp_path)]
-
-
-def test_a_local_extension_is_read_when_present(tmp_path):
-    _synced_layout(tmp_path)
-    (tmp_path / "local.mk").write_text("mine:  ## my own target\n\ttrue\n", encoding="utf-8")
-    assert "mine" in cmt.documented_targets(tmp_path)
-
-
-def test_an_include_naming_a_make_variable_is_left_alone(tmp_path):
-    """`include $(EXTRA)` cannot be resolved without evaluating make — omit, don't guess."""
-    (tmp_path / "Makefile").write_text(
-        "include $(EXTRA_MK)\nhelp:  ## help\n\ttrue\n", encoding="utf-8"
-    )
-    assert [p.name for p in cmt.makefile_chain(tmp_path)] == ["Makefile"]
-    assert cmt.documented_targets(tmp_path) == {"help": "help"}
-
-
-def test_a_cyclic_include_terminates(tmp_path):
-    (tmp_path / "Makefile").write_text("include a.mk\n", encoding="utf-8")
-    (tmp_path / "a.mk").write_text(
-        "include Makefile\nlooped:  ## still found\n\ttrue\n", encoding="utf-8"
-    )
-    assert [p.name for p in cmt.makefile_chain(tmp_path)] == ["Makefile", "a.mk"]
-    assert "looped" in cmt.documented_targets(tmp_path)
-
-
-def test_include_following_is_depth_limited(tmp_path):
-    (tmp_path / "Makefile").write_text("include a.mk\n", encoding="utf-8")
-    (tmp_path / "a.mk").write_text("include b.mk\n", encoding="utf-8")
-    (tmp_path / "b.mk").write_text("deep:  ## too deep\n\ttrue\n", encoding="utf-8")
-    assert [p.name for p in cmt.makefile_chain(tmp_path, depth=1)] == ["Makefile", "a.mk"]
-    assert [p.name for p in cmt.makefile_chain(tmp_path, depth=2)] == ["Makefile", "a.mk", "b.mk"]
-
-
-def test_makefile_chain_without_a_makefile_is_empty(tmp_path):
-    assert cmt.makefile_chain(tmp_path) == []
-
-
 def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo, quality_md):
     """Most named gates resolve; the one that doesn't has an analogue under another name.
 
@@ -594,7 +478,7 @@ def test_a_differently_named_analogue_is_pointed_at(managed_unsynced_repo, quali
     prose names `deps`, which every language layer agrees on — so the fixture renames a
     different gate rather than re-enacting a rename that has since happened.
     """
-    _synced_layout(managed_unsynced_repo)
+    write_include_chain(managed_unsynced_repo)
     (managed_unsynced_repo / ".rhiza" / "make.d" / "quality.mk").write_text(
         "fmt:  ## format\n\ttrue\ntypecheck:  ## clippy\n\ttrue\n"
         "security:  ## advisories\n\ttrue\nrhiza-test:  ## template tests\n\ttrue\n"
@@ -622,20 +506,6 @@ def test_main_prints_discovered_targets(managed_unsynced_repo, capsys):
     cmt.main(["--target-dir", str(managed_unsynced_repo)])
     out = capsys.readouterr().out
     assert "discovered   make vet  # go vet ./..." in out
-
-
-def test_this_repo_discovers_its_own_documented_targets(repo_root: Path):
-    """rhiza-claude's own `local.mk` uses the convention, so this is a live check.
-
-    `lint` used to head this list and was dropped from it deliberately: it is one of the
-    three targets (`lint`, `book-serve`, `changelog`) now left to the shim's catch-all, so
-    it is not defined anywhere `documented_targets` reads. The assertion on a description
-    moved to `test` rather than being deleted — without one, this only checks that names
-    are found and would pass with every description dropped on the floor.
-    """
-    found = cmt.documented_targets(repo_root)
-    assert {"test", "book", "clean"} <= set(found)
-    assert found["test"] == "Run the script test suite with a 100% coverage gate"
 
 
 # --- a makefile that answers everything --------------------------------------
