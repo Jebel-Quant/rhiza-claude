@@ -385,7 +385,7 @@ order, so a fast failure still surfaces before the slow ones:
 | `fmt` | `make fmt` | `.pre-commit-config.yaml` via `uvx prek run --all-files` (or `pre-commit`, if that is what CI names) | — |
 | `typecheck` | `make typecheck` | `[tool.mypy]` in `pyproject.toml`, or `mypy.ini` / `setup.cfg` → `uvx mypy <source_root>` | a source root |
 | `docs-coverage` | `make docs-coverage` | `[tool.interrogate]` in `pyproject.toml` → `uvx interrogate <source_root>` | a source root |
-| `deps` | `make deps` | `[tool.deptry]`, or a dependency manifest to read → `uvx deptry <source_root>` | a source root **and a manifest** |
+| `deps` | `make deps` | `[tool.deptry]`, or a dependency manifest to read → **in the project's environment**: `uv run --with deptry deptry <source_root>` in a `uv` project, the equivalent for another package manager | a source root **and a manifest** |
 
 **Rung 2 is not the forbidden case**: every argument, threshold and exclusion still comes
 from the repo's committed config, which is the whole thing the rule protects. The runner
@@ -419,6 +419,17 @@ measurements and only one of them is what CI would run.
 left-hand side. `language_profile.py` reports `manifest_present` for exactly this kind of
 question: false means rung 3, and the honest finding is "dependencies are not declared
 anywhere", which is worth more than a tool error.
+
+**And it must run where the dependencies are installed — which is why the row does not
+say `uvx deptry`.** deptry maps each declared distribution to the import name it provides
+by reading *installed* package metadata. `uvx` builds an isolated environment with none of
+the project's packages in it, so every distribution whose import name differs
+(`scikit-learn`/`sklearn`, `pillow`/`PIL`, `pyyaml`/`yaml`, …) is reported as missing: on
+one real repo that turned 4 genuine findings into 228. This is gate 8's rule applied to
+`deps`: **DEP001 findings from an environment without the project's dependencies
+installed are unmeasured, not failing** — don't score them and don't file them. A run
+that reports missing dependencies across a large share of modules is a sign the
+environment is wrong, not the repo; say so instead of reporting it.
 
 **`security` and `rhiza-test` stay template-only.** `rhiza-test` runs the template's own
 bundled suite, which by definition is not there. `security` is pip-audit plus bandit, and
