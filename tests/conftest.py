@@ -409,6 +409,29 @@ def assert_ok(result: subprocess.CompletedProcess[str], label: str) -> None:
     )
 
 
+def write_include_chain(root: Path) -> None:
+    """Write the pre-v1.4 include shape a rhiza sync delivered, under *root*.
+
+    `Makefile` includes `.rhiza/rhiza.mk`, which `-include`s `.rhiza/make.d/*.mk`, where
+    `deps` and `license` live two includes down. Shared by the static reader's tests
+    (`test__make_targets_chain.py`) and the probe's (`test_check_make_targets.py`).
+    """
+    (root / "Makefile").write_text(
+        "LOGO=x\ninclude .rhiza/rhiza.mk\n-include local.mk\n", encoding="utf-8"
+    )
+    (root / ".rhiza" / "make.d").mkdir(parents=True, exist_ok=True)
+    (root / ".rhiza" / "rhiza.mk").write_text(
+        "help:  ## Display this help message\n\ttrue\n-include .rhiza/make.d/*.mk\n",
+        encoding="utf-8",
+    )
+    (root / ".rhiza" / "make.d" / "rust.mk").write_text(
+        "test::  ## run the test suite with nextest\n\ttrue\n"
+        "deps:  ## report unused dependencies (the deptry analogue)\n\ttrue\n"
+        "license:  ## run license compliance scan\n\ttrue\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.fixture(scope="session")
 def synced_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """A real repo built by the /init chain and synced from the real template.
