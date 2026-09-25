@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.17.2] - 2026-09-25
+
+### Bug Fixes
+- *(quality)* Run deps rung-2 in the project's environment, not uvx (#230) (#250)
+- *(deps)* Pin the dev toolchain's full closure and pillow via a compiled constraint file (#247) (#252)
+
+### Documentation
+- *(claude)* Refresh the complexity census from make complexity (#248) (#251)
+
+### Maintenance
+- *(scripts)* Split the forge half out of issue_status and the makefile reader out of check_make_targets (#249) (#253)
+
 ## [0.17.1] - 2026-09-24
 
 ### Bug Fixes
