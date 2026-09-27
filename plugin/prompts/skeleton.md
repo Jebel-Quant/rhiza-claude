@@ -18,7 +18,7 @@ stdlib-only script finishes it. Every edit is **idempotent and additive** — ru
 it twice changes nothing the second time, and it never overwrites real code or
 metadata a human wrote.
 
-**Three languages.** Steps 1–7 below are the **python** path. `/init` passes the language
+**Three languages.** Steps 1–8 below are the **python** path. `/init` passes the language
 in: for `LANGUAGE=rust` jump to **[Rust](#rust)**, the same shape with `cargo init --lib`
 and `Cargo.toml` in place of uv and `pyproject.toml`; for `LANGUAGE=go` jump to
 **[Go](#go)**, which is shorter than either, because `go mod init` writes one file and
@@ -70,7 +70,7 @@ uv run --python 3.12 --no-project python "${CLAUDE_PLUGIN_ROOT}/scripts/init_ske
   --owner "$OWNER" --repo "$REPO" --host <github|gitlab> \
   --description "$DESCRIPTION"
 ```
-It makes four idempotent edits:
+It makes five idempotent edits:
 - **`src/<pkg>/__init__.py`** — replaces uv's `hello()` placeholder with a package
   docstring. It's undocumented and untested, so it fails *both* the interrogate gate
   and the coverage gate. Rewritten **only while it's still uv's placeholder** — once
@@ -83,6 +83,13 @@ It makes four idempotent edits:
   `pytest-cov`, lower-bounded) when absent. Existing groups are left exactly as they
   are. No `lint` group: the template provisions every linter through prek/uvx, so
   nothing would resolve one.
+- **`mkdocs.yml`** — a minimal root one, `INHERIT: docs/mkdocs-base.yml` plus the site
+  and repo metadata, written **only when absent**. The first `/update` syncs
+  `rhiza_book.yml`, and `rhiza-task book` skips without a root `mkdocs.yml`, so the
+  workflow then fails uploading the `_book/` it never built. The base it inherits is
+  template-owned and arrives with that same sync. It declares **no `nav`**: the pages
+  one would name are template-owned too, and `book-nav` skips a config without one.
+  `/rhiza:docs` owns the curated version.
 
 Relay its `modified`/`notes` output.
 
@@ -142,12 +149,26 @@ hand-edit those fields here.
 **The license is not this procedure's job either.** `plugin/prompts/license.md` owns the
 SPDX metadata and the `LICENSE` file, and `/init` follows it right after this one.
 
-## 7. Report
+## 7. Lock the dependencies
+
+After step 6, because `uv.lock` records `requires-python`, which step 6 has just pinned:
+```bash
+uv lock
+```
+`uv init` writes no lockfile, and both workflows the first `/update` syncs need one.
+`rhiza_book.yml` runs `uv sync --frozen`, which refuses outright without a `uv.lock`.
+`rhiza_ci.yml`'s test job creates one mid-run and then fails its clean-tree check on
+`?? uv.lock`. Committed here, it lands in PR #1, before either workflow exists. It is
+idempotent too: a lock that is already current is left as it is. If `uv lock` fails,
+**stop and report**. A manifest that can't resolve would fail `make install` anyway, and
+committing without the lock just moves that failure to PR #2.
+
+## 8. Report
 
 What happened, concisely: whether `uv init` ran or an existing `pyproject.toml` was
 kept, the package directory under `src/`, which `pyproject.toml` fields the script
 added or filled in (and which it found already correct), **that `pyproject.toml`
-verified in step 4**, and the `$PYTHON_VERSION` applied. Flag anything the script
+verified in step 4**, the `$PYTHON_VERSION` applied, and that `uv.lock` was written in step 7. Flag anything the script
 noted as still missing — notably `[project].authors`, which the template's gate wants
 and which `uv init` only populates from `git config`.
 
@@ -239,11 +260,22 @@ lockfile stale and the next `cargo build` dirties the tree — which is why the 
 is there, and why it is `regex = true`: without that, its `\n` is matched literally, the
 entry silently does nothing, and the release looks clean while the lockfile is wrong.
 
-### R6. Report
+### R6. Lock the dependencies
 
-As step 7: whether `cargo init` ran or an existing manifest was kept, which
+```bash
+cargo generate-lockfile
+```
+`cargo init --lib` writes no `Cargo.lock` either; the first `cargo build` does. So the
+first gate run after the sync leaves the tree dirty, and R5's `Cargo.lock` entry has no
+file to rewrite. Commit it here, as step 7 does for `uv.lock`. It resolves without
+building anything, and an existing lock is only brought up to date. If it fails,
+**stop and report**.
+
+### R7. Report
+
+As step 8: whether `cargo init` ran or an existing manifest was kept, which
 `[package]` keys were added or found correct, **that `cargo metadata` passed in R4**,
-and that no MSRV was set.
+that `Cargo.lock` was written in R6, and that no MSRV was set.
 
 ## Go
 
@@ -325,7 +357,7 @@ competing config in the meantime.
 
 ### G6. Report
 
-As step 7: whether `go mod init` ran or an existing module was kept, the module path,
+As step 8: whether `go mod init` ran or an existing module was kept, the module path,
 whether `doc.go` and the README were written or already present, **that `go list -m` and
 `go vet` passed in G4**, and that the version location arrives with the first sync.
 

@@ -16,6 +16,9 @@ something to pass:
   [project.urls]          Homepage + Repository — the template's .rhiza/tests/
                           test_pyproject.py requires both
   [dependency-groups]     a `test` group (incl. pytest) — likewise required
+  mkdocs.yml              the synced `rhiza_book.yml` builds the book on every push, and
+                          `rhiza-task book` skips without a root `mkdocs.yml` — so the
+                          upload of the `_book/` it never wrote turns the first sync red
 
 It writes **no** ``classifiers`` — not a ``License ::`` trove classifier (PEP 639
 replaced it with the SPDX ``license`` field, and `/rhiza:license` owns that), and not the
@@ -39,6 +42,7 @@ import _skeleton_common as common  # noqa: E402
 from _rhiza_toml import merge_table, set_key  # noqa: E402
 
 _PYPROJECT = "pyproject.toml"
+_MKDOCS = "mkdocs.yml"
 
 # uv seeds this into `[project].description`; it is not a real description.
 _UV_DESCRIPTION_PLACEHOLDER = "Add your description here"
@@ -146,6 +150,50 @@ def set_dependency_groups(text: str) -> tuple[str, bool]:
     return new_text, bool(added)
 
 
+def render_mkdocs(*, repo: str, description: str | None, url: str, slug: str) -> str:
+    """Render the minimal root `mkdocs.yml` that inherits the synced base.
+
+    Every value goes through :func:`json.dumps`: a JSON string is a valid YAML
+    double-quoted scalar, so a description with a colon or a quote cannot break the file.
+
+    >>> print(render_mkdocs(repo="lasso", description="Sparse: fast.",
+    ...                     url="https://github.com/acme/lasso", slug="acme/lasso"), end="")
+    INHERIT: docs/mkdocs-base.yml
+    <BLANKLINE>
+    site_name: "lasso"
+    site_description: "Sparse: fast."
+    repo_url: "https://github.com/acme/lasso"
+    repo_name: "acme/lasso"
+
+    There is deliberately **no** ``nav``. The pages it would name (``docs/index.md`` and
+    friends) are template-owned and arrive with the first sync, so hardcoding them here
+    couples `/init` to upstream's filenames, and a rename would publish a 404 that
+    ``book-nav`` then fails on. Without a ``nav`` the build lists whatever is under
+    ``docs/``, and ``book-nav`` skips. `/rhiza:docs` writes the curated one later.
+    """
+    lines = ["INHERIT: docs/mkdocs-base.yml", "", f"site_name: {json.dumps(repo)}"]
+    if description:
+        lines.append(f"site_description: {json.dumps(description, ensure_ascii=False)}")
+    lines += [f"repo_url: {json.dumps(url)}", f"repo_name: {json.dumps(slug)}"]
+    return "\n".join(lines) + "\n"
+
+
+def seed_mkdocs(target: Path, *, repo: str, description: str | None, url: str, slug: str) -> bool:
+    """Write a root `mkdocs.yml` when there is none; return whether it was written.
+
+    An existing file is the user's — or `/rhiza:docs`'s — and is never touched.
+    ``docs/mkdocs-base.yml`` is not checked for: it is template-owned and does not exist
+    until the first `/rhiza:update`, which is exactly the sync this file is written for.
+    """
+    mkdocs = target / _MKDOCS
+    if mkdocs.exists():
+        return False
+    mkdocs.write_text(
+        render_mkdocs(repo=repo, description=description, url=url, slug=slug), encoding="utf-8"
+    )
+    return True
+
+
 def apply_pyproject(
     text: str,
     changes: list[str],
@@ -207,11 +255,12 @@ def finish_python(
     changes: list[str] = []
     original = manifest.read_text(encoding="utf-8")
     identity_name, identity_email = common.git_identity(target)
+    url = common.host_url(domain, owner, repo)
     try:
         text = apply_pyproject(
             original,
             changes,
-            url=common.host_url(domain, owner, repo),
+            url=url,
             description=description,
             # Falls back to the owner: the gate needs a non-empty name, and the owner is
             # the best fact available when the machine has no git identity at all.
@@ -228,6 +277,10 @@ def finish_python(
         notes.append("pyproject.toml: " + ", ".join(changes))
     else:
         notes.append("pyproject.toml already rhiza-shaped")
+
+    if seed_mkdocs(target, repo=repo, description=description, url=url, slug=f"{owner}/{repo}"):
+        modified.append(_MKDOCS)
+        notes.append("wrote a minimal mkdocs.yml for the synced book — /rhiza:docs owns the nav")
 
     notes.append("license + classifiers are /rhiza:license and /rhiza:python-version's job")
     return {"modified": modified, "changes": changes, "notes": notes, "ok": True}
