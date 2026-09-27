@@ -86,7 +86,7 @@ def test_finish_skeleton_completes_a_uv_project(tmp_path):
     )
 
     assert summary["ok"]
-    assert set(summary["modified"]) == {"src/acme_tool/__init__.py", "pyproject.toml"}
+    assert set(summary["modified"]) == {"src/acme_tool/__init__.py", "pyproject.toml", "mkdocs.yml"}
     assert summary["changes"] == [
         "description",
         "project.urls",

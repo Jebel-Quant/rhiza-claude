@@ -308,3 +308,43 @@ def test_finish_python_never_writes_classifiers(tmp_path):
     text = (tmp_path / "pyproject.toml").read_text(encoding="utf-8")
     assert "classifiers" not in text
     assert "License ::" not in text
+
+
+# --- mkdocs.yml ----------------------------------------------------------------
+
+
+def test_render_mkdocs_inherits_the_synced_base_and_declares_no_nav():
+    """A nav would name template-owned pages; without one `book-nav` skips (#257)."""
+    text = py.render_mkdocs(repo="r", description=None, url="https://github.com/o/r", slug="o/r")
+    assert text.startswith("INHERIT: docs/mkdocs-base.yml\n")
+    assert "nav:" not in text
+    assert "site_description" not in text
+
+
+def test_render_mkdocs_quotes_a_description_that_would_break_the_yaml():
+    text = py.render_mkdocs(repo="r", description='a "b": c', url="u", slug="o/r")
+    assert 'site_description: "a \\"b\\": c"\n' in text
+
+
+def test_finish_python_seeds_mkdocs_for_the_first_sync(tmp_path):
+    """The synced book workflow fails uploading `_book/` without a root mkdocs.yml (#257)."""
+    (tmp_path / "pyproject.toml").write_text(UV_PYPROJECT, encoding="utf-8")
+    result = py.finish_python(
+        tmp_path, owner="o", repo="r", domain="github.com", description="d",
+        modified=[], notes=[],
+    )  # fmt: skip
+    assert "mkdocs.yml" in result["modified"]
+    text = (tmp_path / "mkdocs.yml").read_text(encoding="utf-8")
+    assert 'repo_url: "https://github.com/o/r"\n' in text
+    assert 'repo_name: "o/r"\n' in text
+
+
+def test_finish_python_leaves_an_existing_mkdocs_alone(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(UV_PYPROJECT, encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text("site_name: mine\n", encoding="utf-8")
+    result = py.finish_python(
+        tmp_path, owner="o", repo="r", domain="github.com", description="d",
+        modified=[], notes=[],
+    )  # fmt: skip
+    assert "mkdocs.yml" not in result["modified"]
+    assert (tmp_path / "mkdocs.yml").read_text(encoding="utf-8") == "site_name: mine\n"

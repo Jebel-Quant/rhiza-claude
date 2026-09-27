@@ -30,7 +30,7 @@ The steps below are the Python path; see [Rust and Go](#rust-and-go).
    `pyproject.toml`, `src/<pkg>/__init__.py` (+ `py.typed`), `README.md`,
    `.gitignore`, and `.python-version`, and initialises a git repo if needed. An
    existing `pyproject.toml` is never touched by `uv init`.
-3. **Finishes it** via `plugin/scripts/init_skeleton.py` — four idempotent, additive edits:
+3. **Finishes it** via `plugin/scripts/init_skeleton.py` — five idempotent, additive edits:
    - **`src/<pkg>/__init__.py`** — replaces uv's `hello()` placeholder with a package
      docstring (it's undocumented *and* untested, so it fails both the interrogate
      and coverage gates). Rewritten **only while it's still uv's placeholder**.
@@ -41,9 +41,16 @@ The steps below are the Python path; see [Rust and Go](#rust-and-go).
    - **`[dependency-groups]`** — adds the required `test` group (`pytest` and
      `pytest-cov`, lower-bounded) when absent. Existing groups are untouched, and no
      `lint` group is seeded — the template provisions linters through prek/uvx.
+   - **`mkdocs.yml`** — a minimal root one inheriting `docs/mkdocs-base.yml`, only when
+     absent. The first sync ships a book workflow that fails without it. It has no
+     `nav`, because the pages one would name are template-owned;
+     [`/rhiza:docs`](../skills/docs.md) writes the curated one.
 4. **Delegates the Python metadata** to
    [python-version](python-version.md) — `requires-python`, the
    `Programming Language :: Python :: X.Y` classifiers, and `.python-version`.
+5. **Runs `uv lock`**, so `uv.lock` lands in PR #1. The synced book workflow runs
+   `uv sync --frozen`, and the CI test job fails its clean-tree check on a lockfile it
+   had to create.
 
 The license is **not** its job: [license](license.md) owns that, and
 [`/rhiza:init`](../skills/init.md) follows it immediately after this procedure.
@@ -59,6 +66,7 @@ Same shape, different manifest — and each has one thing the others don't:
 | profile | `rust-local` | `go-local` |
 | docs gate | `#![warn(missing_docs)]` — a `//!` crate doc is **prepended**, never substituted, because cargo's stub holds the crate's only test | revive's `exported` rule — a `doc.go` package comment, since `go mod init` writes no Go file at all |
 | metadata | `[package]` gains `description`, `repository`, `homepage`, `authors` | **nothing to add**: `go.mod` has no such fields |
+| lockfile | `cargo generate-lockfile`, since `cargo init` writes no `Cargo.lock` | none: `go.sum` only exists once there are dependencies |
 | version location | `.bumpversion.toml`, anchored to `[package]` and to `Cargo.lock` | **not written here** — a Go module's version is its git tag, and `go-core` ships the config; it arrives with the first [`/rhiza:update`](../skills/update.md) |
 
 The gate is the same idea in each: `cargo metadata` (Rust) or `go list -m` plus

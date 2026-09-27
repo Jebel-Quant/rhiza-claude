@@ -38,7 +38,7 @@ which template repository this repo follows and at which ref. Everything else it
 | --- | --- | --- |
 | `uv` on the machine | `bundle/prompts/install-uv.md` | 1 |
 | work branch off an untouched default | `bundle/prompts/pr-base.md` | 4 |
-| skeleton + the `pyproject.toml` shape the gates need | `bundle/prompts/skeleton.md` (applies `bundle/prompts/python-version.md`) | 6 |
+| skeleton + the `pyproject.toml` shape the gates need, lockfile, stub `mkdocs.yml` | `bundle/prompts/skeleton.md` (applies `bundle/prompts/python-version.md`) | 6 |
 | SPDX metadata + the `LICENSE` file | `bundle/prompts/license.md` | 6 |
 
 Those are **internal procedures, not slash commands** — deliberately kept out of

@@ -9,7 +9,7 @@ else is another step's job:
   Makefile, CI, docs    the template sync, via `/rhiza:update`
   license               the license procedure (scripts/set_license.py)
   Python version        the python-version procedure (scripts/set_python_version.py)
-  README / mkdocs.yml   `/rhiza:docs`
+  README / mkdocs.yml   stubs from the skeleton procedure; the real ones are `/rhiza:docs`'s
   first module + test   the user's own
 
 The file is created **only if absent** — an existing `template.yml` is left

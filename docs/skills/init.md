@@ -18,12 +18,12 @@ and it runs no gates, tests, or sync:
 | what | who |
 | --- | --- |
 | `uv` on the machine | [install-uv](../internals/install-uv.md) *(internal)* |
-| skeleton + the `pyproject.toml` shape the gates need | [skeleton](../internals/skeleton.md) *(internal)* |
+| skeleton + the `pyproject.toml` shape the gates need, the lockfile, a stub `mkdocs.yml` | [skeleton](../internals/skeleton.md) *(internal)* |
 | `requires-python` + classifiers | [python-version](../internals/python-version.md) *(internal)* |
 | SPDX metadata + the `LICENSE` file | [license](../internals/license.md) *(internal)* |
 | template content (CI, `Makefile`, docs base) | [`/rhiza:update`](update.md)'s sync |
 | first real module + test | you |
-| `README.md`, `CLAUDE.md`, `mkdocs.yml` | [`/rhiza:docs`](docs.md) |
+| `README.md`, `CLAUDE.md`, the curated `mkdocs.yml` | [`/rhiza:docs`](docs.md) |
 
 The *internal* rows are procedures under the plugin's `prompts/` directory, not slash
 commands — `/init` reads and follows them, and you can't invoke them yourself.
