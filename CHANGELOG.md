@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.17.3] - 2026-09-27
+
+### Bug Fixes
+- *(init)* Commit a lockfile and a stub mkdocs.yml so the first sync is green (#257) (#258)
+
 ## [0.17.2] - 2026-09-25
 
 ### Bug Fixes
