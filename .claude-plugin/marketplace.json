@@ -10,7 +10,7 @@
       "name": "rhiza",
       "source": "./plugin",
       "description": "Slash commands for rhiza-managed repos and beyond: init and sync from a pinned template release, score code quality, refresh README/CLAUDE.md/mkdocs, release, fix CI and issues, and report sync status.",
-      "version": "0.17.3"
+      "version": "0.17.4"
     }
   ]
 }
