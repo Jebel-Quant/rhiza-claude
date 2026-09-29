@@ -4,12 +4,12 @@
     "name": "Jebel-Quant",
     "email": "thomas.schmelzer@gmail.com"
   },
-  "description": "Rhiza template-sync and code-quality workflow commands for Claude Code.",
+  "description": "Rhiza template-sync and code-quality workflow commands for Claude Code, with a portable SKILL.md bundle for other agents.",
   "plugins": [
     {
       "name": "rhiza",
       "source": "./plugin",
-      "description": "Slash commands for rhiza-managed repos: init and sync from a pinned template release, score code quality, refresh README/CLAUDE.md/mkdocs, prepare releases, and report sync status.",
+      "description": "Slash commands for rhiza-managed repos and beyond: init and sync from a pinned template release, score code quality, refresh README/CLAUDE.md/mkdocs, release, fix CI and issues, and report sync status.",
       "version": "0.17.3"
     }
   ]

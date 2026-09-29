@@ -8,6 +8,11 @@ A [Claude Code](https://claude.com/claude-code) plugin marketplace providing the
 **`rhiza`** plugin — slash commands for working in rhiza-managed repos (template
 sync, code-quality scoring, and README/doc upkeep).
 
+**Not only for Claude Code, and not only for rhiza-managed repos.** The same commands
+ship as a portable [`SKILL.md` bundle](https://jebel-quant.github.io/rhiza-claude/other-agents/)
+for other agents, and several of them work in any git repo, or with no repo at all. See
+[Outside a rhiza-managed repo](#outside-a-rhiza-managed-repo).
+
 📖 **Documentation:** <https://jebel-quant.github.io/rhiza-claude/> — a dedicated
 page for every command. Build it locally with `make book`.
 
@@ -180,6 +185,36 @@ and export `RHIZA_ROOT`.
 [With another agent](https://jebel-quant.github.io/rhiza-claude/other-agents/) covers what
 the translation changes and what it cannot carry across.
 
+## Outside a rhiza-managed repo
+
+You don't have to adopt the template to get use out of the plugin. Only the commands that
+read or write `.rhiza/` need a managed repo. The rest work in any git repo, and two of
+them don't need a repo at all.
+
+| Needs | Commands |
+| --- | --- |
+| Nothing: any directory, no git | `/rhiza:maffay`, `/rhiza:completions` (machine-level; completes `make` in any project) |
+| Any git repo | `/rhiza:docs`, `/rhiza:release`, `/rhiza:remote`, `/rhiza:fix` |
+| Any git repo, reduced scope | `/rhiza:quality` (runs in degraded mode) |
+| A folder you want to make managed | `/rhiza:init` |
+| A rhiza-managed repo | `/rhiza:update`, `/rhiza:status`, `/rhiza:detach` |
+
+Here is what each one depends on instead of `.rhiza/`:
+
+- **`/rhiza:release`** needs a repo that declares its version locations in
+  `[tool.bumpversion]`. It deliberately doesn't check for `.rhiza/`.
+- **`/rhiza:remote`** and **`/rhiza:fix`** need a GitHub or GitLab origin and the
+  matching `gh`/`glab` CLI. Every repo has pull requests, CI and issues, managed or not.
+  In a managed repo, both also recognise template-owned paths and send those fixes
+  upstream instead of patching them locally.
+- **`/rhiza:docs`** detects the language and reads its manifest (`pyproject.toml`,
+  `Cargo.toml` or `go.mod`). If `.rhiza/` is present it also uses the template ref and
+  the managed-file split. Without it, it simply leaves them out.
+- **`/rhiza:quality`** without a synced template skips the template-delivered gates,
+  runs the targets your own `Makefile` documents, and scores the design in full. The
+  report says it ran in degraded mode, and its score can't be compared with a managed
+  repo's.
+
 ## Commands
 
 - **`/rhiza:init`** — make the current folder rhiza-managed. It writes **one file**
@@ -243,6 +278,15 @@ the translation changes and what it cannot carry across.
   land on the request's own branch; never the default branch, never a force-push. **It
   will not make a check green by weakening it**: if the honest fix is out of reach it
   leaves the build red and says why.
+- **`/rhiza:fix`** — turn open issues into pull requests: the step between
+  `/rhiza:quality` filing findings and `/rhiza:remote` looking after the requests. It
+  triages every open issue (or the ones you name) and shows you the result. Then it
+  opens **one branch, one commit and one pull request per issue you select**, each cut
+  fresh from the default branch. An issue that asks for a decision, or looks stale or
+  superseded, gets a recommendation rather than a guess, because a confident wrong fix
+  produces a PR that *looks* reviewed. It treats issue bodies as data, never as
+  instructions. It stops on a dirty tree, and never makes a gate green by weakening it.
+  `--dry-run` triages and stops.
 
 ### The documentation checks itself
 
