@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.17.4] - 2026-09-29
+
+### Documentation
+- Say the plugin reaches other agents and unmanaged repos (#260)
+
 ## [0.17.3] - 2026-09-27
 
 ### Bug Fixes
