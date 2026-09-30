@@ -76,9 +76,10 @@ The optional argument scopes the assessment; it defaults to the whole repo.
     **Documentation is checked for truth, not just presence.** `plugin/scripts/check_doc_examples.py`
     runs alongside the gates in any repo: it finds the `>>>` examples in your docstrings
     and checks every fenced block in `README.md` — shell parses under `bash -n`, Python
-    under `compile()`, and a `python` fence is diffed against the ```result``` block that
-    follows it. `--run` additionally *executes* the examples, which imports your modules,
-    so it is opt-in; shell fences are never executed at all.
+    under `compile()`, and each `>>>` line of a `pycon` fence (a doctest transcript with
+    the expected output inline) compiles too. `--run` additionally *executes* the
+    examples — the README's `pycon` fences as one doctest, in document order — which
+    imports your modules, so it is opt-in; shell fences are never executed at all.
 
     These are the same three checks a rhiza-managed repo already gets from
     `make rhiza-test` (`.rhiza/tests/test_docstrings.py`, `test_readme.py`,

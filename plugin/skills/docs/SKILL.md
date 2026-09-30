@@ -95,6 +95,12 @@ output — badges are generated — while keeping the `# Title` and everything b
   `` Run `make help` to see all available targets: `` followed by an empty fenced code
   block, and let step 4 fill it. Keep it truthful to what the repo contains; invent no
   features.
+- **A runnable Python example is a ```` ```pycon ```` fence** — a doctest transcript,
+  `>>>` and `...` prompts with the expected output inline under each line — never a
+  ```` ```python ```` fence followed by a ```` ```result ```` block. The example gates
+  doctest every `pycon` fence in the file as one session, in document order; mark an
+  illustrative one ```` ```pycon +RHIZA_SKIP ````. Converting an existing
+  `python`/`result` pair to `pycon` counts as fixing a stale reference.
 - **Exists** ⇒ add only *missing* standard sections and fix demonstrably stale
   references. Substantive gaps you chose not to fill go in the report, not into
   guessed prose.

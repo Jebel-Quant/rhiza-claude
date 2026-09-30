@@ -114,6 +114,104 @@ def test_check_python_reports_the_syntax_error():
     assert "line" in detail
 
 
+# --- pycon fences -------------------------------------------------------------
+
+
+def test_check_pycon_compiles_each_example_without_running():
+    """A transcript whose example would raise still passes the syntax-only pass."""
+    fence = rdm.Fence("pycon", "", ">>> raise SystemExit(1)\n", 1)
+    assert rdm.check_pycon(fence) == ("ok", "")
+
+
+def test_check_pycon_reports_the_readme_line_of_a_syntax_error():
+    """The detail points at the README line, not the line within the fence."""
+    fence = rdm.Fence("pycon", "", ">>> x = 1\n>>> def f(:\n", 10)
+    status, detail = rdm.check_pycon(fence)
+    assert status == "failed"
+    assert "README line 12" in detail
+
+
+def test_check_pycon_reports_a_malformed_prompt():
+    """A continuation line without its space is doctest's ValueError, reported as failed."""
+    fence = rdm.Fence("pycon", "", ">>> if True:\n...pass\n", 1)
+    status, detail = rdm.check_pycon(fence)
+    assert status == "failed"
+    assert detail
+
+
+def test_check_pycon_skips_a_fence_without_a_prompt():
+    """A `pycon` label on plain output has nothing a doctest could run."""
+    assert rdm.check_pycon(rdm.Fence("pycon", "", "just output\n", 1))[0] == "skipped"
+
+
+def test_run_pycon_fences_joins_fences_into_one_session(tmp_path: Path):
+    """The second fence uses the first one's import — one doctest, in document order."""
+    readme = readme_with(
+        tmp_path,
+        "```pycon\n>>> import math\n```\n\nprose\n\n```pycon\n>>> math.floor(2.5)\n2\n```\n",
+    )
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert (execution["ran"], execution["failed"], execution["attempted"]) == (True, 0, 2)
+    assert execution["violations"] == []
+
+
+def test_run_pycon_fences_honours_ellipsis(tmp_path: Path):
+    """`...` in expected output matches anything, as the template's doctest does."""
+    readme = readme_with(tmp_path, "```pycon\n>>> print('a long line')\na ...\n```\n")
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert execution["failed"] == 0
+
+
+def test_run_pycon_fences_runs_in_the_readmes_directory(tmp_path: Path):
+    """Relative paths in an example resolve against the repo root the README sits in."""
+    (tmp_path / "marker.txt").write_text("here", encoding="utf-8")
+    readme = readme_with(
+        tmp_path, "```pycon\n>>> open('marker.txt', encoding='utf-8').read()\n'here'\n```\n"
+    )
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert execution["failed"] == 0
+
+
+def test_run_pycon_fences_survives_output_written_behind_doctests_back(tmp_path: Path):
+    """Bytes sent straight to fd 1 land before the verdict line, not inside it."""
+    readme = readme_with(
+        tmp_path, "```pycon\n>>> import os\n>>> _ = os.write(1, b'noise\\n')\n```\n"
+    )
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert (execution["failed"], execution["violations"]) == (0, [])
+
+
+def test_run_pycon_fences_names_the_first_failing_example(tmp_path: Path):
+    """A mismatch names the example's source, which is what a reader searches for."""
+    readme = readme_with(tmp_path, "```pycon\n>>> 1 + 1\n3\n>>> 2 + 2\n5\n```\n")
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert execution["failed"] == 2
+    assert "2 of 2 example(s) failed, first: 1 + 1" in execution["violations"][0]
+
+
+def test_run_pycon_fences_leaves_skipped_fences_out(tmp_path: Path):
+    """A `+RHIZA_SKIP` fence is never executed, so nothing is left to run."""
+    readme = readme_with(tmp_path, "```pycon +RHIZA_SKIP\n>>> raise SystemExit(1)\n```\n")
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert execution == {"ran": False, "violations": [], "notes": ["no executable pycon fence"]}
+
+
+def test_run_pycon_fences_reports_a_child_that_produced_no_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A child that dies before printing its JSON is a failure with stderr's last line."""
+    readme = readme_with(tmp_path, "```pycon\n>>> 1\n1\n```\n")
+    monkeypatch.setattr(rdm, "_DOCTEST_CHILD", "import sys; sys.exit('child broke')")
+    execution = rdm.run_pycon_fences(readme, rdm.fences(readme.read_text(encoding="utf-8")))
+    assert execution["failed"] is None
+    assert "exited 1 — child broke" in execution["violations"][0]
+
+
+def test_first_failed_example_falls_back_to_the_last_line():
+    """A report with no `Failed example:` header still yields a detail."""
+    assert rdm._first_failed_example("odd\nreport\n") == "report"
+
+
 # --- classification -----------------------------------------------------------
 
 
@@ -125,6 +223,8 @@ def test_check_python_reports_the_syntax_error():
         ("bash", "", "make test\n", "ok"),
         ("python", "", "x = 1\n", "ok"),
         ("result", "", "hello\n", "skipped"),
+        ("pycon", "", ">>> 1 + 1\n2\n", "ok"),
+        ("pycon", "+RHIZA_SKIP", ">>> boom(\n", "skipped"),
         ("", "", "some text\n", "untagged"),
         ("json", "", "{}\n", "skipped"),
     ],
@@ -164,6 +264,32 @@ def test_readme_report_runs_python_fences_and_matches_the_result_block(tmp_path:
     readme = readme_with(tmp_path, "```python\nprint('hi')\n```\n\n```result\nhi\n```\n")
     report = rdm.readme_report(readme, run=True)
     assert report["execution"]["matched"] is True
+    assert report["violations"] == []
+
+
+def test_readme_report_runs_only_the_doctest_for_a_pycon_readme(tmp_path: Path):
+    """A migrated README gets no legacy `python` execution and no note about it."""
+    readme = readme_with(tmp_path, "```pycon\n>>> print('hi')\nhi\n```\n")
+    report = rdm.readme_report(readme, run=True)
+    assert report["doctest"]["failed"] == 0
+    assert "execution" not in report
+    assert report["violations"] == [] and report["notes"] == []
+
+
+def test_readme_report_runs_both_conventions_in_a_mixed_readme(tmp_path: Path):
+    """Half-migrated READMEs are checked under both conventions, failures from each."""
+    readme = readme_with(
+        tmp_path, "```pycon\n>>> 1\n2\n```\n\n```python\nprint('hi')\n```\n\n```result\nbye\n```\n"
+    )
+    report = rdm.readme_report(readme, run=True)
+    assert len(report["violations"]) == 2
+
+
+def test_readme_report_never_executes_pycon_without_run(tmp_path: Path):
+    """Execution is opt-in: without `run`, a failing transcript is only compiled."""
+    readme = readme_with(tmp_path, "```pycon\n>>> 1\n2\n```\n")
+    report = rdm.readme_report(readme, run=False)
+    assert "doctest" not in report
     assert report["violations"] == []
 
 
@@ -220,3 +346,10 @@ def test_print_report_tallies_the_fences_and_the_run(
     assert "3 fence(s)" in out
     assert "README.md:1 bash" in out
     assert "output matched: True" in out
+
+
+def test_print_report_tallies_the_doctest_run(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    """The pycon run gets its own line: examples attempted and failed."""
+    readme = readme_with(tmp_path, "```pycon\n>>> 1\n1\n```\n")
+    rdm.print_report(rdm.readme_report(readme, run=True))
+    assert "pycon fences as one doctest: 1 example(s), 0 failed" in capsys.readouterr().out

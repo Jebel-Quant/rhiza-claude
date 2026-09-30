@@ -243,9 +243,9 @@ Here is what each one depends on instead of `.rhiza/`:
   deps, security, tests, complexity, architecture) and score the repo. It also checks
   the documentation for **truth rather than presence**: the `>>>` examples in your
   docstrings, and every fenced block in `README.md` — shell parsed with `bash -n`,
-  Python with `compile()`, and a `python` fence diffed against the ```result``` block
-  that follows it. `interrogate` can only tell you a docstring exists; this is what
-  tells you it is still right. Shell fences are never executed, and executing anything
+  Python with `compile()`, and every `pycon` fence doctested as one `>>>` transcript
+  with its expected output inline. `interrogate` can only tell you a docstring exists;
+  this is what tells you it is still right. Shell fences are never executed, and executing anything
   at all is opt-in — a module it cannot import is reported *unmeasured*, never failed.
 - **`/rhiza:docs`** — create or refresh the repo's three top-of-repo documentation
   files: `README.md` (with the standard badge set), `CLAUDE.md`, and `mkdocs.yml`.
@@ -290,22 +290,19 @@ Here is what each one depends on instead of `.rhiza/`:
 
 ### The documentation checks itself
 
-The fence below is not an illustration. `/rhiza:quality`'s example gate executes it and
-diffs its output against the expected-output block underneath, so if the shipped
+The fence below is not an illustration. `/rhiza:quality`'s example gate runs it as a
+doctest and checks each printed line against the output written under its prompt, so if the shipped
 `classify_host` ever stops refusing a host that merely *embeds* a known forge domain,
 this README turns the build red rather than quietly going on claiming otherwise.
 
-```python
-import sys
+```pycon
+>>> import sys
 
-sys.path.insert(0, "plugin/scripts")
-from _rhiza_forge import classify_host
+>>> sys.path.insert(0, "plugin/scripts")
+>>> from _rhiza_forge import classify_host
 
-for host in ("github.com", "code.gitlab.com", "gitlab.acme.io", "github.com.evil.example"):
-    print(f"{host} -> {classify_host(host)}")
-```
-
-```result
+>>> for host in ("github.com", "code.gitlab.com", "gitlab.acme.io", "github.com.evil.example"):
+...     print(f"{host} -> {classify_host(host)}")
 github.com -> github
 code.gitlab.com -> gitlab
 gitlab.acme.io -> gitlab
