@@ -262,9 +262,11 @@ failures surface before the slow test suite — and collect results:
    `<SOURCE_ROOT>` is the one `language_profile.py` reported — never an assumed `src/`.
    It answers two questions no other gate asks: where the **doctest examples** in the
    docstrings are, and whether every **README fence** parses as the language it claims
-   (`bash -n` for shell, `compile()` for Python). Add **`--run`** to *execute* them —
-   `doctest` per module, and the `python` fences diffed against the ```result``` block
-   that follows them — which is the half that catches an example gone stale. Exit **1**
+   (`bash -n` for shell, `compile()` for Python and for each `>>>` line of a `pycon`
+   fence). Add **`--run`** to *execute* them — `doctest` per module, and the README's
+   `pycon` fences joined in document order and run as one doctest under `ELLIPSIS`, with
+   the expected output inline — which is the half that catches an example gone stale.
+   A legacy `python` fence is still diffed against the ```result``` block after it. Exit **1**
    means an example is broken; exit **2** means there was nothing to check (no source
    root, no README), which is out-of-scope in the usual way, never FAIL. Read the next
    section before passing `--run`.
