@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     # The one thing `make fmt` gives those hooks that prek-action cannot: the
-    # UV_CONSTRAINT export. It is set in exactly one place — Makefile's
+    # UV_CONSTRAINT export. It is set in exactly one place — local.mk's
     # `export UV_CONSTRAINT := $(CURDIR)/requirements-dev.txt` — so a job that reaches
     # the hooks without going through make ran `uvx mypy` and `uvx interrogate`
     # against whatever release was newest at call time, while a contributor running
@@ -72,7 +72,7 @@ jobs:
       # manual is noticing that it needs to happen everywhere at once. The `workflow-pins`
       # hook fails the build unless every `setup-uv` call site passes this input and all of
       # them agree, which is the check that was missing while one workflow shipped with no
-      # pin at all. Six sites, one value: edit them together.
+      # pin at all. Five sites, one value: edit them together.
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
