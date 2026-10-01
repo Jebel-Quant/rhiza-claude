@@ -381,6 +381,11 @@ def print_report(readme: dict[str, Any]) -> None:
     for block in readme["blocks"]:
         detail = f" — {block['detail']}" if block["detail"] else ""
         print(f"{block['status']:<12} {readme['path']}:{block['line']} {block['language']}{detail}")
+    _print_runs(readme)
+
+
+def _print_runs(readme: dict[str, Any]) -> None:
+    """Print one line per execution pass that actually ran over the README's fences."""
     execution = readme.get("execution")
     if execution is not None and execution["ran"]:
         print(
