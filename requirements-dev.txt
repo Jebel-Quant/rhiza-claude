@@ -97,7 +97,7 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
-prek==0.5.3
+prek==0.5.4
     # via -r requirements-dev.in
 py==1.11.0
     # via interrogate
