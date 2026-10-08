@@ -11,7 +11,9 @@ tracked but the current file set no longer contains is one this sync must delete
 from __future__ import annotations
 
 import os
+import stat
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,16 @@ from _rhiza_yaml import as_list  # noqa: E402
 _PROTECTED = frozenset({Path(".rhiza/template.yml")})
 from _rhiza_template import Template, is_excluded  # noqa: E402
 from _rhiza_yaml import dump_yaml, load_yaml  # noqa: E402
+
+
+@dataclass(frozen=True)
+class OwnershipConflict:
+    """An unmanaged target path that blocks a template file."""
+
+    path: Path
+    detail: str
+    adoptable: bool
+    alias: bool = False
 
 
 def lock_path(target: Path, lock_file: Path | None) -> Path:
@@ -53,6 +65,72 @@ def previously_tracked(lock_path: Path) -> set[Path]:
             continue
         tracked.add(Path(entry))
     return tracked
+
+
+def _path_kind(path: Path) -> str | None:
+    """Return the filesystem kind of *path*, including dangling symlinks."""
+    try:
+        mode = path.lstat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    if stat.S_ISDIR(mode):
+        return "directory"
+    if stat.S_ISLNK(mode):
+        return "symlink"
+    if stat.S_ISREG(mode):
+        return "file"
+    return "special file"
+
+
+def unmanaged_conflicts(
+    target: Path, template_files: list[Path], tracked: set[Path]
+) -> list[OwnershipConflict]:
+    """Find unmanaged files or directories that would block incoming template files.
+
+    GitHub Actions treats ``action.yml`` and ``action.yaml`` as the metadata file for the
+    same action directory, so an unmanaged sibling with either name also blocks adoption.
+    """
+    conflicts: dict[Path, OwnershipConflict] = {}
+
+    def add(path: Path, detail: str, *, adoptable: bool, alias: bool = False) -> None:
+        existing = conflicts.get(path)
+        if existing is None or (existing.adoptable and not adoptable):
+            conflicts[path] = OwnershipConflict(path, detail, adoptable, alias)
+
+    for rel in sorted(template_files):
+        destination = target / rel
+        kind = _path_kind(destination)
+        if kind is not None and rel not in tracked:
+            add(
+                rel,
+                f"unmanaged {kind}",
+                adoptable=kind in {"file", "symlink"},
+            )
+
+        for parent in rel.parents:
+            if parent == Path("."):
+                continue
+            parent_kind = _path_kind(target / parent)
+            if parent_kind is not None and parent_kind != "directory" and parent not in tracked:
+                add(
+                    parent,
+                    f"unmanaged {parent_kind} blocks the template directory",
+                    adoptable=False,
+                )
+
+        if rel.name in {"action.yml", "action.yaml"}:
+            alias_name = "action.yaml" if rel.name == "action.yml" else "action.yml"
+            alias = rel.with_name(alias_name)
+            alias_kind = _path_kind(target / alias)
+            if alias_kind is not None and alias not in tracked:
+                add(
+                    alias,
+                    f"unmanaged {alias_kind} aliases {rel.as_posix()}",
+                    adoptable=alias_kind in {"file", "symlink"},
+                    alias=True,
+                )
+
+    return [conflicts[path] for path in sorted(conflicts)]
 
 
 def clean_orphaned_files(

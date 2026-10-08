@@ -71,6 +71,70 @@ def test_first_sync_writes_lock(make_repo: Any, monkeypatch: pytest.MonkeyPatch)
     assert lock["strategy"] == "merge"
 
 
+@pytest.mark.parametrize("existing", ["upstream\n", "locally owned\n"])
+def test_first_sync_refuses_unmanaged_file(
+    make_repo: Any, capsys: pytest.CaptureFixture[str], existing: str
+) -> None:
+    tmpl = _template(make_repo, {"Makefile": "upstream\n", "docs/guide.md": "guide\n"})
+    proj = _project(make_repo, tmpl, _include("Makefile", "docs"))
+    proj.write("Makefile", existing)
+    proj.commit("add local Makefile")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read("Makefile") == existing
+    assert not proj.exists("docs/guide.md")
+    assert not proj.exists(".rhiza/template.lock")
+    output = capsys.readouterr().err
+    assert "conflict: Makefile — unmanaged file" in output
+    assert "No template files or lock were written." in output
+
+
+def test_first_sync_reports_all_unmanaged_files_before_writing(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl = _template(make_repo, {"a.txt": "upstream a\n", "b.txt": "upstream b\n", "c.txt": "c\n"})
+    proj = _project(make_repo, tmpl, _include("a.txt", "b.txt", "c.txt"))
+    proj.write("a.txt", "local a\n")
+    proj.write("b.txt", "local b\n")
+    proj.commit("add local files")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read("a.txt") == "local a\n"
+    assert proj.read("b.txt") == "local b\n"
+    assert not proj.exists("c.txt")
+    output = capsys.readouterr().err
+    assert "conflict: a.txt — unmanaged file" in output
+    assert "conflict: b.txt — unmanaged file" in output
+
+
+def test_first_sync_refuses_unmanaged_directory_collision(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl = _template(make_repo, {"Makefile": "upstream\n"})
+    proj = _project(make_repo, tmpl, _include("Makefile"))
+    proj.write("Makefile/owned.txt", "local\n")
+    proj.commit("add local directory")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read("Makefile/owned.txt") == "local\n"
+    assert "conflict: Makefile — unmanaged directory" in capsys.readouterr().err
+
+
+def test_first_sync_refuses_unmanaged_parent_file(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl = _template(make_repo, {"docs/guide.md": "guide\n"})
+    proj = _project(make_repo, tmpl, _include("docs"))
+    proj.write("docs", "local file\n")
+    proj.commit("add local file")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read("docs") == "local file\n"
+    assert (
+        "conflict: docs — unmanaged file blocks the template directory" in capsys.readouterr().err
+    )
+
+
 # --- incremental merge --------------------------------------------------------
 
 
@@ -138,6 +202,171 @@ def test_upstream_added_file_appears(make_repo: Any) -> None:
     tmpl.commit("v2")
     assert sync.sync(proj.path, "main") == sync.EXIT_OK
     assert proj.read("b.txt") == "brand new\n"
+
+
+def test_upstream_added_file_refuses_unmanaged_target(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl, proj = _first_synced(make_repo, {"a.txt": "a\n"}, ["a.txt", "new.txt"])
+    proj.write("new.txt", "local file\n")
+    proj.commit("add local file")
+    tmpl.write("new.txt", "upstream file\n")
+    tmpl.commit("add new template file")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read("new.txt") == "local file\n"
+    assert proj.read("a.txt") == "a\n"
+    assert "conflict: new.txt — unmanaged file" in capsys.readouterr().err
+
+
+def test_adding_bundle_refuses_unmanaged_target(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bundles = (
+        "bundles:\n  core:\n    required: true\n  publisher:\n"
+        "profiles:\n  basic:\n    bundles:\n      - core\n"
+        "  full:\n    bundles:\n      - core\n      - publisher\n"
+    )
+    action_path = ".github/actions/release-publish/action.yml"
+    tmpl = _bundles_template(
+        make_repo,
+        bundles,
+        {
+            "bundles/core/Makefile": "all:\n",
+            f"bundles/publisher/{action_path}": "name: Publisher\n",
+        },
+    )
+    proj = _project(make_repo, tmpl, ["profiles:", "  - basic"])
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    proj.commit("first sync")
+    proj.write(action_path, "name: Locally owned\n")
+    proj.commit("add local action")
+    _retarget(proj, tmpl, ["profiles:", "  - full"])
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read(action_path) == "name: Locally owned\n"
+    assert "conflict: .github/actions/release-publish/action.yml — unmanaged file" in (
+        capsys.readouterr().err
+    )
+    assert sync.sync(proj.path, "main", adopt_unmanaged=True) == sync.EXIT_OK
+    assert proj.read(action_path) == "name: Publisher\n"
+
+
+def test_new_file_in_selected_bundle_refuses_unmanaged_target(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bundles = (
+        "bundles:\n  core:\n    required: true\nprofiles:\n  std:\n    bundles:\n      - core\n"
+    )
+    tmpl = _bundles_template(make_repo, bundles, {"bundles/core/Makefile": "all:\n"})
+    proj = _project(make_repo, tmpl, ["profiles:", "  - std"])
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    proj.commit("first sync")
+    proj.write("new-tool.sh", "local\n")
+    proj.commit("add local file")
+    tmpl.write("bundles/core/new-tool.sh", "upstream\n")
+    tmpl.commit("add bundle file")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read("new-tool.sh") == "local\n"
+    assert "conflict: new-tool.sh — unmanaged file" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("upstream_name", "local_name"),
+    [("action.yml", "action.yaml"), ("action.yaml", "action.yml")],
+)
+def test_unmanaged_action_metadata_alias_refuses_sync(
+    make_repo: Any,
+    capsys: pytest.CaptureFixture[str],
+    upstream_name: str,
+    local_name: str,
+) -> None:
+    action_dir = Path(".github/actions/release-publish")
+    upstream_path = action_dir / upstream_name
+    local_path = action_dir / local_name
+    tmpl = _template(make_repo, {upstream_path.as_posix(): "name: Upstream\n"})
+    proj = _project(make_repo, tmpl, _include(upstream_path.as_posix()))
+    proj.write(local_path.as_posix(), "name: Local\n")
+    proj.commit("add local action metadata")
+
+    assert sync.sync(proj.path, "main") == sync.EXIT_ERROR
+    assert proj.read(local_path.as_posix()) == "name: Local\n"
+    assert not proj.exists(upstream_path.as_posix())
+    assert f"conflict: {local_path.as_posix()} — unmanaged file aliases" in (
+        capsys.readouterr().err
+    )
+
+
+def test_explicit_adoption_replaces_and_tracks_unmanaged_file(make_repo: Any) -> None:
+    tmpl = _template(make_repo, {"Makefile": "all: v1\n"})
+    proj = _project(make_repo, tmpl, _include("Makefile"))
+    proj.write("Makefile", "local version\n")
+    proj.commit("add local Makefile")
+
+    assert sync.sync(proj.path, "main", adopt_unmanaged=True) == sync.EXIT_OK
+    assert proj.read("Makefile") == "all: v1\n"
+    lock = load_yaml(proj.path / ".rhiza" / "template.lock")
+    assert lock["files"] == ["Makefile"]
+    proj.commit("adopt template file")
+
+    tmpl.write("Makefile", "all: v2\n")
+    tmpl.commit("update template")
+    assert sync.sync(proj.path, "main") == sync.EXIT_OK
+    assert proj.read("Makefile") == "all: v2\n"
+
+
+def test_explicit_adoption_unlinks_symlink_before_copying(
+    make_repo: Any,
+) -> None:
+    tmpl = _template(make_repo, {"Makefile": "upstream\n"})
+    proj = _project(make_repo, tmpl, _include("Makefile"))
+    link_target = proj.path / "local.txt"
+    link_target.write_text("local\n", encoding="utf-8")
+    link = proj.path / "Makefile"
+    try:
+        link.symlink_to(link_target)
+    except (NotImplementedError, OSError):
+        pytest.skip("symlinks are unavailable")
+    proj.commit("add local symlink")
+
+    assert sync.sync(proj.path, "main", adopt_unmanaged=True) == sync.EXIT_OK
+    assert not link.is_symlink()
+    assert proj.read("Makefile") == "upstream\n"
+    assert link_target.read_text(encoding="utf-8") == "local\n"
+
+
+def test_explicit_adoption_replaces_unmanaged_action_alias(make_repo: Any) -> None:
+    action_dir = Path(".github/actions/release-publish")
+    upstream_path = action_dir / "action.yml"
+    local_path = action_dir / "action.yaml"
+    tmpl = _template(make_repo, {upstream_path.as_posix(): "name: Upstream\n"})
+    proj = _project(make_repo, tmpl, _include(upstream_path.as_posix()))
+    proj.write(local_path.as_posix(), "name: Local\n")
+    proj.commit("add local action metadata")
+
+    assert sync.sync(proj.path, "main", adopt_unmanaged=True) == sync.EXIT_OK
+    assert proj.read(upstream_path.as_posix()) == "name: Upstream\n"
+    assert not proj.exists(local_path.as_posix())
+    lock = load_yaml(proj.path / ".rhiza" / "template.lock")
+    assert lock["files"] == [upstream_path.as_posix()]
+
+
+def test_adoption_refuses_to_replace_unmanaged_directory(
+    make_repo: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl = _template(make_repo, {"Makefile": "upstream\n", "docs/guide.md": "guide\n"})
+    proj = _project(make_repo, tmpl, _include("Makefile", "docs"))
+    proj.write("Makefile/owned.txt", "local\n")
+    proj.commit("add local directory")
+
+    assert sync.sync(proj.path, "main", adopt_unmanaged=True) == sync.EXIT_ERROR
+    assert proj.read("Makefile/owned.txt") == "local\n"
+    assert not proj.exists("docs/guide.md")
+    assert not proj.exists(".rhiza/template.lock")
+    output = capsys.readouterr().err
+    assert "unmanaged directory" in output
+    assert "No template files or lock were written." in output
 
 
 def test_upstream_deleted_file_removed(make_repo: Any) -> None:
@@ -433,6 +662,16 @@ def test_main_cli_returns_exit_code(make_repo: Any) -> None:
     proj = _project(make_repo, tmpl, _include("a.txt"))
     assert sync.main([str(proj.path)]) == sync.EXIT_OK
     assert proj.read("a.txt") == "a\n"
+
+
+def test_main_cli_explicitly_adopts_unmanaged_files(make_repo: Any) -> None:
+    tmpl = _template(make_repo, {"a.txt": "upstream\n"})
+    proj = _project(make_repo, tmpl, _include("a.txt"))
+    proj.write("a.txt", "local\n")
+    proj.commit("add local file")
+
+    assert sync.main([str(proj.path), "--adopt-unmanaged"]) == sync.EXIT_OK
+    assert proj.read("a.txt") == "upstream\n"
 
 
 def test_main_cli_syncerror_is_exit_error(

@@ -28,7 +28,8 @@ Requires `git` on PATH and Python >= 3.11 (uses ``datetime.UTC``); run it under
      the expected outcome when local edits collide with upstream). Also returned
      when a locally-modified binary file could not be merged, which is reported
      by name since it leaves no marker behind.
-  2  could not sync (dirty tree, invalid template.yml, or a git failure)
+  2  could not sync (dirty tree, invalid template.yml, unmanaged-file adoption
+     conflict, or a git failure); adoption conflicts make no template writes
 """
 
 from __future__ import annotations
@@ -50,6 +51,7 @@ from _rhiza_lock import (  # noqa: E402
     clean_orphaned_files,
     previously_tracked,
     read_base_sha,
+    unmanaged_conflicts,
     write_lock,
 )
 from _rhiza_lock import (
@@ -163,7 +165,7 @@ def _run_merge(
     return clean
 
 
-def sync(target: Path, branch: str) -> int:
+def sync(target: Path, branch: str, adopt_unmanaged: bool = False) -> int:
     """Run the sync and return a process exit code (see the module docstring)."""
     target = target.resolve()
     ctx = git.GitContext.default()
@@ -188,6 +190,40 @@ def sync(target: Path, branch: str) -> int:
             upstream_dir, include_paths, excludes, upstream_snapshot, path_map
         )
         log(f"Upstream: {len(template_files)} file(s) to consider")
+        conflicts = unmanaged_conflicts(target, template_files, previously_tracked(lock_path))
+        if conflicts:
+            blocked = [conflict for conflict in conflicts if not conflict.adoptable]
+            if not adopt_unmanaged or blocked:
+                log("Sync refused: template paths collide with unmanaged repository paths:")
+                for conflict in conflicts:
+                    log(f"  conflict: {conflict.path} — {conflict.detail}")
+                log("No template files or lock were written.")
+                if blocked:
+                    log(
+                        "Move or exclude the blocking directory/path; "
+                        "--adopt-unmanaged cannot replace it safely."
+                    )
+                else:
+                    log(
+                        "Move or exclude these paths, or rerun with "
+                        "--adopt-unmanaged to replace them and record ownership."
+                    )
+                return EXIT_ERROR
+
+            for conflict in conflicts:
+                log(f"  adopting: {conflict.path} — {conflict.detail}")
+            adopted_files: list[Path] = []
+            for conflict in conflicts:
+                conflict_path = target / conflict.path
+                if conflict.alias:
+                    conflict_path.unlink()
+                else:
+                    if conflict_path.is_symlink():
+                        conflict_path.unlink()
+                    adopted_files.append(conflict.path)
+            if adopted_files:
+                copy_files(upstream_snapshot, target, adopted_files)
+
         clean = _run_merge(
             ctx,
             target,
@@ -229,9 +265,14 @@ def main(argv: list[str] | None = None) -> int:
         default="main",
         help="Template branch to use when template.yml has no `ref` (default: main).",
     )
+    parser.add_argument(
+        "--adopt-unmanaged",
+        action="store_true",
+        help="Replace conflicting unmanaged files and record them as template-owned.",
+    )
     args = parser.parse_args(argv)
     try:
-        return sync(Path(args.target), args.branch)
+        return sync(Path(args.target), args.branch, args.adopt_unmanaged)
     except SyncError as exc:
         log(f"error: {exc}")
         return EXIT_ERROR
