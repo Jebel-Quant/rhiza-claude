@@ -6,7 +6,7 @@ Python with its own CLI, and [Without Claude Code](headless.md) drives it with n
 in the loop at all.
 
 <!-- rhiza-count: commands procedures -->
-What is left is the prose: eleven commands and nine procedures, in the `SKILL.md` format
+What is left is the prose: twelve commands and nine procedures, in the `SKILL.md` format
 that many clients now read.
 
 So the gap is small and specific, and `bundle/` closes it.
