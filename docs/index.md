@@ -88,7 +88,7 @@ the expected outcome of step 1, not a failure.
 The plugin ships two kinds of markdown, and the difference is enforced rather than
 conventional:
 
-- **`skills/<name>/SKILL.md` → slash commands** you invoke: eleven of them, each with a
+- **`skills/<name>/SKILL.md` → slash commands** you invoke: twelve of them, each with a
   page here. The *directory* carries the command name, so `skills/init/SKILL.md` is the
   file that answers `/rhiza:init`.
 - **`prompts/*.md` → internal procedures**: eight shared steps a command reaches with
@@ -290,6 +290,7 @@ These are the AI-driven workflow commands. Each has its own page.
 | [`/rhiza:docs`](skills/docs.md) | Create or refresh `README.md`, `CLAUDE.md`, and `mkdocs.yml`. |
 | [`/rhiza:release`](skills/release.md) | Release by PR in one run: pick the next version from a table, bump, changelog, open the PR, let it auto-merge, then tag the merged commit. |
 | [`/rhiza:remote`](skills/remote.md) | Read what CI on the origin said about the open requests, then diagnose and fix the red ones on their own branches. |
+| [`/rhiza:history`](skills/history.md) | Read open requests and issues together: what is obsolete and why, the merge order, trivial issues, and what is next. Closes nothing. |
 
 ## Repo utilities
 

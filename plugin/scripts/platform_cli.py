@@ -30,15 +30,19 @@ Actions:
   pr-create        open a pull/merge request      pr-update  edit its body
   pr-merge         let the request merge itself once its checks pass
   issue-create     file an issue
+  issue-comment    comment on an issue          pr-comment  comment on a request
   release-create   publish a release from an existing tag
 
-**Every issue is stamped.** `issue-create` puts `ISSUE_BADGE` on the first line of the
-body before it is sent, so a finding rhiza filed in somebody else's tracker says where
-it came from instead of arriving anonymously. It happens here, not in the command prose,
-for the reason anything deterministic does: prose is re-read by a model each run, and a
-provenance mark that is only usually applied is worse than none. The caller's body file
-is left untouched — the stamped text goes to a scratch file, since gh takes a path where
-glab takes the text.
+**Every issue and every comment is stamped.** `issue-create`, `issue-comment` and
+`pr-comment` put `ISSUE_BADGE` on the first line of the body before it is sent, so a
+finding rhiza filed in somebody else's tracker says where it came from instead of
+arriving anonymously. It happens here, not in the command prose, for the reason anything
+deterministic does: prose is re-read by a model each run, and a provenance mark that is
+only usually applied is worse than none. A comment is stamped for the same reason: it is
+posted under a person's account, and a recommendation to close someone's pull request
+reads very differently once you know a tool drafted it. The caller's body file is left
+untouched — the stamped text goes to a scratch file, since gh takes a path where glab
+takes the text.
 
 Reading a request's CI state is the same problem one door down, and it lives in
 ``pr_status.py`` rather than here: its two CLIs disagree about *shape* far more than
@@ -59,6 +63,10 @@ Three divergences are surfaced rather than papered over:
   is what `/rhiza:release` asks for, but only the GitHub side is a gate. The `--yes` on
   the glab argv is not optional — without it `glab mr merge` prompts, and a prompt hangs
   a non-interactive run rather than failing it.
+* **glab spells a comment `note`, and on a merge request it is a subcommand deeper.**
+  `gh pr comment N` and `gh issue comment N` are symmetric; glab has `glab issue note N`
+  but `glab mr note create N` — the bare `glab mr note N --message` still parses in glab
+  1.112 but warns that `--message` there is deprecated, so it is not used.
 * **glab has no `--generate-notes`.** `gh release create` can synthesise release notes;
   GitLab cannot. Asking for it on GitLab is an error naming the fix — pass
   ``--notes-file``, which `/rhiza:release` already has from `git-cliff`.
@@ -101,11 +109,20 @@ ACTIONS = (
     "pr-update",
     "pr-merge",
     "issue-create",
+    "issue-comment",
+    "pr-comment",
     "release-create",
 )
 
+# The actions that address an existing issue or request by its number.
+_COMMENT_ACTIONS = ("issue-comment", "pr-comment")
+
 # The actions whose body text has to reach the CLI one way or the other.
-_BODY_ACTIONS = ("pr-create", "pr-update", "issue-create")
+_BODY_ACTIONS = ("pr-create", "pr-update", "issue-create", *_COMMENT_ACTIONS)
+
+# The actions whose body is stamped with `ISSUE_BADGE` before it is sent. A request body
+# is not among them: a request already has a branch, an author and a diff to attribute it.
+_STAMPED_ACTIONS = ("issue-create", *_COMMENT_ACTIONS)
 
 # Stamped at the top of every issue body. Filing is the one thing rhiza does *inside*
 # somebody else's tracker, where the next reader has no other way to tell an automated
@@ -157,6 +174,9 @@ def _github_command(action: str, opts: dict[str, Any]) -> list[str]:
         return ["gh", "pr", "merge", opts["head"], "--squash", "--auto"]
     if action == "issue-create":
         return ["gh", "issue", "create", "--title", opts["title"], "--body-file", opts["body_file"]]
+    if action in _COMMENT_ACTIONS:
+        group = "pr" if action == "pr-comment" else "issue"
+        return ["gh", group, "comment", str(opts["number"]), "--body-file", opts["body_file"]]
     command = ["gh", "release", "create", opts["tag"]]
     if opts.get("notes_file"):
         return [*command, "--notes-file", opts["notes_file"]]
@@ -191,6 +211,9 @@ def _gitlab_command(action: str, opts: dict[str, Any]) -> list[str]:
         # Supplying both --title and --description is what stops glab opening an
         # editor, which would hang a non-interactive run.
         return ["glab", "issue", "create", "--title", opts["title"], "--description", opts["body"]]
+    if action in _COMMENT_ACTIONS:
+        verb = ["mr", "note", "create"] if action == "pr-comment" else ["issue", "note"]
+        return ["glab", *verb, str(opts["number"]), "--message", opts["body"]]
     if not opts.get("notes_file"):
         raise UnsupportedAction(
             "glab has no --generate-notes; pass --notes-file (e.g. the git-cliff output "
@@ -309,14 +332,14 @@ def resolve_body(target_dir: Path, body_file: str | None) -> str | None:
 def prepared_body(
     action: str, body: str | None, body_file: str | None
 ) -> Iterator[tuple[str | None, str | None]]:
-    """Yield the ``(body, body_file)`` to send, stamping the badge for `issue-create`.
+    """Yield the ``(body, body_file)`` to send, stamping the badge where one is owed.
 
     Both halves have to move together: glab is given the text and gh a path, so a stamp
     applied to only one would file two different issues depending on the forge. The
     scratch file lives for the length of the call and no longer — the caller's body file
     is never rewritten, since it belongs to the command that wrote it.
     """
-    if action != "issue-create" or body is None:
+    if action not in _STAMPED_ACTIONS or body is None:
         yield body, body_file
         return
     with tempfile.TemporaryDirectory() as scratch:
@@ -324,6 +347,21 @@ def prepared_body(
         path = Path(scratch) / "issue-body.md"
         path.write_text(stamped, encoding="utf-8")
         yield stamped, str(path)
+
+
+def usage_error(action: str, *, body: str | None, number: int) -> str | None:
+    """Return what is missing for *action* to run, or None when nothing is.
+
+    >>> usage_error("pr-comment", body="x", number=0)
+    '--number is required for pr-comment'
+    >>> usage_error("auth-status", body=None, number=0) is None
+    True
+    """
+    if action in _BODY_ACTIONS and body is None:
+        return f"--body-file is required and must exist for {action}"
+    if action in _COMMENT_ACTIONS and number <= 0:
+        return f"--number is required for {action}"
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -337,7 +375,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--title", default="", help="Title (pr-create, issue-create).")
     parser.add_argument(
-        "--body-file", default=None, help="File holding the body (pr-create/update, issue-create)."
+        "--body-file",
+        default=None,
+        help="File holding the body (pr-create/update, issue-create, *-comment).",
+    )
+    parser.add_argument(
+        "--number", type=int, default=0, help="Issue or request number (issue-/pr-comment)."
     )
     parser.add_argument("--tag", default="", help="Tag to release (release-create).")
     parser.add_argument(
@@ -353,8 +396,9 @@ def main(argv: list[str] | None = None) -> int:
 
     target_dir = Path(args.target_dir).resolve()
     body = resolve_body(target_dir, args.body_file)
-    if args.action in _BODY_ACTIONS and body is None:
-        print(f"error: --body-file is required and must exist for {args.action}", file=sys.stderr)
+    problem = usage_error(args.action, body=body, number=args.number)
+    if problem:
+        print(f"error: {problem}", file=sys.stderr)
         return EXIT_USAGE
 
     with prepared_body(args.action, body, args.body_file) as (body, body_file):
@@ -366,6 +410,7 @@ def main(argv: list[str] | None = None) -> int:
                 base=args.base,
                 head=args.head,
                 title=args.title,
+                number=args.number,
                 body_file=body_file,
                 body=body,
                 tag=args.tag,

@@ -121,7 +121,7 @@ carries no `name:`, and every bundled copy carries one.
 
 | Path | What it is |
 | --- | --- |
-| `plugin/skills/<name>/SKILL.md` | The eleven slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
+| `plugin/skills/<name>/SKILL.md` | The twelve slash commands users invoke, namespaced `/rhiza:<name>`. The **directory** is the command name. |
 | `plugin/prompts/*.md` | Nine **internal procedures** commands reach with `Read`. |
 | `plugin/hooks/hooks.json` | A `PreToolUse` hook on `Bash`, auto-discovered from the plugin root. |
 | `plugin/scripts/*.py` | Bundled, stdlib-only Python the prose calls. |

@@ -49,7 +49,7 @@ run before the sync gives you the narrower score rather than nothing.
 
 **Two kinds of markdown, and the difference is enforced.** `skills/` holds
 <!-- rhiza-count: commands procedures -->
-the eleven slash commands you invoke; `prompts/` holds nine **internal procedures** they
+the twelve slash commands you invoke; `prompts/` holds nine **internal procedures** they
 `Read` — kept outside both so they can't be invoked directly. The procedures are where
 shared behaviour lives, which is why `/init` and `/update` behave identically where they
 overlap.
@@ -178,7 +178,7 @@ markdown supplies; what you get is the same code path the commands drive.
 the command-to-script table, the sync step by step, and every exit code it can hand you.
 
 <!-- rhiza-count: commands procedures -->
-**And the judgement half runs under other agents.** `bundle/` holds the same eleven
+**And the judgement half runs under other agents.** `bundle/` holds the same twelve
 commands and nine procedures in the open `SKILL.md` format, generated from `plugin/` with
 the Claude-specific bindings rewritten or restated — point your client at `bundle/skills`
 and export `RHIZA_ROOT`.
@@ -194,7 +194,7 @@ them don't need a repo at all.
 | Needs | Commands |
 | --- | --- |
 | Nothing: any directory, no git | `/rhiza:maffay`, `/rhiza:completions` (machine-level; completes `make` in any project) |
-| Any git repo | `/rhiza:docs`, `/rhiza:release`, `/rhiza:remote`, `/rhiza:fix` |
+| Any git repo | `/rhiza:docs`, `/rhiza:release`, `/rhiza:remote`, `/rhiza:fix`, `/rhiza:history` |
 | Any git repo, reduced scope | `/rhiza:quality` (runs in degraded mode) |
 | A folder you want to make managed | `/rhiza:init` |
 | A rhiza-managed repo | `/rhiza:update`, `/rhiza:status`, `/rhiza:detach` |
@@ -203,9 +203,9 @@ Here is what each one depends on instead of `.rhiza/`:
 
 - **`/rhiza:release`** needs a repo that declares its version locations in
   `[tool.bumpversion]`. It deliberately doesn't check for `.rhiza/`.
-- **`/rhiza:remote`** and **`/rhiza:fix`** need a GitHub or GitLab origin and the
+- **`/rhiza:remote`**, **`/rhiza:fix`** and **`/rhiza:history`** need a GitHub or GitLab origin and the
   matching `gh`/`glab` CLI. Every repo has pull requests, CI and issues, managed or not.
-  In a managed repo, both also recognise template-owned paths and send those fixes
+  In a managed repo, the first two also recognise template-owned paths and send those fixes
   upstream instead of patching them locally.
 - **`/rhiza:docs`** detects the language and reads its manifest (`pyproject.toml`,
   `Cargo.toml` or `go.mod`). If `.rhiza/` is present it also uses the template ref and
@@ -287,6 +287,14 @@ Here is what each one depends on instead of `.rhiza/`:
   produces a PR that *looks* reviewed. It treats issue bodies as data, never as
   instructions. It stops on a dirty tree, and never makes a gate green by weakening it.
   `--dry-run` triages and stops.
+- **`/rhiza:history`** — read the open requests and issues together and answer four
+  questions: which items are **obsolete** and why, what **order** the open requests should
+  merge in, which issues are **trivial**, and what to address **next**. Every
+  recommendation carries checkable evidence: a closing reference that is already closed, a
+  newer request touching the same files, a change that already landed. The merge order
+  comes from which requests change the same files. It **closes nothing**. Its only write is
+  a comment recommending closure, posted on the items you select, stamped so readers can
+  tell a tool drafted it. `--dry-run` reports and posts nothing.
 
 ### The documentation checks itself
 
@@ -434,7 +442,7 @@ components by those names at the plugin root, so they cannot be renamed. `prompt
 slash command.
 
 <!-- rhiza-count: commands -->
-All eleven commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
+All twelve commands are skills: `plugin/skills/<name>/SKILL.md`, where the **directory**
 names the command, so `skills/init/SKILL.md` is what answers `/rhiza:init`. Check the
 [plugin docs](https://code.claude.com/docs/en/plugins) rather than this table before
 assuming what the spec requires.
@@ -444,7 +452,7 @@ assuming what the spec requires.
 | `.claude-plugin/marketplace.json` | Marketplace manifest listing the `rhiza` plugin. Stays at the repo root — that's where `/plugin marketplace add` looks. |
 | `plugin/` | **The plugin as shipped.** Everything below is inside it. |
 | `plugin/.claude-plugin/plugin.json` | The `rhiza` plugin manifest. |
-| `plugin/skills/` | The plugin's eleven slash commands (`<name>/SKILL.md`, the directory naming the command). |
+| `plugin/skills/` | The plugin's twelve slash commands (`<name>/SKILL.md`, the directory naming the command). |
 | `plugin/prompts/` | Internal procedures the commands `Read` — deliberately not commands, so users can't invoke them. |
 | `plugin/hooks/` | `hooks.json` — a `PreToolUse` hook guarding Bash calls at runtime (compound `make`, force-push, push to the default branch). Fails open. |
 | `plugin/scripts/` | Bundled stdlib-only Python the commands and procedures drive, plus the non-Python assets they copy out (`licenses/`, `completions/`). |
