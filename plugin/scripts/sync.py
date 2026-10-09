@@ -158,7 +158,7 @@ def _run_merge(
             copy_files(upstream_snapshot, target, missing)
 
         clean_orphaned_files(target, template_files, excludes, tracked_before)
-        lock = build_lock(upstream_sha, template, [str(p) for p in template_files], _now())
+        lock = build_lock(upstream_sha, template, [p.as_posix() for p in template_files], _now())
         write_lock(target, lock, lock_path)
     finally:
         shutil.rmtree(base_snapshot, ignore_errors=True)
@@ -196,7 +196,7 @@ def sync(target: Path, branch: str, adopt_unmanaged: bool = False) -> int:
             if not adopt_unmanaged or blocked:
                 log("Sync refused: template paths collide with unmanaged repository paths:")
                 for conflict in conflicts:
-                    log(f"  conflict: {conflict.path} — {conflict.detail}")
+                    log(f"  conflict: {conflict.path.as_posix()} — {conflict.detail}")
                 log("No template files or lock were written.")
                 if blocked:
                     log(
@@ -211,7 +211,7 @@ def sync(target: Path, branch: str, adopt_unmanaged: bool = False) -> int:
                 return EXIT_ERROR
 
             for conflict in conflicts:
-                log(f"  adopting: {conflict.path} — {conflict.detail}")
+                log(f"  adopting: {conflict.path.as_posix()} — {conflict.detail}")
             adopted_files: list[Path] = []
             for conflict in conflicts:
                 conflict_path = target / conflict.path
