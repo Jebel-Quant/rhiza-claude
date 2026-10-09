@@ -1,6 +1,6 @@
 # rhiza-claude
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
 [![Coverage](https://jebel-quant.github.io/rhiza-claude/coverage-badge.svg)](https://jebel-quant.github.io/rhiza-claude/reports/html-coverage/)
 [![CodeFactor](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-claude/badge)](https://www.codefactor.io/repository/github/Jebel-Quant/rhiza-claude)
 
@@ -455,6 +455,22 @@ assuming what the spec requires.
 Inside a command, `${CLAUDE_PLUGIN_ROOT}` resolves to `plugin/`, so
 `"${CLAUDE_PLUGIN_ROOT}/scripts/sync.py"` is unchanged by the move. Only the
 **source-checkout fallback** paths gained the prefix: `plugin/scripts/sync.py`.
+
+## Licensing
+
+rhiza-claude is **source-available** under the
+[PolyForm Noncommercial License 1.0.0](LICENSE), not an OSI open-source license.
+
+- **Free for noncommercial use**: personal projects, study, hobby work, research, and
+  use by charities, educational institutions and government bodies.
+- **Commercial use needs a commercial license.** That includes running the plugin on
+  repositories you work on for a company. Contact
+  [Jebel-Quant](https://github.com/Jebel-Quant) to get one.
+- **What it generates is yours.** Files the plugin writes or copies into your
+  repository (skeletons, workflows, `LICENSE` files, configuration) are not covered
+  by these terms, whatever license your repository uses.
+- **Earlier releases stay MIT.** v0.17.4 and everything before it remain available
+  under the MIT License.
 
 ## Contributing
 

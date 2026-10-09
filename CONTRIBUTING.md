@@ -113,6 +113,13 @@ prose or scripts, `make fmt && make test` is enough.
   (`.bumpversion.toml`), so `bump-my-version` writes them together; `/rhiza:release`
   drives it and regenerates the changelog.
 
+## Licensing of contributions
+
+rhiza-claude is offered under the [PolyForm Noncommercial License 1.0.0](LICENSE) and,
+separately, under commercial licenses from Jebel-Quant. By opening a pull request you
+agree that your contribution may be distributed under both: the noncommercial license
+and any commercial license Jebel-Quant grants.
+
 ## Reporting bugs / requesting features
 
 Open an issue on the
