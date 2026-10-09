@@ -20,7 +20,7 @@ the merge — and takes ``.rej`` files with it, since nothing runs ``git apply``
 
 `git merge-file` is the merge, and it is a subprocess, so nothing about this module's
 licence changes. (The one library that would have replaced it, `merge3`, is
-GPL-2.0-or-later against this plugin's MIT — a real incompatibility, and unnecessary
+GPL-2.0-or-later against this plugin's licence — a real incompatibility, and unnecessary
 given git is already a hard requirement.)
 
 What the merge decides, per file, from the three trees:
