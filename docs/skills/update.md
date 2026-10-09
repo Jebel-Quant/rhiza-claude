@@ -33,7 +33,9 @@ template's latest release.
    something a version bump does.
 4. **Runs the bundled `plugin/scripts/sync.py`** and interprets its exit code: 0 clean, 1
    synced-with-conflicts (expected, not fatal), 2 a real failure that stops the run
-   with nothing applied.
+   with nothing applied. An unmanaged-path collision is reported before any template
+   files or lock are written; `--adopt-unmanaged` is an explicit opt-in to replacing
+   those files and recording ownership.
 5. **Resolves conflicts** with `plugin/scripts/resolve_conflicts.py`, which takes the upstream
    (template) side of every marker block. A `*.rej` file is reported, never applied, and
    stops the run for a human — though the merge no longer produces one, since nothing

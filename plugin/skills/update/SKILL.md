@@ -94,9 +94,14 @@ for this stdlib-only script.)
 - **0** — clean; skip step 6.
 - **1** — synced *with conflicts*; the lock is written and merged files are on disk.
   Expected, not fatal — go to step 6.
-- **2** — real failure (dirty tree, invalid `template.yml`, git error). **Stop and
-  report**; nothing was applied. Say that `$BRANCH` still holds the step-4 bump commit
-  **unpushed**, so the user can retry or delete the branch — don't leave that implicit.
+- **2** — real failure (dirty tree, invalid `template.yml`, unmanaged-path adoption
+  conflict, git error). **Stop and report**. For an unmanaged-path conflict, the sync
+  reports every path and writes no template files or lock. Do not adopt automatically.
+  The user can move or exclude the paths, or explicitly rerun
+  `sync.py --adopt-unmanaged` to replace the conflicting files and record ownership;
+  directories that block template paths must be moved or excluded first. Say that
+  `$BRANCH` still holds the step-4 bump commit **unpushed**, so the user can retry or
+  delete the branch — don't leave that implicit.
 
 ## 6. Resolve conflicts — take upstream
 Only when step 5 exited 1. This step rewrites files the user did not author, so it is
