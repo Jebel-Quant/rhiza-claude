@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com),
 and entries are generated from [Conventional Commits](https://www.conventionalcommits.org).
 
+## [1.0.0] - 2026-10-09
+
+### New Features
+- *(quality)* Doctest pycon fences in the README example check (#262)
+
+### Bug Fixes
+- Correct ci.yml's uv site count and UV_CONSTRAINT home (#264) (#265)
+- Prevent sync from overwriting unmanaged files (#270)
+
+### Maintenance
+- Bring print_report back under C and refresh the census (#263) (#266)
+- Relicense under PolyForm Noncommercial 1.0.0 (#271)
+
 ## [0.17.4] - 2026-09-29
 
 ### Documentation
