@@ -113,7 +113,24 @@ py "$RHIZA/sync.py" .
 | --- | --- |
 | 0 | synced cleanly, or already up to date |
 | 1 | synced **with conflicts** — the lock is written and merged files are on disk |
-| 2 | could not sync (dirty tree, invalid `template.yml`, git failure) — nothing applied |
+| 2 | could not sync (dirty tree, invalid `template.yml`, unmanaged-path collision, git failure) — no template files or lock written for an adoption collision |
+
+Before writing, sync checks each destination against `.rhiza/template.lock`. An existing
+path absent from the lock is unmanaged, even if its bytes already match upstream. All
+collisions are reported together, and the sync stops before copying any template files.
+Move the local path or exclude the destination in `template.yml`, then retry. If replacing
+the local file is intentional, explicitly transfer ownership with:
+
+```bash
+py "$RHIZA/sync.py" . --adopt-unmanaged
+```
+
+That flag replaces conflicting unmanaged files and records the delivered paths in the
+lock, so later syncs use the ordinary three-way merge. It also removes an unmanaged
+`action.yml`/`action.yaml` sibling when adopting the other filename, since both claim the
+same GitHub Action directory. Directories that block a template file are never recursively
+replaced; move or exclude those paths first. The flag is deliberately opt-in and applies
+to every reported file conflict in that sync.
 
 **3. Resolve conflicts, on exit 1 only.** Take the upstream side of every marker — a
 rhiza-managed file is the template's to own, so local divergence in one is drift to

@@ -7,12 +7,88 @@ template-owned paths only. Orphan cleanup is the lock's inverse.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import _rhiza_lock as rl
 import pytest
 from _rhiza_template import Template
 from _rhiza_yaml import load_yaml
+
+
+class TestOwnershipConflict:
+    def test_repeated_destination_is_reported_once(self, tmp_path: Path) -> None:
+        destination = tmp_path / "local.txt"
+        destination.write_text("local\n", encoding="utf-8")
+
+        conflicts = rl.unmanaged_conflicts(tmp_path, [Path("local.txt"), Path("local.txt")], set())
+
+        assert len(conflicts) == 1
+        assert conflicts[0].path == Path("local.txt")
+        assert conflicts[0].adoptable
+
+    def test_blocking_parent_takes_precedence_over_file_collision(self, tmp_path: Path) -> None:
+        (tmp_path / "node").write_text("local\n", encoding="utf-8")
+
+        conflicts = rl.unmanaged_conflicts(tmp_path, [Path("node"), Path("node/child.txt")], set())
+
+        assert len(conflicts) == 1
+        assert conflicts[0].path == Path("node")
+        assert conflicts[0].detail == "unmanaged file blocks the template directory"
+        assert not conflicts[0].adoptable
+
+    def test_tracked_or_missing_paths_do_not_conflict(self, tmp_path: Path) -> None:
+        tracked = tmp_path / "tracked.txt"
+        tracked.write_text("owned\n", encoding="utf-8")
+        assert (
+            rl.unmanaged_conflicts(
+                tmp_path,
+                [Path("tracked.txt"), Path("missing.txt")],
+                {Path("tracked.txt")},
+            )
+            == []
+        )
+
+    def test_action_metadata_alias_directory_is_not_adoptable(self, tmp_path: Path) -> None:
+        alias = tmp_path / ".github/actions/local/action.yaml"
+        alias.parent.mkdir(parents=True)
+        alias.mkdir()
+
+        conflicts = rl.unmanaged_conflicts(
+            tmp_path, [Path(".github/actions/local/action.yml")], set()
+        )
+
+        assert len(conflicts) == 1
+        assert conflicts[0].path == Path(".github/actions/local/action.yaml")
+        assert conflicts[0].alias
+        assert not conflicts[0].adoptable
+
+    def test_symlink_collision_is_adoptable(self, tmp_path: Path) -> None:
+        source = tmp_path / "source.txt"
+        source.write_text("local\n", encoding="utf-8")
+        link = tmp_path / "target.txt"
+        try:
+            link.symlink_to(source)
+        except (NotImplementedError, OSError):
+            pytest.skip("symlinks are unavailable")
+
+        conflicts = rl.unmanaged_conflicts(tmp_path, [Path("target.txt")], set())
+
+        assert len(conflicts) == 1
+        assert conflicts[0].detail == "unmanaged symlink"
+        assert conflicts[0].adoptable
+
+    def test_special_file_collision_is_not_adoptable(self, tmp_path: Path) -> None:
+        mkfifo = getattr(os, "mkfifo", None)
+        if mkfifo is None:
+            pytest.skip("named pipes are unavailable")
+        mkfifo(tmp_path / "pipe")
+
+        conflicts = rl.unmanaged_conflicts(tmp_path, [Path("pipe")], set())
+
+        assert len(conflicts) == 1
+        assert conflicts[0].detail == "unmanaged special file"
+        assert not conflicts[0].adoptable
 
 
 def test_build_lock_includes_profiles() -> None:
