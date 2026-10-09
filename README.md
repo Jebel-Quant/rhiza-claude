@@ -464,8 +464,8 @@ rhiza-claude is **source-available** under the
 - **Free for noncommercial use**: personal projects, study, hobby work, research, and
   use by charities, educational institutions and government bodies.
 - **Commercial use needs a commercial license.** That includes running the plugin on
-  repositories you work on for a company. Contact
-  [Jebel-Quant](https://github.com/Jebel-Quant) to get one.
+  repositories you work on for a company. Write to
+  [thomas@jqr.ae](mailto:thomas@jqr.ae) to get one.
 - **What it generates is yours.** Files the plugin writes or copies into your
   repository (skeletons, workflows, `LICENSE` files, configuration) are not covered
   by these terms, whatever license your repository uses.
