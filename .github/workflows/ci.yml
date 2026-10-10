@@ -48,7 +48,7 @@ jobs:
       UV_CONSTRAINT: ${{ github.workspace }}/requirements-dev.txt
     steps:
       - name: Harden the runner (audit outbound calls)
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -99,7 +99,7 @@ jobs:
       # hook set as `make fmt`. prek-action stopped publishing major/minor aliases at
       # v3, so the comment names an exact release like every other pin here.
       - name: Run prek
-        uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
+        uses: j178/prek-action@1382ad72dea72f9d53832f2bcb65b3e87a947204 # v3.0.1
 
       # Not a prek hook: bandit and zizmor cover the two surfaces the hooks do not —
       # the Python that shells out to git, and the workflows themselves. It lives in
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (audit outbound calls)
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -210,7 +210,7 @@ jobs:
       # 100% reported the failure with no way to see which lines caused it.
       - name: Upload the coverage report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-report
           path: _tests/
@@ -316,7 +316,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (audit outbound calls)
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
