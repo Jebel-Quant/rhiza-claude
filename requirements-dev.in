@@ -28,8 +28,8 @@
 # not repeated here; bump those with `uvx prek update`.
 
 # Hook runner and the two hooks that shell out to uvx.
-prek==0.5.4
-mypy==2.3.1
+prek==0.5.5
+mypy==2.4.0
 interrogate==1.7.0
 
 # Test suite: `make test`, `make e2e`.
