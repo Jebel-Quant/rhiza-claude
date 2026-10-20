@@ -15,6 +15,7 @@ nav:
       - update: skills/update.md
       - quality: skills/quality.md
       - fix: skills/fix.md
+      - history: skills/history.md
       - docs: skills/docs.md
       - release: skills/release.md
       - remote: skills/remote.md

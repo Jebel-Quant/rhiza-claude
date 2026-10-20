@@ -107,6 +107,10 @@ _EXPECTED = {
     ("gitlab", "pr-merge"): "glab mr merge feat --squash --auto-merge --yes",
     ("github", "issue-create"): "gh issue create --title T --body-file BODY.md",
     ("gitlab", "issue-create"): "glab issue create --title T --description %BODY%",
+    ("github", "issue-comment"): "gh issue comment 12 --body-file BODY.md",
+    ("gitlab", "issue-comment"): "glab issue note 12 --message %BODY%",
+    ("github", "pr-comment"): "gh pr comment 12 --body-file BODY.md",
+    ("gitlab", "pr-comment"): "glab mr note create 12 --message %BODY%",
 }
 
 
@@ -124,6 +128,7 @@ def test_the_argv_for_each_action_and_platform(platform, action):
             base="main",
             head="feat",
             title="T",
+            number=12,
             body_file="BODY.md",
             body=_BODY,
         )
@@ -254,6 +259,7 @@ def test_every_long_flag_exists_in_the_real_cli(platform, action):
             base="m",
             head="h",
             title="T",
+            number=12,
             body_file="B.md",
             body=_BODY,
             tag="v1.0.0",
@@ -263,8 +269,10 @@ def test_every_long_flag_exists_in_the_real_cli(platform, action):
         pytest.skip(f"{action} is not supported on {platform}")
 
     # Every action is `<binary> <group> <verb>`, so the first two non-flag words are
-    # the subcommand whose help documents the flags.
-    subcommand = [a for a in argv[1:] if not a.startswith("-")][:2]
+    # the subcommand whose help documents the flags — except `glab mr note create`, one
+    # level deeper, whose parent's help does not list `--message` at all.
+    words = [a for a in argv[1:] if not a.startswith("-")]
+    subcommand = words[:3] if words[:3] == ["mr", "note", "create"] else words[:2]
     documented = _long_flags_in_help(binary, subcommand)
     used = {a for a in argv if a.startswith("--")}
     assert used <= documented, (
@@ -443,6 +451,48 @@ def test_a_pull_request_body_is_never_stamped(repo, body_capture):
     )  # fmt: skip
 
     assert platform_cli.ISSUE_BADGE not in captured.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("action", ["pr-comment", "issue-comment"])
+def test_a_github_comment_carries_the_badge(repo, body_capture, action):
+    """A comment goes out under a person's account, so it says a tool drafted it."""
+    _remote(repo, "https://github.com/acme/widget.git")
+    captured = body_capture("gh")
+
+    rc = platform_cli.main(
+        [action, "--number", "7", "--body-file", "BODY.md", "--target-dir", str(repo)]
+    )
+
+    assert rc == platform_cli.EXIT_OK
+    text = captured.read_text(encoding="utf-8")
+    assert text.splitlines()[0] == platform_cli.ISSUE_BADGE
+    assert "## Summary" in text
+
+
+@pytest.mark.parametrize("action", ["pr-comment", "issue-comment"])
+def test_a_gitlab_comment_carries_the_badge_in_its_message(repo, stub_cli, action):
+    """glab takes the comment inline via `--message`, so the badge has to be in the argv."""
+    _remote(repo, "https://gitlab.com/grp/proj.git")
+    stub_cli("glab")
+
+    rc = platform_cli.main(
+        [action, "--number", "7", "--body-file", "BODY.md", "--target-dir", str(repo)]
+    )
+
+    assert rc == platform_cli.EXIT_OK
+    logged = stub_cli.log.read_text(encoding="utf-8")
+    assert "--message" in logged
+    assert platform_cli.ISSUE_BADGE in logged
+
+
+@pytest.mark.parametrize("action", ["pr-comment", "issue-comment"])
+def test_a_comment_without_a_number_is_refused(repo, action):
+    """Number 0 would make gh comment on the current branch's request — not what was asked."""
+    _remote(repo, "https://github.com/acme/widget.git")
+
+    rc = platform_cli.main([action, "--body-file", "BODY.md", "--target-dir", str(repo)])
+
+    assert rc == platform_cli.EXIT_USAGE
 
 
 def test_auth_status_succeeds_when_logged_in(repo, stub_cli):

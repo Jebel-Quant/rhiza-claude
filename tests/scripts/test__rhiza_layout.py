@@ -120,6 +120,7 @@ def test_command_files_finds_every_shipped_command(repo_root: Path):
         "detach",
         "docs",
         "fix",
+        "history",
         "init",
         "maffay",
         "quality",

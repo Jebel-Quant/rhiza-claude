@@ -139,7 +139,7 @@ portable: $(UVX)  ## Run the unit tests without e2e or the coverage gate (the cr
 	$(PYTEST) -k "not e2e" --no-cov $(ARGS)
 
 # rhiza-count: commands procedures
-# The portable copy of the eleven commands and nine procedures, for clients that read
+# The portable copy of the twelve commands and nine procedures, for clients that read
 # the open `SKILL.md` format but know nothing of Claude Code's plugin spec. Generated,
 # and **committed**: a user points their client at a checkout, so a bundle that only
 # existed after a build step would not be there when it is needed. The price of a
