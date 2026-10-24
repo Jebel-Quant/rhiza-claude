@@ -87,7 +87,7 @@ pathspec==1.1.1
     # via
     #   mkdocs
     #   mypy
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   -r requirements-dev.in
     #   genbadge

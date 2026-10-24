@@ -56,4 +56,4 @@ genbadge==1.1.3
 git-cliff==2.14.2
 
 # Paper figures: `make paper-figures`, through `uvx --with pillow`.
-pillow==12.3.0
+pillow==13.0.0
