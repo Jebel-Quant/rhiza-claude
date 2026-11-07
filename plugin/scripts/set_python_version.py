@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_toml import rejoin, require_table  # noqa: E402
+from _rhiza_toml import rejoin, require_table, value_end  # noqa: E402
 
 # Python minor versions we standardise on (oldest → newest).
 KNOWN_PY_VERSIONS = ("3.11", "3.12", "3.13", "3.14")
@@ -47,12 +47,7 @@ def _classifiers_span(lines: list[str], header: int, end: int) -> tuple[int, int
     """Return ``(start, stop)`` line indices of the ``classifiers = [...]`` array, or None."""
     for i in range(header + 1, end):
         if re.match(r"^\s*classifiers\s*=", lines[i]):
-            if "]" in lines[i]:
-                return i, i
-            for j in range(i + 1, len(lines)):
-                if lines[j].strip() == "]":
-                    return i, j
-            return i, i
+            return i, value_end(lines, i, end)
     return None
 
 
@@ -89,7 +84,9 @@ def _apply_classifiers(lines: list[str], header: int, end: int, wanted: list[str
         return True
 
     start, stop = span
-    existing = re.findall(r'"([^"]*)"', "\n".join(lines[start : stop + 1]))
+    span_text = "\n".join(lines[start : stop + 1])
+    entries = re.finditer(r""""((?:\\.|[^"\\])*)"|'[^']*'|#.*""", span_text)
+    existing = [m[1] for m in entries if m[1] is not None]
     kept = [entry for entry in existing if not _PY_CLASSIFIER.match(entry)]
     # `dict.fromkeys` dedupes while preserving first-seen order.
     rebuilt = _classifiers_block(list(dict.fromkeys([*kept, *wanted])))
