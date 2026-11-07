@@ -17,6 +17,7 @@ from _rhiza_toml import (
     require_table,
     set_key,
     table_span,
+    value_end,
 )
 
 _PYPROJECT = '[project]\nname = "x"\nversion = "0.1"\n\n[build-system]\nrequires = []\n'
@@ -89,6 +90,28 @@ def test_append_table_onto_an_empty_document():
     lines: list[str] = []
     append_table(lines, "[t]", ["a = 1"])
     assert lines == ["", "[t]", "a = 1"]
+
+
+def test_value_end_reports_an_array_still_open_at_the_bound_as_its_first_line():
+    lines = ["key = [", '    "a",', "[tool.ruff]", "]"]
+    assert value_end(lines, 0, 2) == 0
+
+
+@pytest.mark.parametrize(
+    ("item", "close"),
+    [
+        ('    "a [",', 2),
+        ("    'a ]',", 2),
+        ('    "a \\" ]",', 2),
+        ("    # old [x", 2),
+        ("    \"b\",  # 'a' ]", 2),
+        ('    "b",  # x [ # y', 2),
+        ('    "C# 1"]', 1),
+    ],
+)
+def test_value_end_counts_brackets_only_outside_strings_and_comments(item, close):
+    lines = ["key = [", item, "]", "[tool.ruff]"]
+    assert value_end(lines, 0, 4) == close
 
 
 # --- rejoin -------------------------------------------------------------------

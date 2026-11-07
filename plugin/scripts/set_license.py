@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _rhiza_toml import rejoin, require_table, table_end  # noqa: E402
+from _rhiza_toml import rejoin, require_table, table_end, value_end  # noqa: E402
 
 DEFAULT_LICENSE = "none"
 # Full-text license templates (`<SPDX id>.txt`, with `{year}`/`{holder}` fills).
@@ -54,11 +54,15 @@ def render_license(license_id: str, holder: str, year: str) -> str | None:
 
 
 def _strip_keys(lines: list[str], header: int, end: int, key: re.Pattern[str]) -> list[str]:
-    """Return *lines* without the lines in ``(header, end)`` whose key matches *key*.
+    """Return *lines* without the keys in ``(header, end)`` matching *key*, values included.
 
     Bounded to the one table so a ``license`` under some other table is left alone.
     """
-    return [line for i, line in enumerate(lines) if not (header < i < end and key.match(line))]
+    dropped: set[int] = set()
+    for i in range(header + 1, end):
+        if key.match(lines[i]):
+            dropped.update(range(i, value_end(lines, i, end) + 1))
+    return [line for i, line in enumerate(lines) if i not in dropped]
 
 
 def set_license_metadata(text: str, license_id: str) -> tuple[str, bool]:

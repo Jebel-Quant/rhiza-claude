@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 
 import pytest
 import set_license as sl
@@ -70,6 +71,24 @@ def test_set_license_metadata_none_clears():
     assert changed
     assert "license = " not in cleared
     assert "license-files" not in cleared
+
+
+@pytest.mark.parametrize("license_id", ["MIT", "none"])
+@pytest.mark.parametrize(
+    "files",
+    [
+        'license-files = [\n    "LICENSE",\n    "NOTICE",\n]',
+        'license-files = [\n    "LICENSE",\n    "NOTICE"]  # PEP 639',
+        'license-files = [\n    "LICEN[CS]E*",\n    "NOTICE",\n]',
+        'license-files = [  # [ and ]\n    "LICENSE",  # ]\n    "NOTICE",\n]',
+    ],
+)
+def test_set_license_metadata_removes_a_license_files_array_written_across_lines(files, license_id):
+    text = _PYPROJECT.replace("dependencies = []", f"{files}\ndependencies = []")
+    out, _ = sl.set_license_metadata(text, license_id)
+    project = tomllib.loads(out)["project"]
+    assert project["dependencies"] == []
+    assert project.get("license-files") == (None if license_id == "none" else ["LICENSE"])
 
 
 def test_set_license_metadata_requires_project_table():
