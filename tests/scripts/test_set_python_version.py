@@ -7,6 +7,7 @@ valid; 3.9/3.10 (and a bare `:: 3`) are rejected or scrubbed.
 from __future__ import annotations
 
 import json
+import tomllib
 
 import pytest
 import set_python_version as sp
@@ -120,6 +121,38 @@ def test_apply_handles_a_single_line_classifiers_array():
     assert "classifiers" in changes
 
 
+@pytest.mark.parametrize(
+    "close",
+    [
+        '    "Programming Language :: Python :: 3.9"]',
+        '    "Programming Language :: Python :: 3.9",\n]  # trove',
+        '    "Programming Language :: Python :: 3.9",\n]  # keep the "Typed" entry',
+    ],
+)
+def test_apply_keeps_the_tables_after_a_classifiers_array_not_closed_by_a_bare_bracket(close):
+    text = (
+        "[project]\n"
+        'name = "widget"\n'
+        "classifiers = [\n"
+        '    "Typing :: Typed",\n'
+        f"{close}\n"
+        "dependencies = []\n"
+        "\n"
+        "[tool.ruff]\n"
+        "extend-select = [\n"
+        '    "I",\n'
+        "]\n"
+    )
+    out, _ = sp.apply_python_metadata(text, "3.12")
+    parsed = tomllib.loads(out)
+    assert parsed["project"]["classifiers"] == [
+        "Typing :: Typed",
+        *sp.python_version_classifiers("3.12"),
+    ]
+    assert parsed["project"]["dependencies"] == []
+    assert parsed["tool"]["ruff"] == {"extend-select": ["I"]}
+
+
 def test_apply_tolerates_an_unterminated_classifiers_array():
     """A malformed array with no closing `]` must not hang or crash."""
     broken = _PYPROJECT.replace(
@@ -128,6 +161,25 @@ def test_apply_tolerates_an_unterminated_classifiers_array():
     out, changes = sp.apply_python_metadata(broken, "3.12")
     assert "Python :: 3.12" in out
     assert "classifiers" in changes
+
+
+def test_apply_stops_an_unterminated_classifiers_array_at_the_next_table():
+    tail = '[tool.ruff]\nextend-select = [\n    "I",\n]\n]\n'
+    text = '[project]\nname = "widget"\nclassifiers = [\n    "Typing :: Typed",\n\n' + tail
+    out, _ = sp.apply_python_metadata(text, "3.12")
+    assert out.endswith(tail)
+
+
+def test_apply_keeps_a_classifier_holding_an_escaped_quote():
+    text = '[project]\nclassifiers = [\n    "A \\"B\\" C",\n    "Typing :: Typed",\n]\n'
+    out, _ = sp.apply_python_metadata(text, "3.12")
+    assert tomllib.loads(out)["project"]["classifiers"][:2] == ['A "B" C', "Typing :: Typed"]
+
+
+def test_apply_keeps_a_double_quoted_entry_after_a_literal_string_holding_a_hash():
+    text = "[project]\nclassifiers = ['A :: B#', \"Typing :: Typed\"]\n"
+    out, _ = sp.apply_python_metadata(text, "3.12")
+    assert tomllib.loads(out)["project"]["classifiers"][0] == "Typing :: Typed"
 
 
 # --- set_python_version() end to end ----------------------------------------
