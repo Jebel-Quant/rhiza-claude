@@ -17,9 +17,9 @@ Two operations cover most callers: :func:`merge_table` adds absent keys to a tab
 (creating the table when that is allowed), and :func:`set_key` replaces one key whose
 current value is a recognised placeholder. Both leave a value the user wrote alone —
 that policy is the entire point of these scripts, and it lives here so none of them has
-to restate it. :func:`require_table` and :func:`table_end` are the lower-level pair for
-a caller that rewrites lines itself, as `set_license` does when it clears a key before
-reinserting it.
+to restate it. :func:`require_table`, :func:`table_end` and :func:`value_end` are the
+lower-level helpers for a caller that rewrites lines itself, as `set_license` does when
+it clears a key before reinserting it.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from collections.abc import Callable
 # wider than any single caller needs: over-matching only makes "is this key already
 # here?" more accurate, while under-matching would add a duplicate key.
 _KEY = re.compile(r"^\s*([A-Za-z0-9_.-]+)\s*=")
+_STRING = re.compile(r'"(?:\\.|[^"\\])*"|\'[^\']*\'')
 
 
 def table_span(lines: list[str], name: str) -> tuple[int, int] | None:
@@ -95,6 +96,25 @@ def table_end(lines: list[str], header: int, end: int) -> int:
     while end > header + 1 and not lines[end - 1].strip():
         end -= 1
     return end
+
+
+def value_end(lines: list[str], start: int, end: int) -> int:
+    """Return the index of the last line of the value assigned on line *start*.
+
+    Brackets are counted outside strings and comments, and the scan stops at *end*: a
+    value still open there is reported as its first line alone.
+
+    >>> lines = ["classifiers = [", '    "Typing :: Typed"]  # trove', "[tool.ruff]"]
+    >>> value_end(lines, 0, 2)
+    1
+    """
+    depth = 0
+    for i in range(start, end):
+        code = _STRING.sub("", lines[i]).split("#", 1)[0]
+        depth += code.count("[") - code.count("]")
+        if depth <= 0:
+            return i
+    return start
 
 
 def append_table(lines: list[str], header: str, body: list[str]) -> None:
