@@ -28,8 +28,8 @@
 # not repeated here; bump those with `uvx prek update`.
 
 # Hook runner and the two hooks that shell out to uvx.
-prek==0.5.7
-mypy==2.4.0
+prek==0.5.10
+mypy==2.4.1
 interrogate==1.7.0
 
 # Test suite: `make test`, `make e2e`.
@@ -39,7 +39,7 @@ PyYAML==6.0.3
 
 # Security audit: `make audit`.
 bandit==1.9.4
-zizmor==1.31.1
+zizmor==1.32.0
 
 # Complexity bars: `make complexity`. Not a gate — it reports the numbers CLAUDE.md
 # states as this repo's bars, and an unpinned radon would let those numbers move without
