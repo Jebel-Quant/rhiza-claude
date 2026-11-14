@@ -51,7 +51,7 @@ radon==6.0.1
 # published coverage badge and the rendered site are outputs nobody diffs, so a silent
 # theme or renderer change is exactly the kind that goes unnoticed.
 mkdocs==1.6.1
-mkdocs-material==9.8.0
+mkdocs-material==9.8.1
 genbadge==1.1.3
 git-cliff==2.14.2
 
