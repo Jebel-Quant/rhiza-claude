@@ -28,7 +28,7 @@
 # not repeated here; bump those with `uvx prek update`.
 
 # Hook runner and the two hooks that shell out to uvx.
-prek==0.5.10
+prek==0.5.11
 mypy==2.4.1
 interrogate==1.7.0
 
