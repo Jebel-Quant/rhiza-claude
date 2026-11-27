@@ -87,6 +87,16 @@ repos:
         language: system
         pass_filenames: false
         files: '^plugin/scripts/.*\.py$'
+      # The complexity bar CLAUDE.md states, made to bind. `make complexity` reports and
+      # exits 0, so a C(17) block reached main three times before a quality run noticed.
+      # Not xenon: it thresholds on letter grades, and grade C spans 11-20, which cannot
+      # say "nothing above 12". The checker compares radon's numbers instead.
+      - id: complexity
+        name: no block in scripts/ above cyclomatic complexity 12
+        entry: uv run --python 3.12 --no-project python plugin/scripts/check_complexity.py
+        language: system
+        pass_filenames: false
+        files: '^plugin/scripts/.*\.py$'
       # The other half of the hook above, and the reason it needed one: interrogate
       # answers "is there a docstring?", never "is what it claims still true?". A repo
       # can hold a perfect coverage number while documenting nothing anyone can run.
