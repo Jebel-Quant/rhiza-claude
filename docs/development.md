@@ -86,7 +86,7 @@ where an explicit rule beats the catch-all.
 
 ```bash
 make help        # list targets
-make fmt         # run prek against every file (delegated to rhiza-task)
+make fmt         # run prek against every file (runs rhiza-task's fmt task)
 make test        # run the script test suite (100% coverage gate)
 make book        # build the documentation site into _book/
 make book-serve  # serve the docs locally with live reload

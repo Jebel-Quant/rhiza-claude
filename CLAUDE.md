@@ -25,13 +25,17 @@ anywhere. That has two consequences worth internalising before you touch anythin
 
 **The targets live in `local.mk`, not the `Makefile`.** The `Makefile` is the shim shape
 rhiza's `core` bundle ships — front door, uv bootstrap, and a `%:` catch-all that
-delegates unknown targets to `rhiza-task`. Nothing here delegates: an explicit rule beats
-a pattern rule, so every target below is `local.mk`'s. Add a target there, never to the
-`Makefile`.
+delegates unknown targets to `rhiza-task`. Nothing here falls through to it: an explicit
+rule beats a pattern rule, so every target below is `local.mk`'s (bar `help`, the shim's
+own). `fmt` is the only one that runs `rhiza-task`, and it names the task from its own
+rule. Add a target there, never to the `Makefile` — and **a target missing from
+`local.mk` is broken, not delegated**: the catch-all forwards it to a CLI with no such
+task. That is how `changelog` and `book-serve` answered `unknown task` from #210 until
+they were restored.
 
 ```bash
 make help           # list every target
-make fmt            # all prek hooks over every file (delegated to rhiza-task)
+make fmt            # all prek hooks over every file (runs rhiza-task's fmt task)
 make audit          # bandit over the scripts, zizmor over the workflows
 make bundle         # regenerate the portable skill bundle under bundle/
 make complexity     # radon CC/MI — the census this file quotes; reports, never fails

@@ -1,9 +1,15 @@
 ## local.mk (repo-owned) -- every target this repo actually runs, `-include`d by the Makefile.
 #
 # The `Makefile` beside this file is the shim shape rhiza's `core` bundle ships: it owns the
-# front door and delegates any unknown target to `rhiza-task`. Nothing here delegates. An
-# explicit rule beats the shim's `%:` pattern rule, so every target below wins over the
-# catch-all, and the `##` comments are what put it in `make help`.
+# front door and delegates any unknown target to `rhiza-task`. Nothing here relies on that:
+# an explicit rule beats the shim's `%:` pattern rule, so every target below wins over the
+# catch-all, and the `##` comments are what put it in `make help`. `fmt` is the one target
+# that runs `rhiza-task` at all, and it names the task explicitly.
+#
+# **A target missing from this file is not "delegated", it is broken.** The catch-all
+# forwards it to a CLI that has no idea what this repo's targets are, so `make changelog`
+# and `make book-serve` -- dropped when the targets moved here in #210 -- answered
+# `unknown task` for months while CLAUDE.md went on documenting both.
 #
 # **Why none of this can move to the CLI.** rhiza-claude is the plugin, not a rhiza-managed
 # repo, and it has no `pyproject.toml` to hold `[tool.rhiza-task]`. Ask the CLI what it would
@@ -18,7 +24,7 @@
 # target that shells out to `uvx` so a machine without uv bootstraps one, rather than failing
 # with "command not found" partway through a recipe.
 
-.PHONY: install audit bundle complexity constraints test e2e portable book paper paper-figures clean
+.PHONY: install fmt audit bundle complexity constraints test e2e portable book book-serve paper paper-figures changelog clean
 
 # The interpreter every `uvx` call runs under, read from `.python-version` so the pin
 # has exactly one home. Exporting UV_PYTHON is what makes it bind: `.python-version` is
@@ -153,10 +159,13 @@ bundle:  ## Regenerate the portable skill bundle under bundle/ (for non-Claude c
 	uv run --python 3.12 --no-project python plugin/scripts/build_bundle.py
 
 # Individual quality checks (mypy, interrogate, test-layout, manifest validation)
-# all run via `make fmt`, which is **not** in this file: it is one of the three targets
-# left to the shim's catch-all, so it resolves to `rhiza-task`'s `fmt` task. That task
-# runs `uvx prek run --all-files --config .pre-commit-config.yaml` — the same runner and
-# the same 25 hooks the retired `lint` target ran.
+# all run via `make fmt`. It is the **one** target here that forwards to `rhiza-task`, and
+# it does so by name rather than by falling through the shim's catch-all: the recipe is
+# exactly what the catch-all would run, but an explicit rule is what puts it in `make help`
+# and keeps "every target is in local.mk" true. It used to be left to the catch-all, and
+# so was missing from `make help` while being the gate CLAUDE.md says to run before every
+# PR. The task runs `uvx prek run --all-files --config .pre-commit-config.yaml` — every
+# hook in that file.
 #
 # The pin survives the delegation, which is the part worth knowing: `UV_CONSTRAINT` is
 # exported above, make exports it into every recipe including the catch-all's, and
@@ -164,6 +173,8 @@ bundle:  ## Regenerate the portable skill bundle under bundle/ (for non-Claude c
 # watching `make fmt` fail to resolve. For a single hook, use e.g.
 # `uvx prek run mypy --all-files` — but note that reaches prek *outside* make, so the
 # constraint does not bind and the tool version is whatever is newest.
+fmt: $(UVX)  ## Run every prek hook over every file (lint, format, mypy, interrogate, contract checks)
+	@$(UVX) $(RHIZA_TASK) fmt
 
 # The book depends on the paper: docs/index.md links the PDF, and `--strict` fails on a
 # link whose target is missing. Building the paper on every book build is also what keeps
@@ -178,6 +189,12 @@ book: paper test $(UVX)  ## Build the documentation site into _book/ (compiles t
 	cp -r $(TESTS)/. docs/reports/
 	uvx --with mkdocs-material mkdocs build --strict
 	uvx "genbadge[coverage]" coverage -i $(TESTS)/coverage.xml -o _book/coverage-badge.svg
+
+# The live-reload twin of `book`. It needs the paper for the same `--strict` reason, but
+# not `test`: the reports are only copied in by `book`, and a preview loop that ran the
+# whole suite before serving would never be used.
+book-serve: paper $(UVX)  ## Serve the docs locally with live reload
+	uvx --with mkdocs-material mkdocs serve
 
 # Two passes: the first resolves the ToC and page references the second typesets.
 # tectonic reruns on its own; pdflatex does not, hence the explicit repeat.
@@ -220,6 +237,12 @@ paper-figures: $(UVX)  ## Regenerate the paper's figures from the captured comma
 constraints: $(UV)  ## Recompile requirements-dev.txt (the full toolchain closure) from requirements-dev.in
 	env -u UV_CONSTRAINT $(UV) pip compile requirements-dev.in -o requirements-dev.txt \
 		--universal --python-version $(UV_PYTHON) --custom-compile-command "make constraints"
+
+# `cliff.toml` holds the grouping; the release workflow runs the same generator through
+# `orhun/git-cliff-action`, so a local run previews what the release will write. Through
+# `uvx` so UV_CONSTRAINT binds the `git-cliff` pin in requirements-dev.in.
+changelog: $(UVX)  ## Regenerate CHANGELOG.md from conventional commits
+	uvx git-cliff --output CHANGELOG.md
 
 clean:  ## Remove generated caches and artifacts (tool caches, __pycache__, _book, test reports, paper build)
 	rm -rf .ruff_cache .mypy_cache .pytest_cache .cache htmlcov
