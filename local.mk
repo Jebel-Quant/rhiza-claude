@@ -81,8 +81,10 @@ audit: $(UVX)  ## Security-audit the bundled scripts (bandit) and the workflows 
 # why they stay.
 #
 # **A report, not a gate.** `radon cc -n C` prints what it finds and exits 0 either way,
-# so this target tells you where you stand; it does not turn a PR red. Making it fail
-# needs a thresholding wrapper (xenon or equivalent) and is its own decision.
+# so this target tells you where you stand; it does not turn a PR red. The C(12) bar is
+# enforced elsewhere, by the `complexity` prek hook (`plugin/scripts/check_complexity.py`),
+# which `make fmt` runs. Not xenon: its letter grades put 11 to 20 in one band, so it
+# cannot say "nothing above 12".
 #
 # It exists as a *target* rather than as two commands in prose for the reason every other
 # `uvx` call here is a target: only inside make does UV_CONSTRAINT bind, so the version is

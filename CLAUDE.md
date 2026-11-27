@@ -60,7 +60,7 @@ live in the target and in `.pre-commit-config.yaml`, so a direct `uvx ruff`/`uvx
 interrogate` invocation measures something else. CI runs these same targets.
 
 To run one hook instead of all of them: `uvx prek run <hook-id> --all-files`
-(`mypy`, `interrogate`, `doc-examples`, `test-layout`, `command-contracts`,
+(`mypy`, `interrogate`, `complexity`, `doc-examples`, `test-layout`, `command-contracts`,
 `prompt-wiring`, `prose-counts`, `manifest-version-parity`, `workflow-pins`).
 
 **The hook runner here is [`prek`](https://prek.j178.dev/), not `pre-commit`.** The
@@ -239,8 +239,13 @@ command ever names. Six families, plus the sync core:
 
 Two consequences worth knowing before you move code. **The size and complexity bars are
 measured, not taste** — no module over 500 lines, no block above cyclomatic C(12), every
-maintainability index at A. `make complexity` reports both; it prints what it finds and
-exits 0, so it tells you where you stand rather than failing the build. Run it bare, as
+maintainability index at A. **The C(12) bar is enforced; the other two are not.** The
+`complexity` hook (`check_complexity.py`) fails the build on any block above 12, closures
+included — it compares radon's numbers rather than going through xenon, whose letter
+grades cannot express the bar (grade C spans 11 to 20). Before it existed the bar was a
+report only, and a C(17) block reached `main` three times. `make complexity` still reports
+all of it and exits 0, so it tells you where you stand: it prints the census below and the
+maintainability index, which no gate checks. Run it bare, as
 with every other target: only inside make does `UV_CONSTRAINT` bind, and a hand-run `uvx
 radon` measures with whatever release is current instead of the pinned one. And the 1:1
 test-layout rule binds these modules too, so extracting one is never a one-file change: it

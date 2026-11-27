@@ -93,11 +93,12 @@ make book-serve  # serve the docs locally with live reload
 make clean       # remove generated caches and artifacts
 ```
 
-`make fmt` runs every quality hook — mypy, interrogate (docstrings),
-`doc-examples` (the doctests inside them), the test-layout check, the manifest
+`make fmt` runs every quality hook — mypy, interrogate (docstrings), the
+complexity ceiling (no block above 12), `doc-examples` (the doctests inside them),
+the test-layout check, the manifest
 JSON/version-parity checks, the workflow pin-parity check, and the three that gate
 the prose (`command-contracts`, `prompt-wiring`, `docs-nav`). To run a single one, use
-`uvx prek run <hook-id> --all-files` (e.g. `mypy`, `interrogate`,
+`uvx prek run <hook-id> --all-files` (e.g. `mypy`, `interrogate`, `complexity`,
 `doc-examples`, `test-layout`, `manifest-version-parity`, `workflow-pins`,
 `docs-nav`).
 
