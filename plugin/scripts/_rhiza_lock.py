@@ -107,30 +107,55 @@ def unmanaged_conflicts(
                 adoptable=kind in {"file", "symlink"},
             )
 
-        for parent in rel.parents:
-            if parent == Path("."):
-                continue
-            parent_kind = _path_kind(target / parent)
-            if parent_kind is not None and parent_kind != "directory" and parent not in tracked:
-                add(
-                    parent,
-                    f"unmanaged {parent_kind} blocks the template directory",
-                    adoptable=False,
-                )
+        for parent, parent_kind in _blocking_parents(target, rel, tracked):
+            add(
+                parent,
+                f"unmanaged {parent_kind} blocks the template directory",
+                adoptable=False,
+            )
 
-        if rel.name in {"action.yml", "action.yaml"}:
-            alias_name = "action.yaml" if rel.name == "action.yml" else "action.yml"
-            alias = rel.with_name(alias_name)
-            alias_kind = _path_kind(target / alias)
-            if alias_kind is not None and alias not in tracked:
-                add(
-                    alias,
-                    f"unmanaged {alias_kind} aliases {rel.as_posix()}",
-                    adoptable=alias_kind in {"file", "symlink"},
-                    alias=True,
-                )
+        alias = _action_alias(rel)
+        alias_kind = None if alias is None else _path_kind(target / alias)
+        if alias is not None and alias_kind is not None and alias not in tracked:
+            add(
+                alias,
+                f"unmanaged {alias_kind} aliases {rel.as_posix()}",
+                adoptable=alias_kind in {"file", "symlink"},
+                alias=True,
+            )
 
     return [conflicts[path] for path in sorted(conflicts)]
+
+
+def _blocking_parents(target: Path, rel: Path, tracked: set[Path]) -> list[tuple[Path, str]]:
+    """Return each untracked ancestor of *rel* that exists as something other than a directory.
+
+    A file sitting where the template needs a directory can never be adopted, because
+    replacing it would mean deleting whatever it is to make room for a tree.
+    """
+    blocking: list[tuple[Path, str]] = []
+    for parent in rel.parents:
+        if parent == Path("."):
+            continue
+        kind = _path_kind(target / parent)
+        if kind is not None and kind != "directory" and parent not in tracked:
+            blocking.append((parent, kind))
+    return blocking
+
+
+def _action_alias(rel: Path) -> Path | None:
+    """Return the other spelling of a GitHub Actions metadata file, or None.
+
+    >>> _action_alias(Path("a/action.yml")).as_posix()
+    'a/action.yaml'
+    >>> _action_alias(Path("action.yaml")).as_posix()
+    'action.yml'
+    >>> _action_alias(Path("a/ci.yml")) is None
+    True
+    """
+    aliases = {"action.yml": "action.yaml", "action.yaml": "action.yml"}
+    other = aliases.get(rel.name)
+    return None if other is None else rel.with_name(other)
 
 
 def clean_orphaned_files(

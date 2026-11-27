@@ -47,6 +47,7 @@ import _rhiza_git as git  # noqa: E402
 import _rhiza_merge as merge  # noqa: E402
 from _rhiza_common import SyncError, log  # noqa: E402
 from _rhiza_lock import (  # noqa: E402
+    OwnershipConflict,
     build_lock,
     clean_orphaned_files,
     previously_tracked,
@@ -165,6 +166,46 @@ def _run_merge(
     return clean
 
 
+def _refuse(conflicts: list[OwnershipConflict]) -> None:
+    """Explain why the sync stopped before writing anything, and what would unblock it."""
+    log("Sync refused: template paths collide with unmanaged repository paths:")
+    for conflict in conflicts:
+        log(f"  conflict: {conflict.path.as_posix()} — {conflict.detail}")
+    log("No template files or lock were written.")
+    if any(not conflict.adoptable for conflict in conflicts):
+        log(
+            "Move or exclude the blocking directory/path; "
+            "--adopt-unmanaged cannot replace it safely."
+        )
+    else:
+        log(
+            "Move or exclude these paths, or rerun with "
+            "--adopt-unmanaged to replace them and record ownership."
+        )
+
+
+def _adopt(target: Path, conflicts: list[OwnershipConflict], upstream_snapshot: Path) -> None:
+    """Replace every adoptable conflict with the template's copy.
+
+    An alias (the other spelling of ``action.yml``) is removed outright, since the template
+    ships the canonical name; anything else is overwritten from *upstream_snapshot*, with a
+    symlink unlinked first so the copy replaces the link rather than writing through it.
+    """
+    for conflict in conflicts:
+        log(f"  adopting: {conflict.path.as_posix()} — {conflict.detail}")
+    adopted_files: list[Path] = []
+    for conflict in conflicts:
+        conflict_path = target / conflict.path
+        if conflict.alias:
+            conflict_path.unlink()
+        else:
+            if conflict_path.is_symlink():
+                conflict_path.unlink()
+            adopted_files.append(conflict.path)
+    if adopted_files:
+        copy_files(upstream_snapshot, target, adopted_files)
+
+
 def sync(target: Path, branch: str, adopt_unmanaged: bool = False) -> int:
     """Run the sync and return a process exit code (see the module docstring)."""
     target = target.resolve()
@@ -192,37 +233,10 @@ def sync(target: Path, branch: str, adopt_unmanaged: bool = False) -> int:
         log(f"Upstream: {len(template_files)} file(s) to consider")
         conflicts = unmanaged_conflicts(target, template_files, previously_tracked(lock_path))
         if conflicts:
-            blocked = [conflict for conflict in conflicts if not conflict.adoptable]
-            if not adopt_unmanaged or blocked:
-                log("Sync refused: template paths collide with unmanaged repository paths:")
-                for conflict in conflicts:
-                    log(f"  conflict: {conflict.path.as_posix()} — {conflict.detail}")
-                log("No template files or lock were written.")
-                if blocked:
-                    log(
-                        "Move or exclude the blocking directory/path; "
-                        "--adopt-unmanaged cannot replace it safely."
-                    )
-                else:
-                    log(
-                        "Move or exclude these paths, or rerun with "
-                        "--adopt-unmanaged to replace them and record ownership."
-                    )
+            if not adopt_unmanaged or any(not c.adoptable for c in conflicts):
+                _refuse(conflicts)
                 return EXIT_ERROR
-
-            for conflict in conflicts:
-                log(f"  adopting: {conflict.path.as_posix()} — {conflict.detail}")
-            adopted_files: list[Path] = []
-            for conflict in conflicts:
-                conflict_path = target / conflict.path
-                if conflict.alias:
-                    conflict_path.unlink()
-                else:
-                    if conflict_path.is_symlink():
-                        conflict_path.unlink()
-                    adopted_files.append(conflict.path)
-            if adopted_files:
-                copy_files(upstream_snapshot, target, adopted_files)
+            _adopt(target, conflicts, upstream_snapshot)
 
         clean = _run_merge(
             ctx,
