@@ -28,16 +28,17 @@ $(UV): $(UVX) ;
 
 .PHONY: help
 
-# **This repo delegates nothing**, so unlike the template's shim there is no
-# `rhiza-task list` above this: every target it has is in `local.mk` and carries a `##`
-# comment. Listing the CLI's catalogue as well would advertise some forty tasks that do
+# **No target here falls through to the catch-all**, so unlike the template's shim there is
+# no `rhiza-task list` above this: every target it has is an explicit rule carrying a `##`
+# comment -- `help` below, the rest in `local.mk`. (`fmt` does run `rhiza-task`, but by name
+# from its own rule.) Listing the CLI's catalogue as well would advertise some forty tasks that do
 # not apply -- `install` there is `uv sync` against a `pyproject.toml` this repo
 # deliberately does not have, and the scoped gates would resolve `source-folder` to a
 # `src/` that does not exist.
 #
 # Note the `0-9` in the class. The old hand-rolled help used `^[a-zA-Z_-]+`, so `e2e:` never
 # matched and the target was missing from `make help` while being fully documented.
-help:
+help:  ## List every target
 	@own=$$(grep -hE '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | sed -e 's/:.*##/ -- /' -e 's/^/  /'); \
 		[ -z "$$own" ] || printf 'Targets:\n%s\n' "$$own"
 
